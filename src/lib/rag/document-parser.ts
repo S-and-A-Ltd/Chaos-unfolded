@@ -1,21 +1,8 @@
-// Polyfill for DOMMatrix in Node.js environment (required by modern pdf-parse / pdfjs-dist)
-if (typeof globalThis.DOMMatrix === 'undefined') {
-  globalThis.DOMMatrix = class DOMMatrix {
-    a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
-    static fromMatrix() { return new DOMMatrix(); }
-    static fromFloat32Array() { return new DOMMatrix(); }
-    static fromFloat64Array() { return new DOMMatrix(); }
-    translate() { return this; }
-    scale() { return this; }
-    multiply() { return this; }
-    inverse() { return this; }
-    transformPoint(p: any) { return p; }
-  } as any;
-}
-
 // ============================================================
 // Document Parser (Server-Side Only)
 // Parses PDF, DOCX, TXT files for RAG pipeline
+// Uses 'unpdf' for PDF extraction — a cross-runtime library
+// with a pre-bundled PDF.js that requires NO worker files.
 // ============================================================
 
 export interface ParseResult {
@@ -25,7 +12,7 @@ export interface ParseResult {
 
 /**
  * Parse a document buffer based on its filename extension.
- * Uses dynamic imports for pdf-parse and mammoth to avoid client-side issues.
+ * Uses dynamic imports for unpdf and mammoth to avoid client-side issues.
  */
 export async function parseDocument(
   buffer: Buffer,
@@ -55,28 +42,17 @@ function parseTxt(buffer: Buffer): ParseResult {
 
 async function parsePdf(buffer: Buffer): Promise<ParseResult> {
   try {
-    // Dynamic import to avoid client-side bundling
-    const pdfParseModule = await import('pdf-parse');
-    const PDFParseClass = (pdfParseModule as any).PDFParse || (pdfParseModule as any).default?.PDFParse;
+    // unpdf includes a pre-bundled serverless build of PDF.js
+    // No worker files needed — works in Node.js, serverless, and edge runtimes
+    const { extractText, getDocumentProxy } = await import('unpdf');
 
-    if (typeof PDFParseClass === 'function') {
-      const parser = new PDFParseClass({ data: buffer });
-      const textResult = await parser.getText();
-      return {
-        text: textResult.text,
-        pageCount: textResult.pages.length,
-      };
-    } else {
-      const pdfParseFunc = (pdfParseModule as any).default || pdfParseModule;
-      if (typeof pdfParseFunc === 'function') {
-        const data = await pdfParseFunc(buffer);
-        return {
-          text: data.text,
-          pageCount: data.numpages,
-        };
-      }
-      throw new Error('Could not find PDFParse class or pdf-parse function in pdf-parse module.');
-    }
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    const { totalPages, text } = await extractText(pdf, { mergePages: true });
+
+    return {
+      text: text as string,
+      pageCount: totalPages,
+    };
   } catch (error: any) {
     console.error('PDF parsing failed:', error);
     throw new Error(
