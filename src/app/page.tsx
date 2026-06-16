@@ -238,7 +238,8 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        throw new Error('Upload failed');
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Upload failed with status ${res.status}`);
       }
 
       const data = await res.json();
@@ -275,10 +276,10 @@ export default function Home() {
         timestamp: Date.now(),
       });
       checkAchievements();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       setEmotion('annoyed');
-      setDialogue("Oh dear, that didn't go well. Are you sure the file isn't corrupted?");
+      setDialogue(`Oh dear, that didn't go well: ${err.message || 'Are you sure the file isn\'t corrupted?'}`);
     }
   };
 
