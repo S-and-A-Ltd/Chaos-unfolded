@@ -47,10 +47,15 @@ async function parsePdf(buffer: Buffer): Promise<ParseResult> {
     const { extractText, getDocumentProxy } = await import('unpdf');
 
     const pdf = await getDocumentProxy(new Uint8Array(buffer));
-    const { totalPages, text } = await extractText(pdf, { mergePages: true });
+    const { totalPages, text } = await extractText(pdf, { mergePages: false });
+
+    // text is an array of strings (one per page) when mergePages is false.
+    // Join pages with double-newlines so paragraph boundaries survive.
+    const pages = text as string[];
+    const fullText = pages.join('\n\n');
 
     return {
-      text: text as string,
+      text: fullText,
       pageCount: totalPages,
     };
   } catch (error: any) {
