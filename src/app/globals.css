@@ -1,0 +1,524 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&family=Nunito:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+/* ============================================================
+   Dazai Study Companion — Pastel Bubble & Kawaii Design System
+   ============================================================ */
+
+:root {
+  --background-start: #b7d3f4;  /* Dream Sky Blue */
+  --background-end: #f1cfed;    /* Candy Pink */
+  --foreground: #5d5770;        /* Deep Pastel Purple/Gray (high readability) */
+  --primary: #7181c8;           /* Lavender Blue */
+  --primary-light: #ababdc;     /* Pale Violet */
+  --primary-dark: #58659c;      /* Deep Lavender */
+  
+  --accent-teal: #a1e5df;       /* Pastel Mint/Teal */
+  --accent-teal-dark: #76c8c0;
+  
+  --accent-amber: #f9d48b;      /* Pastel Butter Yellow */
+  --accent-amber-dark: #e2b761;
+  
+  --surface: rgba(255, 255, 255, 0.45);        /* Milky Semi-transparent Glass */
+  --surface-hover: rgba(255, 255, 255, 0.65);
+  --border: rgba(255, 255, 255, 0.4);
+  --border-hover: rgba(255, 255, 255, 0.65);
+}
+
+@theme inline {
+  --color-background-start: var(--background-start);
+  --color-background-end: var(--background-end);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-light: var(--primary-light);
+  --color-primary-dark: var(--primary-dark);
+  --color-accent-teal: var(--accent-teal);
+  --color-accent-teal-dark: var(--accent-teal-dark);
+  --color-accent-amber: var(--accent-amber);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --font-sans: 'Nunito', system-ui, -apple-system, sans-serif;
+  --font-fredoka: 'Fredoka', system-ui, -apple-system, sans-serif;
+}
+
+/* ---- Global Styles ---- */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-image: url('/images/moon_background.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  color: var(--foreground);
+  font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+/* Kawaii Floating Clouds & Pastel sparkles background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(255, 255, 255, 0.3) 0%, transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.35) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(241, 229, 246, 0.5) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Kawaii Floating Sakura Flowers background (Petals Only) */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cpath d='M 30 20 C 25 10, 35 5, 42 12 C 38 18, 33 22, 30 20' fill='%23ffd1dc' stroke='%23ffb7c5' stroke-width='1' opacity='0.75' transform='rotate(15 30 20)'/%3E%3Cpath d='M 120 60 C 116 52, 124 48, 129 54 C 126 58, 122 61, 120 60' fill='%23ffd1dc' stroke='%23ffb7c5' stroke-width='0.8' opacity='0.6' transform='rotate(-30 120 60) scale(0.8)'/%3E%3Cpath d='M 70 120 C 63 108, 75 102, 83 110 C 79 117, 73 122, 70 120' fill='%23ffd1dc' stroke='%23ffb7c5' stroke-width='1.2' opacity='0.7' transform='rotate(45 70 120) scale(1.1)'/%3E%3Cpath d='M 140 15 C 137 10, 143 7, 147 11 C 145 14, 142 16, 140 15' fill='%23ffd1dc' stroke='%23ffb7c5' stroke-width='0.7' opacity='0.5' transform='rotate(10 140 15) scale(0.6)'/%3E%3Cpath d='M 15 140 C 11 132, 19 128, 24 134 C 21 138, 17 141, 15 140' fill='%23ffd1dc' stroke='%23ffb7c5' stroke-width='0.8' opacity='0.65' transform='rotate(-15 15 140) scale(0.9)'/%3E%3C/svg%3E");
+  opacity: 0.65;
+  pointer-events: none;
+  z-index: 0;
+  animation: bg-slide 30s linear infinite;
+}
+
+@keyframes bg-slide {
+  from { background-position: 0 0; }
+  to { background-position: 480px 480px; }
+}
+
+/* Heading Typography */
+h1, h2, h3, h4, .font-heading {
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 600;
+}
+
+/* ---- Glassmorphism Milky Cards (Kawaii Bubble Style) ---- */
+
+.glass-card {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.65);
+  border: 3px solid #7c6a75;
+  border-radius: 24px;
+  box-shadow: 0 6px 0 #7c6a75;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: #7c6a75;
+  box-shadow: 0 8px 0 #7c6a75;
+  transform: translateY(-2px);
+}
+
+.glass-card-static {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 255, 255, 0.65);
+  border: 3px solid #7c6a75;
+  border-radius: 24px;
+  box-shadow: 0 6px 0 #7c6a75;
+}
+
+/* Cozy Blue Card */
+.glass-card-blue {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(183, 211, 244, 0.65);
+  border: 3px solid #7c6a75;
+  border-radius: 24px;
+  box-shadow: 0 6px 0 #7c6a75;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.glass-card-blue:hover {
+  background: rgba(183, 211, 244, 0.8);
+  box-shadow: 0 8px 0 #7c6a75;
+  transform: translateY(-2px);
+}
+.glass-card-blue-static {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(183, 211, 244, 0.65);
+  border: 3px solid #7c6a75;
+  border-radius: 24px;
+  box-shadow: 0 6px 0 #7c6a75;
+}
+
+/* Cozy Pink Card */
+.glass-card-pink {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 209, 220, 0.7);
+  border: 3px solid #7c6a75;
+  border-radius: 24px;
+  box-shadow: 0 6px 0 #7c6a75;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.glass-card-pink:hover {
+  background: rgba(255, 209, 220, 0.85);
+  box-shadow: 0 8px 0 #7c6a75;
+  transform: translateY(-2px);
+}
+.glass-card-pink-static {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 209, 220, 0.7);
+  border: 3px solid #7c6a75;
+  border-radius: 24px;
+  box-shadow: 0 6px 0 #7c6a75;
+}
+
+/* Cozy Lavender Card */
+.glass-card-lavender {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(171, 171, 220, 0.65);
+  border: 3px solid #7c6a75;
+  border-radius: 24px;
+  box-shadow: 0 6px 0 #7c6a75;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.glass-card-lavender:hover {
+  background: rgba(171, 171, 220, 0.8);
+  box-shadow: 0 8px 0 #7c6a75;
+  transform: translateY(-2px);
+}
+.glass-card-lavender-static {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(171, 171, 220, 0.65);
+  border: 3px solid #7c6a75;
+  border-radius: 24px;
+  box-shadow: 0 6px 0 #7c6a75;
+}
+
+/* Cozy Yellow Card */
+.glass-card-yellow {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(249, 212, 139, 0.65);
+  border: 3px solid #7c6a75;
+  border-radius: 24px;
+  box-shadow: 0 6px 0 #7c6a75;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.glass-card-yellow:hover {
+  background: rgba(249, 212, 139, 0.8);
+  box-shadow: 0 8px 0 #7c6a75;
+  transform: translateY(-2px);
+}
+.glass-card-yellow-static {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(249, 212, 139, 0.65);
+  border: 3px solid #7c6a75;
+  border-radius: 24px;
+  box-shadow: 0 6px 0 #7c6a75;
+}
+
+/* Cozy Mint Card */
+.glass-card-mint {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(161, 229, 223, 0.65);
+  border: 3px solid #7c6a75;
+  border-radius: 24px;
+  box-shadow: 0 6px 0 #7c6a75;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.glass-card-mint:hover {
+  background: rgba(161, 229, 223, 0.8);
+  box-shadow: 0 8px 0 #7c6a75;
+  transform: translateY(-2px);
+}
+.glass-card-mint-static {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(161, 229, 223, 0.65);
+  border: 3px solid #7c6a75;
+  border-radius: 24px;
+  box-shadow: 0 6px 0 #7c6a75;
+}
+
+/* ---- Cute Bubble Glows ---- */
+
+.glow-purple {
+  box-shadow:
+    0 0 20px rgba(241, 207, 237, 0.4),
+    0 0 40px rgba(113, 129, 200, 0.08),
+    inset 0 0 15px rgba(255, 255, 255, 0.4);
+  border-color: rgba(241, 207, 237, 0.8) !important;
+}
+
+.glow-teal {
+  box-shadow:
+    0 0 20px rgba(161, 229, 223, 0.4),
+    0 0 40px rgba(118, 200, 192, 0.08),
+    inset 0 0 15px rgba(255, 255, 255, 0.4);
+  border-color: rgba(161, 229, 223, 0.8) !important;
+}
+
+.glow-amber {
+  box-shadow:
+    0 0 20px rgba(249, 212, 139, 0.4),
+    0 0 40px rgba(226, 183, 97, 0.08),
+    inset 0 0 15px rgba(255, 255, 255, 0.4);
+  border-color: rgba(249, 212, 139, 0.8) !important;
+}
+
+.glow-red {
+  box-shadow:
+    0 0 25px rgba(249, 142, 139, 0.5),
+    0 0 50px rgba(249, 142, 139, 0.15),
+    inset 0 0 15px rgba(255, 255, 255, 0.4);
+  border-color: rgba(249, 142, 139, 0.8) !important;
+}
+
+/* ---- Custom Scrollbar ---- */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary-light);
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary-light) rgba(255, 255, 255, 0.15);
+}
+
+/* ---- Selection ---- */
+
+::selection {
+  background: rgba(241, 207, 237, 0.6);
+  color: var(--primary-dark);
+}
+
+/* ---- Cute Text Bubble Pointer & Bubble styling ---- */
+
+.cute-speech-bubble {
+  position: relative;
+  background: rgba(255, 255, 255, 0.85);
+  border: 3px solid #ababdc;
+  border-radius: 20px;
+  box-shadow: 0 6px 16px rgba(113, 129, 200, 0.08);
+}
+
+/* ---- Animation Keyframes ---- */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.02); filter: brightness(1.03); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(1deg); }
+}
+
+@keyframes float-confetti {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(400px) rotate(360deg); opacity: 0; }
+}
+
+@keyframes typing-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.015); }
+}
+
+/* ---- Utility Classes ---- */
+
+.animate-fadeIn { animation: fadeIn 0.5s ease-out forwards; }
+.animate-slideUp { animation: slideUp 0.5s ease-out forwards; }
+.animate-slideDown { animation: slideDown 0.4s ease-out forwards; }
+.animate-pulse-glow { animation: pulse-glow 2.5s ease-in-out infinite; }
+.animate-float { animation: float 5s ease-in-out infinite; }
+.animate-typing-cursor { animation: typing-cursor 1s ease-in-out infinite; }
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+.animate-breathe { animation: breathe 5s ease-in-out infinite; }
+
+/* ---- Gradient Text (Pastel Bubble Style) ---- */
+
+.gradient-text-purple {
+  background: linear-gradient(135deg, #7181c8, #978bfa, #c4b5fd);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-teal {
+  background: linear-gradient(135deg, #76c8c0, #2dd4bf, #7ae2d6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-amber {
+  background: linear-gradient(135deg, #e2b761, #f9d48b, #fcd89b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ============================================================
+   Retro Gameboy & uwustagram Custom Visual Styles
+   ============================================================ */
+
+.retro-gameboy {
+  background: #ababdc;
+  border: 4px solid #7c6a75;
+  border-radius: 24px 24px 80px 24px;
+  box-shadow: 
+    0 12px 0 #7181c8, 
+    inset 0 4px 0 rgba(255, 255, 255, 0.4),
+    0 20px 30px rgba(113, 129, 200, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.gameboy-screen-frame {
+  background: #7c6a75;
+  border-radius: 12px;
+  border: 3px solid #5d5770;
+  box-shadow: inset 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.gameboy-screen {
+  background: #cbf3d2; /* Backlit green screen, much brighter and cute! */
+  border-radius: 6px;
+  box-shadow: 
+    inset 0 2px 5px rgba(0,0,0,0.15),
+    0 0 12px rgba(203, 243, 210, 0.65); /* glowing retro screen */
+  font-family: 'Fredoka', monospace;
+  color: #1b3524; /* High contrast text */
+}
+
+.gameboy-dpad {
+  position: relative;
+  width: 90px;
+  height: 90px;
+}
+
+.gameboy-dpad-axis {
+  background: #7c6a75;
+  border-radius: 6px;
+  box-shadow: 
+    0 3px 0 #5d5770,
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.gameboy-button-round {
+  background: #f98e8b;
+  border: 3px solid #7c6a75;
+  border-radius: 50%;
+  box-shadow: 
+    0 3px 0 #c26563,
+    inset 0 1px 0 rgba(255,255,255,0.4);
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.gameboy-button-round:active {
+  transform: translateY(3px);
+  box-shadow: 0 0px 0 #c26563;
+}
+
+.gameboy-pill-button {
+  background: #8a7c85;
+  border: 2px solid #5d5770;
+  border-radius: 10px;
+  box-shadow: 0 2px 0 #5d5770;
+  transform: rotate(-25deg);
+  cursor: pointer;
+}
+
+.gameboy-pill-button:active {
+  transform: rotate(-25deg) translateY(1px);
+  box-shadow: 0 1px 0 #5d5770;
+}
+
+/* uwustagram Card Style */
+.uwustagram-card {
+  background: rgba(255, 209, 220, 0.75);
+  border: 3px solid #7c6a75;
+  border-radius: 20px;
+  box-shadow: 
+    0 6px 0 #7c6a75,
+    0 12px 24px rgba(113, 129, 200, 0.06);
+  color: #5d5770;
+}
+
+.uwustagram-header {
+  border-bottom: 2px solid #7c6a75;
+  font-family: 'Fredoka', sans-serif;
+}
+
+/* Cloud Dialogue Bubble */
+.cloud-speech-bubble {
+  position: relative;
+  background: rgba(255, 255, 255, 0.95);
+  border: 3px solid #7c6a75;
+  border-radius: 30px;
+  box-shadow: 0 8px 0 #7c6a75;
+}
+
+.cloud-speech-bubble::before {
+  content: '';
+  position: absolute;
+  bottom: -15px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 25px;
+  height: 25px;
+  background: rgba(255, 255, 255, 0.95);
+  border-right: 3px solid #7c6a75;
+  border-bottom: 3px solid #7c6a75;
+  z-index: 5;
+}
+
