@@ -74,21 +74,112 @@ export default function StudyHub({ documents }: StudyHubProps) {
 
   const activeDoc = pdfDocs.find(d => d.id === selectedDocId);
 
-  // Highlight search queries in text
-  const renderHighlightedText = (text: string, search: string) => {
-    if (!search) return <p className="whitespace-pre-wrap leading-relaxed text-sm text-[#3e3835]">{text}</p>;
-    
-    const parts = text.split(new RegExp(`(${search.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi'));
+  // Highlight search matches within a string
+  const highlightMatches = (text: string, search: string) => {
+    if (!search) return <>{text}</>;
+    const escaped = search.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
     return (
-      <p className="whitespace-pre-wrap leading-relaxed text-sm text-[#3e3835]">
-        {parts.map((part, i) => 
+      <>
+        {parts.map((part, i) =>
           part.toLowerCase() === search.toLowerCase() ? (
             <mark key={i} className="bg-yellow-200 text-[#1e1c1a] font-bold px-0.5 rounded">{part}</mark>
           ) : (
             part
           )
         )}
-      </p>
+      </>
+    );
+  };
+
+  // Render extracted text in a readable, structured format
+  const renderHighlightedText = (text: string, search: string) => {
+    // Split into blocks by double-newlines (paragraph boundaries)
+    // Also treat lines of just whitespace as paragraph separators
+    const blocks = text.split(/\n\s*\n/).filter(b => b.trim().length > 0);
+
+    return (
+      <div className="space-y-4 text-sm text-[#3e3835] leading-relaxed">
+        {blocks.map((block, blockIdx) => {
+          const trimmed = block.trim();
+          const lines = trimmed.split('\n').map(l => l.trimEnd());
+
+          // Detect heading-like blocks:
+          // - Short (≤120 chars total), single or two lines
+          // - Mostly uppercase, or ends with a colon, or starts with a number like "Chapter 1"
+          const isSingleBlock = lines.length <= 2;
+          const isShort = trimmed.length <= 120;
+          const isUpperCase = trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed);
+          const looksLikeHeading = isSingleBlock && isShort && (
+            isUpperCase ||
+            /^(chapter|section|part|module|unit|lesson|topic)\s/i.test(trimmed) ||
+            /^[\dIVXivx]+[\.\)]\s/.test(trimmed) ||
+            (trimmed.endsWith(':') && trimmed.length < 80)
+          );
+
+          if (looksLikeHeading) {
+            return (
+              <h3
+                key={blockIdx}
+                className="font-black text-[#5d5770] text-base tracking-wide pt-2 border-b border-[#7c6a75]/15 pb-1.5"
+              >
+                {highlightMatches(trimmed, search)}
+              </h3>
+            );
+          }
+
+          // Detect bullet/numbered list blocks
+          const allBulleted = lines.every(l => /^\s*[•\-–—\*◦▪▸►]\s/.test(l) || l.trim() === '');
+          const allNumbered = lines.every(l => /^\s*\d+[\.\)]\s/.test(l) || l.trim() === '');
+
+          if (allBulleted || allNumbered) {
+            return (
+              <ul key={blockIdx} className={`space-y-1.5 ${allNumbered ? 'list-decimal' : 'list-disc'} list-outside ml-5`}>
+                {lines.filter(l => l.trim()).map((line, li) => (
+                  <li key={li} className="text-sm leading-relaxed">
+                    {highlightMatches(
+                      line.replace(/^\s*[•\-–—\*◦▪▸►\d+[\.\)]]\s*/, ''),
+                      search
+                    )}
+                  </li>
+                ))}
+              </ul>
+            );
+          }
+
+          // Regular paragraph: join lines with spaces so extracted text flows naturally
+          // (PDF extractors often hard-wrap lines at column boundaries)
+          const paragraphText = lines
+            .reduce<string[]>((acc, line) => {
+              if (line.trim() === '') {
+                // Preserve intentional blank lines within a block
+                acc.push('');
+                return acc;
+              }
+              const prev = acc.length > 0 ? acc[acc.length - 1] : null;
+              if (
+                prev !== null &&
+                prev !== '' &&
+                // If prev line doesn't end with sentence-ending punctuation or colon,
+                // it was likely hard-wrapped — join with a space
+                !/[.!?:;]$/.test(prev.trimEnd()) &&
+                !/^\s{4,}/.test(line) // Don't join indented lines (could be code/table)
+              ) {
+                acc[acc.length - 1] = prev + ' ' + line.trim();
+              } else {
+                acc.push(line);
+              }
+              return acc;
+            }, [])
+            .join('\n');
+
+          return (
+            <p key={blockIdx} className="whitespace-pre-wrap leading-[1.75] text-sm text-[#3e3835]">
+              {highlightMatches(paragraphText, search)}
+            </p>
+          );
+        })}
+      </div>
     );
   };
 
