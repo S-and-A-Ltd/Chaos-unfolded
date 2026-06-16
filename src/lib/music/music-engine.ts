@@ -169,6 +169,16 @@ export class MusicEngine {
   }
 
   /**
+   * Seek to a position in seconds.
+   */
+  seek(positionSeconds: number): void {
+    if (this.currentHowl) {
+      this.currentHowl.seek(positionSeconds);
+    }
+  }
+
+
+  /**
    * Auto-select music category based on mood score.
    */
   setMoodBasedCategory(moodScore: number): void {

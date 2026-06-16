@@ -257,7 +257,7 @@ export default function Home() {
         extractedText: data.text,
         topics: data.topics || [],
         summary: data.summary || '',
-        isProcessed: (data.topics && data.topics.length > 0) || false,
+        isProcessed: true,
       };
 
       const updatedDocs = [...documents, newDoc];
@@ -539,7 +539,6 @@ export default function Home() {
                 <DocumentUploader 
                   onUpload={handleUpload} 
                   onStartSelecting={() => { isSelectingFileRef.current = true; }} 
-                  onAddYoutubeUrl={handleAddYoutubeUrl}
                 />
               </div>
               

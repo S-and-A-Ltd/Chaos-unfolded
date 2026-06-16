@@ -25,6 +25,7 @@ export default function MusicControls() {
   const [scrubberPercent, setScrubberPercent] = useState(0);
   const [currentTimeStr, setCurrentTimeStr] = useState('0:00');
   const [durationTimeStr, setDurationTimeStr] = useState('0:00');
+  const [isScrubbing, setIsScrubbing] = useState(false);
 
   // Cover photo loading state
   const [coverSrc, setCoverSrc] = useState(`/images/bgm_lofi.png`);
@@ -47,21 +48,24 @@ export default function MusicControls() {
     }
   }, [volume, engine, updateSettings]);
 
+  const formatTime = (secs: number) => {
+    const minutes = Math.floor(secs / 60) || 0;
+    const seconds = Math.floor(secs % 60) || 0;
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  };
+
   // Scrubber timer tick
   useEffect(() => {
-    if (!isPlaying || !engine) {
-      setScrubberPercent(0);
-      setCurrentTimeStr('0:00');
+    if (!isPlaying || !engine || isScrubbing) {
+      if (!isPlaying) {
+        setScrubberPercent(0);
+        setCurrentTimeStr('0:00');
+      }
       return;
     }
 
-    const formatTime = (secs: number) => {
-      const minutes = Math.floor(secs / 60) || 0;
-      const seconds = Math.floor(secs % 60) || 0;
-      return `${minutes}:${String(seconds).padStart(2, '0')}`;
-    };
-
     const updateProgress = () => {
+      if (isScrubbing) return;
       const current = engine.getCurrentPosition();
       const duration = engine.getDuration();
       
@@ -77,7 +81,20 @@ export default function MusicControls() {
     const interval = setInterval(updateProgress, 250);
 
     return () => clearInterval(interval);
-  }, [isPlaying, engine]);
+  }, [isPlaying, engine, isScrubbing]);
+
+  const handleScrubberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const percent = parseFloat(e.target.value);
+    setScrubberPercent(percent);
+    
+    if (engine) {
+      const duration = engine.getDuration();
+      const newPos = (percent / 100) * duration;
+      setCurrentTimeStr(formatTime(newPos));
+      engine.seek(newPos);
+    }
+  };
+
 
   const handlePlayPause = () => {
     updateSettings({ enableBGM: !enableBGM });
@@ -179,12 +196,19 @@ export default function MusicControls() {
       {/* 5. Progress slider */}
       <div className="w-full flex items-center justify-between gap-3 mt-1 px-0.5 font-fredoka font-black text-xs text-[#5d5770]/60">
         <span className="select-none min-w-[28px] text-left">{currentTimeStr}</span>
-        <div className="flex-1 h-3 rounded-full bg-[#ababdc]/20 overflow-hidden relative border border-[#7c6a75]/15">
-          <div
-            className="h-full bg-[#7181c8] rounded-full transition-all duration-300"
-            style={{ width: `${scrubberPercent}%` }}
-          />
-        </div>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="0.1"
+          value={scrubberPercent}
+          onMouseDown={() => setIsScrubbing(true)}
+          onMouseUp={() => setIsScrubbing(false)}
+          onTouchStart={() => setIsScrubbing(true)}
+          onTouchEnd={() => setIsScrubbing(false)}
+          onChange={handleScrubberChange}
+          className="flex-1 h-2 bg-[#ababdc]/20 rounded-full appearance-none cursor-pointer accent-[#7181c8] border border-[#7c6a75]/15 focus:outline-none"
+        />
         <span className="select-none min-w-[28px] text-right">{durationTimeStr}</span>
       </div>
 
