@@ -377,13 +377,7 @@ export default function Home() {
     const doc = documents.find((d) => d.id === targetDocId);
     if (!doc) return;
 
-    const key = openaiApiKey;
-    if (!key) {
-      setDialogue("I need an OpenAI API Key in Settings to generate custom quizzes for you!");
-      setEmotion('concerned');
-      setIsSettingsOpen(true);
-      return;
-    }
+    const key = openaiApiKey || '';
 
     setIsLoadingQuiz(true);
     setDialogue("Crafting some witty questions for you... Try not to fail, okay?");
@@ -409,10 +403,16 @@ export default function Home() {
         setDialogue("I couldn't come up with any questions. Maybe the content is too simple?");
         setEmotion('disappointed');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setDialogue("Something went wrong with the quiz generator. Let's blame the servers.");
-      setEmotion('annoyed');
+      if (err.message === 'API_KEY_MISSING') {
+        setDialogue("I need an OpenAI API Key to generate custom quizzes! Please add it to your .env file or enter it in Settings.");
+        setEmotion('concerned');
+        setIsSettingsOpen(true);
+      } else {
+        setDialogue("Something went wrong with the quiz generator. Let's blame the servers.");
+        setEmotion('annoyed');
+      }
     } finally {
       setIsLoadingQuiz(false);
     }

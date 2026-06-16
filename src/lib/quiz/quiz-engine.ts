@@ -54,6 +54,10 @@ export class QuizEngine {
       });
 
       if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        if (response.status === 400 && (errData.error === 'OpenAI API key is missing.' || errData.error?.includes('API key'))) {
+          throw new Error('API_KEY_MISSING');
+        }
         console.error('Quiz generation failed:', response.status);
         return [];
       }
@@ -62,7 +66,10 @@ export class QuizEngine {
       const questions: QuizQuestion[] = data.questions ?? [];
       this.questionCache = questions;
       return questions;
-    } catch (error) {
+    } catch (error: any) {
+      if (error.message === 'API_KEY_MISSING') {
+        throw error;
+      }
       console.error('Quiz generation error:', error);
       return [];
     }
