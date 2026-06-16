@@ -1,3 +1,18 @@
+// Polyfill for DOMMatrix in Node.js environment (required by modern pdf-parse / pdfjs-dist)
+if (typeof globalThis.DOMMatrix === 'undefined') {
+  globalThis.DOMMatrix = class DOMMatrix {
+    a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+    static fromMatrix() { return new DOMMatrix(); }
+    static fromFloat32Array() { return new DOMMatrix(); }
+    static fromFloat64Array() { return new DOMMatrix(); }
+    translate() { return this; }
+    scale() { return this; }
+    multiply() { return this; }
+    inverse() { return this; }
+    transformPoint(p: any) { return p; }
+  } as any;
+}
+
 // ============================================================
 // Document Parser (Server-Side Only)
 // Parses PDF, DOCX, TXT files for RAG pipeline
