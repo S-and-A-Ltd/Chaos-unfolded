@@ -89,7 +89,7 @@ export default function CassettePlayer() {
   const reelAnimation = isPlaying ? 'spin 3s linear infinite' : 'none';
 
   return (
-    <Card padding="md" bgVariant="pink" className="w-full shadow-[0_6px_0_#7c6a75] font-fredoka flex flex-col gap-6">
+    <Card padding="md" bgVariant="blue" className="w-full shadow-[0_6px_0_#4a7b9e] !bg-[#72A7D6] font-fredoka flex flex-col gap-6 border-2 border-[#4a7b9e]">
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes spin {
           from { transform: rotate(0deg); }
