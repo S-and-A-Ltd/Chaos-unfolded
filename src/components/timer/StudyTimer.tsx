@@ -126,13 +126,12 @@ export default function StudyTimer() {
 
       {/* Controls Grid */}
       <div className="w-full grid grid-cols-2 gap-4 mt-3 px-1 items-center">
-        {/* Left Side: Clickable D-pad Grid */}
-        <div className="grid grid-cols-3 grid-rows-3 w-32 h-32 bg-[#7c6a75] rounded-2xl p-1.5 border-3 border-[#5d5770] shadow-md mx-auto items-center justify-center">
+        <div className="grid grid-cols-3 grid-rows-3 w-32 h-32 bg-[#7c6a75] rounded-2xl p-1.5 border-3 border-[#5d5770] shadow-md mx-auto place-items-center">
           {/* Row 1 */}
           <div />
           <button
             onClick={() => handleAdjustSeconds(30)}
-            className="flex items-center justify-center text-sm font-black text-white hover:text-pink-200 active:scale-90 cursor-pointer select-none h-7 w-7"
+            className="flex items-center justify-center text-sm font-black text-white hover:text-pink-200 active:scale-90 cursor-pointer select-none h-8 w-8"
             title="Add 30 Seconds"
           >
             ▲
@@ -142,15 +141,15 @@ export default function StudyTimer() {
           {/* Row 2 */}
           <button
             onClick={() => handleAdjustStudy(-5)}
-            className="flex items-center justify-center text-sm font-black text-white hover:text-pink-200 active:scale-90 cursor-pointer select-none h-7 w-7"
+            className="flex items-center justify-center text-sm font-black text-white hover:text-pink-200 active:scale-90 cursor-pointer select-none h-8 w-8"
             title="Decrease 5 Min"
           >
             ◀
           </button>
-          <div className="bg-[#5d5770] rounded-full w-5 h-5 mx-auto shadow-inner border border-black/20" />
+          <div className="bg-[#5d5770] rounded-full w-5 h-5 shadow-inner border border-black/20" />
           <button
             onClick={() => handleAdjustStudy(5)}
-            className="flex items-center justify-center text-sm font-black text-white hover:text-pink-200 active:scale-90 cursor-pointer select-none h-7 w-7"
+            className="flex items-center justify-center text-sm font-black text-white hover:text-pink-200 active:scale-90 cursor-pointer select-none h-8 w-8"
             title="Increase 5 Min"
           >
             ▶
@@ -160,7 +159,7 @@ export default function StudyTimer() {
           <div />
           <button
             onClick={() => handleAdjustSeconds(-30)}
-            className="flex items-center justify-center text-sm font-black text-white hover:text-pink-200 active:scale-90 cursor-pointer select-none h-7 w-7"
+            className="flex items-center justify-center text-sm font-black text-white hover:text-pink-200 active:scale-90 cursor-pointer select-none h-8 w-8"
             title="Subtract 30 Seconds"
           >
             ▼
