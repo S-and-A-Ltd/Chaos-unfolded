@@ -89,7 +89,7 @@ export default function CassettePlayer() {
   const reelAnimation = isPlaying ? 'spin 3s linear infinite' : 'none';
 
   return (
-    <Card padding="md" bgVariant="blue" className="w-full shadow-[0_6px_0_rgba(162,183,228,0.4)] font-fredoka flex flex-col gap-6 border-2 border-[#a2b7e4]/50">
+    <Card padding="md" bgVariant="blue" className="w-full shadow-[0_6px_0_rgba(112,135,187,0.4)] font-fredoka flex flex-col gap-6 border-2 border-[#7087bb]/50">
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes spin {
           from { transform: rotate(0deg); }
@@ -98,7 +98,7 @@ export default function CassettePlayer() {
       `}} />
       
       {/* Cassette Illustration */}
-      <div className="relative w-full aspect-[1.6/1] bg-[#a2b7e4]/60 backdrop-blur-md rounded-2xl border-4 border-[#7c6a75]/40 p-3 sm:p-4 flex flex-col justify-between overflow-hidden shadow-inner">
+      <div className="relative w-full aspect-[1.6/1] bg-[#7087bb]/60 backdrop-blur-md rounded-2xl border-4 border-[#7c6a75]/40 p-3 sm:p-4 flex flex-col justify-between overflow-hidden shadow-inner">
         {/* Corner Screws */}
         <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-[#7c6a75]" />
         <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#7c6a75]" />
