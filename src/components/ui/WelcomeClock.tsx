@@ -118,25 +118,25 @@ export default function WelcomeClock() {
       {/* System info slider widget - Cozy Pink */}
       <div className="w-full glass-card-pink-static p-8 shadow-[0_6px_0_#7c6a75] flex flex-col gap-6 font-fredoka">
         <div className="text-center text-lg font-black uppercase tracking-widest text-[#5d5770] border-b-2 border-[#7c6a75]/25 pb-3">
-          System Info
+          Weather
         </div>
 
         {/* Weather Widget */}
-        <div className="bg-white/50 border-2 border-[#7c6a75]/15 rounded-xl p-4 flex flex-col items-center justify-center shadow-sm">
+        <div className="bg-white/50 border-2 border-[#7c6a75]/15 rounded-2xl p-8 flex flex-col items-center justify-center shadow-sm min-h-[220px]">
           {weatherLoading ? (
-            <span className="text-[#5d5770] text-sm animate-pulse font-bold tracking-wide">Checking skies... 🌤️</span>
+            <span className="text-[#5d5770] text-lg animate-pulse font-bold tracking-wide">Checking skies... 🌤️</span>
           ) : weather ? (
-            <div className="flex items-center gap-4 w-full">
-              <div className={`w-12 h-12 rounded-full ${weather.color} border-2 border-[#7c6a75]/20 flex items-center justify-center text-2xl shadow-inner shrink-0`}>
+            <div className="flex flex-col items-center gap-4 w-full">
+              <div className={`w-24 h-24 rounded-full ${weather.color} border-3 border-[#7c6a75]/20 flex items-center justify-center text-5xl shadow-inner shrink-0 transform transition-transform hover:scale-105 duration-300`}>
                 {weather.emoji}
               </div>
-              <div className="flex flex-col flex-1">
-                <span className="text-sm font-black text-[#5d5770] tracking-wide uppercase leading-tight">{weather.description}</span>
-                <span className="text-xs text-[#5d5770]/70 font-bold">{weather.temp}°C Outside</span>
+              <div className="flex flex-col items-center mt-2">
+                <span className="text-xl font-black text-[#5d5770] tracking-wide uppercase leading-tight text-center">{weather.description}</span>
+                <span className="text-lg text-[#5d5770]/70 font-bold mt-1">{weather.temp}°C Outside</span>
               </div>
             </div>
           ) : (
-            <span className="text-[#5d5770]/60 text-sm italic font-bold">Weather unavailable ☁️</span>
+            <span className="text-[#5d5770]/60 text-lg italic font-bold">Weather unavailable ☁️</span>
           )}
         </div>
       </div>
