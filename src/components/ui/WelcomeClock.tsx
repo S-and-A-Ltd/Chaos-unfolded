@@ -37,31 +37,25 @@ export default function WelcomeClock() {
   }, []);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}&current_weather=true`);
-            const data = await res.json();
-            if (data.current_weather) {
-              const visual = getWeatherVisuals(data.current_weather.weathercode);
-              setWeather({
-                temp: Math.round(data.current_weather.temperature),
-                ...visual
-              });
-            }
-          } catch (e) {
-            console.error(e);
-          } finally {
-            setWeatherLoading(false);
-          }
-        },
-        () => setWeatherLoading(false),
-        { timeout: 10000 }
-      );
-    } else {
-      setWeatherLoading(false);
-    }
+    const fetchWeather = async () => {
+      try {
+        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&current_weather=true');
+        const data = await res.json();
+        if (data.current_weather) {
+          const visual = getWeatherVisuals(data.current_weather.weathercode);
+          setWeather({
+            temp: Math.round(data.current_weather.temperature),
+            ...visual
+          });
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setWeatherLoading(false);
+      }
+    };
+
+    fetchWeather();
   }, []);
 
   if (!time) {
@@ -144,52 +138,6 @@ export default function WelcomeClock() {
           ) : (
             <span className="text-[#5d5770]/60 text-sm italic font-bold">Weather unavailable ☁️</span>
           )}
-        </div>
-
-        <div className="flex flex-col gap-5 mt-1">
-          {/* Slider 1: microphone / focus score */}
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-between text-sm font-black text-[#5d5770] uppercase tracking-wider">
-              <span>🎤 microphone (focus)</span>
-              <span>{focusProgress}%</span>
-            </div>
-            <div className="w-full h-6 bg-white border-3 border-[#7c6a75] rounded-full overflow-hidden p-0.5 shadow-inner">
-              <div className="h-full bg-[#b7d3f4] rounded-full border-2 border-[#7c6a75]/20" style={{ width: `${focusProgress}%` }} />
-            </div>
-          </div>
-
-          {/* Slider 2: speaker / streak */}
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-between text-sm font-black text-[#5d5770] uppercase tracking-wider">
-              <span>🔊 speaker (streak)</span>
-              <span>{currentStreak} d</span>
-            </div>
-            <div className="w-full h-6 bg-white border-3 border-[#7c6a75] rounded-full overflow-hidden p-0.5 shadow-inner">
-              <div className="h-full bg-[#f1cfed] rounded-full border-2 border-[#7c6a75]/20" style={{ width: `${streakProgress}%` }} />
-            </div>
-          </div>
-
-          {/* Slider 3: brightness / xp level */}
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-between text-sm font-black text-[#5d5770] uppercase tracking-wider">
-              <span>☀️ brightness (xp lvl)</span>
-              <span>Lvl {level}</span>
-            </div>
-            <div className="w-full h-6 bg-white border-3 border-[#7c6a75] rounded-full overflow-hidden p-0.5 shadow-inner">
-              <div className="h-full bg-[#ababdc] rounded-full border-2 border-[#7c6a75]/20" style={{ width: `${xpProgress}%` }} />
-            </div>
-          </div>
-
-          {/* Slider 4: battery / hours */}
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-between text-sm font-black text-[#5d5770] uppercase tracking-wider">
-              <span>🔋 battery (study hrs)</span>
-              <span>{totalStudyHours.toFixed(1)} h</span>
-            </div>
-            <div className="w-full h-6 bg-white border-3 border-[#7c6a75] rounded-full overflow-hidden p-0.5 shadow-inner">
-              <div className="h-full bg-[#76c8c0] rounded-full border-2 border-[#7c6a75]/20" style={{ width: `${hoursProgress}%` }} />
-            </div>
-          </div>
         </div>
       </div>
     </div>
