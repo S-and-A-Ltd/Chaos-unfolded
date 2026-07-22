@@ -16,30 +16,30 @@ interface WeatherData {
 const getWeatherVisuals = (code: number, isDay: number): { emoji: string, description: string, boxColor: string, textColor: string, iconBg: string } => {
   // Sunny / Clear Sky (1000)
   if (code === 1000) {
-    if (isDay === 1) return { emoji: '☀️', description: 'Sunny', boxColor: 'bg-[#FDB201]', textColor: 'text-[#5d5770]', iconBg: 'bg-white/40' };
-    return { emoji: '✨', description: 'Clear Sky', boxColor: 'bg-[#AADCF2]', textColor: 'text-[#5d5770]', iconBg: 'bg-white/40' };
+    if (isDay === 1) return { emoji: '☀️', description: 'Sunny', boxColor: 'bg-[#FDB201]/60 backdrop-blur-sm', textColor: 'text-[#5d5770]', iconBg: 'bg-white/40' };
+    return { emoji: '✨', description: 'Clear Sky', boxColor: 'bg-[#AADCF2]/60 backdrop-blur-sm', textColor: 'text-[#5d5770]', iconBg: 'bg-white/40' };
   }
   
   // Cloudy (1003, 1006, 1009, 1030, 1135, 1147)
   const cloudyCodes = [1003, 1006, 1009, 1030, 1135, 1147];
   if (cloudyCodes.includes(code)) {
-    return { emoji: '☁️', description: 'Cloudy', boxColor: 'bg-[#9197AA]', textColor: 'text-white', iconBg: 'bg-white/20' };
+    return { emoji: '☁️', description: 'Cloudy', boxColor: 'bg-[#9197AA]/60 backdrop-blur-sm', textColor: 'text-white', iconBg: 'bg-white/20' };
   }
   
   // Snowy (1066, 1069, 1114, 1117, 1210 to 1237, 1249 to 1264)
   const snowyCodes = [1066, 1069, 1114, 1117, 1210, 1213, 1216, 1219, 1222, 1225, 1237, 1249, 1252, 1255, 1258, 1261, 1264, 1279, 1282];
   if (snowyCodes.includes(code)) {
-    return { emoji: '❄️', description: 'Snowy', boxColor: 'bg-[#FDFFF4]', textColor: 'text-[#5d5770]', iconBg: 'bg-[#7c6a75]/10' };
+    return { emoji: '❄️', description: 'Snowy', boxColor: 'bg-[#FDFFF4]/60 backdrop-blur-sm', textColor: 'text-[#5d5770]', iconBg: 'bg-[#7c6a75]/10' };
   }
   
   // Thunderstorm / Stormy
   const stormyCodes = [1087, 1273, 1276, 1279, 1282];
   if (stormyCodes.includes(code)) {
-    return { emoji: '🌩️', description: 'Stormy', boxColor: 'bg-[#2E3E6D]', textColor: 'text-white', iconBg: 'bg-white/10' };
+    return { emoji: '🌩️', description: 'Stormy', boxColor: 'bg-[#2E3E6D]/70 backdrop-blur-sm', textColor: 'text-white', iconBg: 'bg-white/10' };
   }
 
   // Default to Rainy for all other precipitation
-  return { emoji: '🌧️', description: 'Rainy', boxColor: 'bg-[#2E3E6D]', textColor: 'text-white', iconBg: 'bg-white/10' };
+  return { emoji: '🌧️', description: 'Rainy', boxColor: 'bg-[#2E3E6D]/70 backdrop-blur-sm', textColor: 'text-white', iconBg: 'bg-white/10' };
 };
 
 export default function WelcomeClock() {
