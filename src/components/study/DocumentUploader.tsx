@@ -96,7 +96,85 @@ export default function DocumentUploader({ onUpload, onStartSelecting }: Documen
   );
 
   return (
-    <Card padding="none" bgVariant="mint" className="overflow-hidden shadow-[0_6px_0_#7c6a75]">
+    <Card padding="md" bgVariant="mint" className="shadow-[0_6px_0_#7c6a75] space-y-4">
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".pdf,.docx,.txt"
+        onChange={handleInputChange}
+        className="hidden"
+      />
+
+      {/* 1. Header section */}
+      <div>
+        <h2 className="text-base font-fredoka font-bold text-[#5d5770] flex items-center gap-2">
+          <span>📚</span> Current Study Session
+        </h2>
+        <p className="text-xs text-[#5d5770]/70 mt-0.5">
+          Upload documents to automatically generate flashcards, quizzes, and summaries.
+        </p>
+      </div>
+
+      {/* 2. Supported formats row */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] font-fredoka font-bold uppercase tracking-wider text-[#5d5770]/60">
+          Supported Formats
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+          {/* PDF */}
+          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/70 border border-[#7c6a75]/15 text-xs font-semibold text-[#5d5770] shadow-sm">
+            <span className="flex items-center gap-1.5">
+              <span>📄</span> PDF
+            </span>
+          </div>
+
+          {/* DOCX */}
+          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/70 border border-[#7c6a75]/15 text-xs font-semibold text-[#5d5770] shadow-sm">
+            <span className="flex items-center gap-1.5">
+              <span>📝</span> DOCX
+            </span>
+          </div>
+
+          {/* TXT */}
+          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/70 border border-[#7c6a75]/15 text-xs font-semibold text-[#5d5770] shadow-sm">
+            <span className="flex items-center gap-1.5">
+              <span>📃</span> TXT
+            </span>
+          </div>
+
+          {/* PPT */}
+          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/40 border border-[#7c6a75]/10 text-xs font-medium text-[#5d5770]/60">
+            <span className="flex items-center gap-1.5">
+              <span>📊</span> PPT
+            </span>
+            <span className="text-[8px] px-1 py-0.2 rounded bg-[#7181c8]/20 text-[#7181c8] font-bold uppercase tracking-wider">
+              soon
+            </span>
+          </div>
+
+          {/* Websites */}
+          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/40 border border-[#7c6a75]/10 text-xs font-medium text-[#5d5770]/60">
+            <span className="flex items-center gap-1.5">
+              <span>🌐</span> Websites
+            </span>
+            <span className="text-[8px] px-1 py-0.2 rounded bg-[#7181c8]/20 text-[#7181c8] font-bold uppercase tracking-wider">
+              soon
+            </span>
+          </div>
+
+          {/* YouTube */}
+          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/40 border border-[#7c6a75]/10 text-xs font-medium text-[#5d5770]/60">
+            <span className="flex items-center gap-1.5">
+              <span>▶️</span> YouTube
+            </span>
+            <span className="text-[8px] px-1 py-0.2 rounded bg-[#7181c8]/20 text-[#7181c8] font-bold uppercase tracking-wider">
+              soon
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Drop zone area */}
       <motion.div
         onDragOver={(e) => {
           e.preventDefault();
@@ -110,23 +188,15 @@ export default function DocumentUploader({ onUpload, onStartSelecting }: Documen
         }}
         animate={isDragging ? { scale: 1.01 } : { scale: 1 }}
         className={`
-          relative p-10 border-3 border-dashed rounded-2xl
+          relative p-6 border-3 border-dashed rounded-2xl
           cursor-pointer transition-all duration-300 text-center
           ${
             isDragging
               ? 'border-[#7181c8] bg-[#7181c8]/10'
-              : 'border-transparent hover:bg-white/40'
+              : 'border-[#7c6a75]/30 hover:border-[#7181c8] bg-white/40 hover:bg-white/60'
           }
         `}
       >
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".pdf,.docx,.txt"
-          onChange={handleInputChange}
-          className="hidden"
-        />
-
         <AnimatePresence mode="wait">
           {isUploading ? (
             <motion.div
@@ -134,7 +204,7 @@ export default function DocumentUploader({ onUpload, onStartSelecting }: Documen
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex flex-col items-center gap-3"
+              className="flex flex-col items-center gap-3 py-2"
             >
               {/* Spinning loader */}
               <div className="relative w-12 h-12">
@@ -159,7 +229,7 @@ export default function DocumentUploader({ onUpload, onStartSelecting }: Documen
                   />
                 </svg>
               </div>
-              <p className="text-sm text-[#5d5770]/80 font-semibold">Processing document…</p>
+              <p className="text-sm text-[#5d5770]/80 font-semibold font-fredoka">Processing document…</p>
 
               {/* Progress bar */}
               <div className="w-48 h-1.5 rounded-full bg-[#ababdc]/20 overflow-hidden">
@@ -176,9 +246,9 @@ export default function DocumentUploader({ onUpload, onStartSelecting }: Documen
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex flex-col items-center gap-3"
+              className="flex flex-col items-center gap-2 py-2"
             >
-              <div className="w-14 h-14 rounded-2xl bg-[#ababdc]/10 border border-[#ababdc]/30 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-2xl bg-[#ababdc]/20 border border-[#ababdc]/40 flex items-center justify-center">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7181c8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                   <polyline points="17 8 12 3 7 8" />
@@ -186,10 +256,10 @@ export default function DocumentUploader({ onUpload, onStartSelecting }: Documen
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-semibold text-[#5d5770]">
+                <p className="text-sm font-fredoka font-semibold text-[#5d5770]">
                   Drop study materials here
                 </p>
-                <p className="text-xs text-[#5d5770]/60 mt-1">
+                <p className="text-xs text-[#5d5770]/60 mt-0.5">
                   PDF, DOCX, or TXT • Max 20MB
                 </p>
               </div>
@@ -204,13 +274,30 @@ export default function DocumentUploader({ onUpload, onStartSelecting }: Documen
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="text-xs text-red-500 mt-3 font-semibold"
+              className="text-xs text-red-500 mt-2 font-semibold"
             >
               {error}
             </motion.p>
           )}
         </AnimatePresence>
       </motion.div>
+
+      {/* 4. Prominent + Add Material Button */}
+      <button
+        type="button"
+        onClick={() => {
+          onStartSelecting?.();
+          inputRef.current?.click();
+        }}
+        disabled={isUploading}
+        className="w-full py-3 px-4 rounded-xl bg-[#7181c8] hover:bg-[#6372b8] text-white font-fredoka font-bold text-sm shadow-[0_4px_0_#5d5770] border-2 border-[#7c6a75] active:translate-y-0.5 active:shadow-[0_2px_0_#5d5770] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+        <span>+ Add Material</span>
+      </button>
     </Card>
   );
 }

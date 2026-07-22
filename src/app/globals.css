@@ -522,3 +522,20 @@ h1, h2, h3, h4, .font-heading {
   z-index: 5;
 }
 
+/* ============================================================
+   Cassette Player Animations
+   ============================================================ */
+
+@keyframes reel-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.cassette-reel-spinning {
+  animation: reel-spin 2s linear infinite;
+}
+
+.cassette-reel-stopped {
+  animation: none;
+}
+

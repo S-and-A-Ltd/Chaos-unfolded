@@ -42,8 +42,8 @@ export default function StudyMaterials({ documents, onDelete }: StudyMaterialsPr
   return (
     <Card padding="md" bgVariant="lavender" className="shadow-[0_6px_0_#7c6a75]">
       <div className="flex items-center justify-between mb-3 px-1">
-        <h3 className="text-sm font-semibold text-[#5d5770]">
-          Study Materials
+        <h3 className="text-xs font-black text-[#5d5770] uppercase tracking-wider font-fredoka">
+          📂 Uploaded Resources
         </h3>
         <span className="text-xs text-[#5d5770]/60">{documents.length} files</span>
       </div>
@@ -80,6 +80,9 @@ export default function StudyMaterials({ documents, onDelete }: StudyMaterialsPr
                     </span>
                     <span className="text-[10px] text-[#5d5770]/60">
                       {doc.topics.length} topics
+                    </span>
+                    <span className="text-[10px] text-[#5d5770]/50">
+                      {new Date(doc.uploadedAt).toLocaleDateString()}
                     </span>
                     {!doc.isProcessed && (
                       <span className="text-[10px] text-amber-500 flex items-center gap-1 font-semibold">

@@ -22,7 +22,7 @@ import QuizModal from '@/components/quiz/QuizModal';
 import QuizResults from '@/components/quiz/QuizResults';
 import FocusWarning from '@/components/focus/FocusWarning';
 import FocusScore from '@/components/focus/FocusScore';
-import MusicControls from '@/components/music/MusicControls';
+import CassettePlayer from '@/components/music/CassettePlayer';
 import AchievementPopup from '@/components/gamification/AchievementPopup';
 import ProfileCard from '@/components/gamification/ProfileCard';
 import DashboardView from '@/components/dashboard/DashboardView';
@@ -481,42 +481,50 @@ export default function Home() {
       <FocusWarning />
       <TimerControls />
 
-      {/* 1. Thin Retro status bar at top */}
-      <div className="w-full h-9 bg-white/75 border-b-3 border-[#7c6a75] px-6 flex items-center justify-between z-30 font-fredoka text-[11px] font-black text-[#5d5770] select-none">
-        <div className="flex items-center gap-3">
-          <span>🎭 DAZAI OS v1.2</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span>🌸 GIRLY POP MODE</span>
-          <span className="text-[#7c6a75]/30">|</span>
-          <span>🔋 100% FOCUS</span>
-        </div>
-      </div>
+
 
       {/* 2. Main content area (completely scrollable naturally) */}
       <div className="flex-1 w-full">
         {activeTab === 'study' ? (
-          <div className="w-full max-w-[1550px] mx-auto p-8 pb-32 grid grid-cols-1 md:grid-cols-3 gap-20 items-start">
+          <div className="w-full max-w-[1550px] mx-auto p-8 pb-32 grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             {/* Left Column */}
-            <div className="flex flex-col gap-16 w-full">
+            <div className="flex flex-col gap-8 w-full">
               <WelcomeClock />
               <ProfileCard />
               
-              {/* Cute connection details - Cozy Pink/Orange Gradient */}
-              <div className="w-full bg-gradient-to-tr from-[#ffd1dc] to-[#fcd89b] border-3 border-[#7c6a75] rounded-2xl p-6 shadow-[0_6px_0_#7c6a75] flex flex-col gap-4 font-fredoka text-sm font-black text-[#5d5770]">
-                <div className="flex items-center justify-between border-b border-[#7c6a75]/15 pb-2">
-                  <span>🤖 AI Companion</span>
-                  <span className="text-[#58659c] uppercase font-black">● Online / Awake</span>
+              {/* Companion Status */}
+              <Card padding="md" bgVariant="pink" className="w-full shadow-[0_6px_0_#7c6a75]">
+                <div className="flex items-center gap-2 border-b-2 border-[#7c6a75]/15 pb-3 mb-4">
+                  <span className="text-lg">💫</span>
+                  <h3 className="text-xs font-black text-[#5d5770] uppercase tracking-wider">Companion Status</h3>
                 </div>
-                <div className="flex items-center justify-between border-b border-[#7c6a75]/15 pb-2">
-                  <span>📶 Companion Synced</span>
-                  <span className="text-[#58659c] uppercase font-black">● Connected</span>
+                <div className="space-y-3 font-fredoka text-sm font-bold text-[#5d5770]">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2">💭 Mood</span>
+                    <span className="text-xs font-black text-[#58659c] uppercase">{currentEmotion === 'happy' ? '😊 Happy' : currentEmotion === 'proud' ? '💜 Proud' : currentEmotion === 'excited' ? '✨ Excited' : currentEmotion === 'neutral' ? '😐 Neutral' : currentEmotion === 'concerned' ? '😟 Concerned' : currentEmotion === 'annoyed' ? '😤 Annoyed' : currentEmotion === 'disappointed' ? '😔 Disappointed' : '🔥 Motivated'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2">💕 Relationship</span>
+                    <span className="text-xs font-black text-[#58659c] uppercase">{useCharacterStore.getState().relationshipLevel === 'new_user' ? 'New Friend' : useCharacterStore.getState().relationshipLevel === 'consistent_student' ? 'Study Buddy' : 'Trusted Partner'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2">⭐ Affinity</span>
+                    <span className="text-xs font-black text-[#58659c]">{useCharacterStore.getState().relationshipXP} / 100</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2">🤝 Trust</span>
+                    <span className="text-xs font-black text-[#58659c]">{Math.min(100, Math.round((useUserStore.getState().currentStreak * 5) + (useSessionStore.getState().focus.focusScore * 0.5)))}%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2">📚 Study Hours</span>
+                    <span className="text-xs font-black text-[#58659c]">{useUserStore.getState().totalStudyHours.toFixed(1)} hrs</span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-[#7c6a75]/10 pt-3">
+                    <span className="flex items-center gap-2">📍 Status</span>
+                    <span className={`text-xs font-black uppercase ${isRunning && !isBreak ? 'text-green-600' : isBreak ? 'text-amber-600' : 'text-[#58659c]'}`}>{isRunning && !isBreak ? '● Studying' : isBreak ? '● On Break' : '● Idle'}</span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>💝 Vibes Check</span>
-                  <span className="text-pink-600 uppercase font-black">100% Cozy</span>
-                </div>
-              </div>
+              </Card>
 
               {/* Quiz Results */}
               <div className="w-full">
@@ -525,7 +533,7 @@ export default function Home() {
             </div>
 
             {/* Center Column */}
-            <div className="flex flex-col gap-16 items-center w-full">
+            <div className="flex flex-col gap-8 items-center w-full">
               {/* Character speech bubble + avatar centered */}
               <div className="w-full flex flex-col items-center gap-6">
                 <CharacterDialogue />
@@ -550,9 +558,9 @@ export default function Home() {
             </div>
 
             {/* Right Column */}
-            <div className="flex flex-col gap-16 w-full">
+            <div className="flex flex-col gap-8 w-full">
               {/* uwustagram Music Player */}
-              <MusicControls />
+              <CassettePlayer />
               
               {/* Shifted Mood Meter */}
               <MoodMeter />
