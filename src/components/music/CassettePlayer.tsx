@@ -98,7 +98,7 @@ export default function CassettePlayer() {
       `}} />
       
       {/* Cassette Illustration */}
-      <div className="relative w-full aspect-[1.6/1] bg-[#ffd1dc] rounded-2xl border-4 border-[#7c6a75] p-3 sm:p-4 flex flex-col justify-between overflow-hidden shadow-inner">
+      <div className="relative w-full aspect-[1.6/1] bg-[#416799] rounded-2xl border-4 border-[#7c6a75] p-3 sm:p-4 flex flex-col justify-between overflow-hidden shadow-inner">
         {/* Corner Screws */}
         <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-[#7c6a75]" />
         <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#7c6a75]" />
@@ -106,7 +106,7 @@ export default function CassettePlayer() {
         <div className="absolute bottom-2 right-2 w-2 h-2 rounded-full bg-[#7c6a75]" />
 
         {/* Inner Label Area */}
-        <div className="flex-1 rounded-xl border-2 border-[#7c6a75] mx-2 sm:mx-4 mt-2 mb-6 flex flex-col relative shadow-sm overflow-hidden bg-[#ffd1dc]/20">
+        <div className="flex-1 rounded-xl border-2 border-[#7c6a75] mx-2 sm:mx-4 mt-2 mb-6 flex flex-col relative shadow-sm overflow-hidden bg-white/20">
           
           {/* Picture Layer (Bottom) */}
           <div className="absolute inset-0 z-0 bg-white">
@@ -156,9 +156,9 @@ export default function CassettePlayer() {
 
         {/* Bottom Ridges */}
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-1/3 h-3 sm:h-4 flex flex-col justify-between">
-          <div className="w-full h-[2px] bg-[#e8a0b0]" />
-          <div className="w-full h-[2px] bg-[#e8a0b0]" />
-          <div className="w-full h-[2px] bg-[#e8a0b0]" />
+          <div className="w-full h-[2px] bg-[#2a4569]" />
+          <div className="w-full h-[2px] bg-[#2a4569]" />
+          <div className="w-full h-[2px] bg-[#2a4569]" />
         </div>
       </div>
 
