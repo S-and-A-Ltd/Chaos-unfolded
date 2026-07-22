@@ -92,48 +92,48 @@ export default function CassettePlayer() {
         <div className="absolute bottom-2 right-2 w-2 h-2 rounded-full bg-[#7c6a75]" />
 
         {/* Inner Label Area */}
-        <div className="flex-1 bg-white/50 rounded-xl border-2 border-[#7c6a75] mx-2 sm:mx-4 mt-2 mb-6 flex flex-col p-2 relative shadow-sm">
-          {/* Header */}
-          <div className="flex justify-between items-center px-2 mb-2 text-[#5d5770] font-bold text-[10px] sm:text-xs">
-            <span>SIDE A</span>
-            <span>{currentInfo.label}</span>
-          </div>
-
-          {/* Center Window Area */}
-          <div className="flex justify-center items-center gap-2 sm:gap-6 flex-1 bg-[#ffd1dc]/30 rounded-lg py-2">
+        <div className="flex-1 rounded-xl border-2 border-[#7c6a75] mx-2 sm:mx-4 mt-2 mb-6 flex flex-col relative shadow-sm overflow-hidden bg-[#ffd1dc]/20">
+          
+          {/* Reels Layer (Behind) */}
+          <div className="absolute inset-0 flex justify-center items-center gap-12 sm:gap-20 z-0">
             {/* Left Reel */}
-            <div className="w-10 h-10 sm:w-16 sm:h-16 rounded-full bg-[#7c6a75] flex items-center justify-center p-1" style={{ animation: reelAnimation }}>
+            <div className="w-12 h-12 sm:w-20 sm:h-20 rounded-full bg-[#7c6a75] flex items-center justify-center p-1" style={{ animation: reelAnimation }}>
               <div className="w-full h-full rounded-full border-[3px] sm:border-[4px] border-[#ababdc] flex items-center justify-center relative">
                 <div className="w-1/2 h-1/2 bg-[#ababdc] rounded-full" />
-                {/* Spokes */}
                 <div className="absolute w-full h-[2px] bg-[#ababdc]" />
                 <div className="absolute h-full w-[2px] bg-[#ababdc]" />
               </div>
-            </div>
-
-            {/* Artwork Window */}
-            <div className="w-16 h-10 sm:w-24 sm:h-16 bg-white border-2 sm:border-4 border-[#7c6a75] rounded-md overflow-hidden relative">
-              <img 
-                src={currentInfo.cover} 
-                alt="Track Cover" 
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                  (e.target as HTMLImageElement).parentElement!.style.background = 'linear-gradient(45deg, #ffd1dc, #ababdc)';
-                }}
-              />
             </div>
 
             {/* Right Reel */}
-            <div className="w-10 h-10 sm:w-16 sm:h-16 rounded-full bg-[#7c6a75] flex items-center justify-center p-1" style={{ animation: reelAnimation }}>
+            <div className="w-12 h-12 sm:w-20 sm:h-20 rounded-full bg-[#7c6a75] flex items-center justify-center p-1" style={{ animation: reelAnimation }}>
               <div className="w-full h-full rounded-full border-[3px] sm:border-[4px] border-[#ababdc] flex items-center justify-center relative">
                 <div className="w-1/2 h-1/2 bg-[#ababdc] rounded-full" />
-                {/* Spokes */}
                 <div className="absolute w-full h-[2px] bg-[#ababdc]" />
                 <div className="absolute h-full w-[2px] bg-[#ababdc]" />
               </div>
             </div>
           </div>
+
+          {/* Full Cover Image Overlay (Transparent, on top of reels) */}
+          <div className="absolute inset-0 z-10 bg-white/30 backdrop-blur-[1px]">
+            <img 
+              src={currentInfo.cover} 
+              alt="Track Cover" 
+              className="w-full h-full object-cover opacity-75 mix-blend-multiply"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+                (e.target as HTMLImageElement).parentElement!.style.background = 'linear-gradient(45deg, rgba(255,209,220,0.8), rgba(171,171,220,0.8))';
+              }}
+            />
+          </div>
+
+          {/* Header (On top of everything) */}
+          <div className="relative z-20 flex justify-between items-center px-3 py-2 text-[#5d5770] font-bold text-[10px] sm:text-xs">
+            <span className="bg-white/70 backdrop-blur-sm px-2 py-0.5 rounded-md border border-[#7c6a75]/20">SIDE A</span>
+            <span className="bg-white/70 backdrop-blur-sm px-2 py-0.5 rounded-md border border-[#7c6a75]/20">{currentInfo.label}</span>
+          </div>
+
         </div>
 
         {/* Bottom Ridges */}
