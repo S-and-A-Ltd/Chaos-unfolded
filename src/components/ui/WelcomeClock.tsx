@@ -58,7 +58,7 @@ export default function WelcomeClock() {
   useEffect(() => {
     const fetchWeather = async () => {
       try {
-        const res = await fetch('https://api.weatherapi.com/v1/current.json?key=99017624499747b997a10357262104&q=52.52,13.41');
+        const res = await fetch('https://api.weatherapi.com/v1/current.json?key=99017624499747b997a10357262104&q=auto:ip');
         const data = await res.json();
         if (data.current) {
           const visual = getWeatherVisuals(data.current.condition.code, data.current.is_day);
