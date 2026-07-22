@@ -115,58 +115,7 @@ export default function DocumentUploader({ onUpload, onStartSelecting }: Documen
         </p>
       </div>
 
-      {/* 2. Supported formats row */}
-      <div className="space-y-1.5">
-        <p className="text-[10px] font-fredoka font-bold uppercase tracking-wider text-[#5d5770]/60">
-          Supported Formats
-        </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-          {/* PDF */}
-          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/70 border border-[#7c6a75]/15 text-xs font-semibold text-[#5d5770] shadow-sm">
-            <span className="flex items-center gap-1.5">
-              <span>📄</span> PDF
-            </span>
-          </div>
 
-          {/* DOCX */}
-          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/70 border border-[#7c6a75]/15 text-xs font-semibold text-[#5d5770] shadow-sm">
-            <span className="flex items-center gap-1.5">
-              <span>📝</span> DOCX
-            </span>
-          </div>
-
-          {/* TXT */}
-          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/70 border border-[#7c6a75]/15 text-xs font-semibold text-[#5d5770] shadow-sm">
-            <span className="flex items-center gap-1.5">
-              <span>📃</span> TXT
-            </span>
-          </div>
-
-          {/* PPT */}
-          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/70 border border-[#7c6a75]/15 text-xs font-semibold text-[#5d5770] shadow-sm">
-            <span className="flex items-center gap-1.5">
-              <span>📊</span> PPT
-            </span>
-          </div>
-
-          {/* Websites */}
-          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/70 border border-[#7c6a75]/15 text-xs font-semibold text-[#5d5770] shadow-sm">
-            <span className="flex items-center gap-1.5">
-              <span>🌐</span> Website
-            </span>
-          </div>
-
-          {/* YouTube */}
-          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/40 border border-[#7c6a75]/10 text-xs font-medium text-[#5d5770]/60">
-            <span className="flex items-center gap-1.5">
-              <span>▶️</span> YouTube
-            </span>
-            <span className="text-[8px] px-1 py-0.2 rounded bg-[#7181c8]/20 text-[#7181c8] font-bold uppercase tracking-wider">
-              soon
-            </span>
-          </div>
-        </div>
-      </div>
 
       {/* 3. Drop zone area */}
       <motion.div
@@ -254,7 +203,7 @@ export default function DocumentUploader({ onUpload, onStartSelecting }: Documen
                   Drop study materials here
                 </p>
                 <p className="text-xs text-[#5d5770]/60 mt-0.5">
-                  PDF, DOCX, or TXT • Max 20MB
+                  PDF, DOCX, TXT, PPT, or Website • Max 20MB
                 </p>
               </div>
             </motion.div>
