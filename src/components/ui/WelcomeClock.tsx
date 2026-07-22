@@ -8,19 +8,29 @@ interface WeatherData {
   temp: number;
   description: string;
   emoji: string;
-  color: string;
+  boxColor: string;
+  textColor: string;
+  iconBg: string;
 }
 
-const getWeatherVisuals = (code: number): { emoji: string, description: string, color: string } => {
-  if (code === 0) return { emoji: '☀️', description: 'Sunny & Warm', color: 'bg-[#fcd89b]' };
-  if (code <= 3) return { emoji: '☁️', description: 'Cloudy & Cozy', color: 'bg-[#ababdc]' };
-  if (code <= 48) return { emoji: '🌫️', description: 'Misty Morning', color: 'bg-[#c5c1d3]' };
-  if (code <= 57) return { emoji: '🌧️', description: 'Soft Drizzle', color: 'bg-[#b7d3f4]' };
-  if (code <= 67) return { emoji: '☔', description: 'Rainy & Relaxing', color: 'bg-[#7181c8]' };
-  if (code <= 77) return { emoji: '❄️', description: 'Snowy & Snug', color: 'bg-[#e2f1f8]' };
-  if (code <= 82) return { emoji: '☔', description: 'Refreshing Showers', color: 'bg-[#b7d3f4]' };
-  if (code <= 86) return { emoji: '❄️', description: 'Snow Flurries', color: 'bg-[#e2f1f8]' };
-  return { emoji: '🌩️', description: 'Stormy (Stay Safe!)', color: 'bg-[#5d5770]' };
+const getWeatherVisuals = (code: number): { emoji: string, description: string, boxColor: string, textColor: string, iconBg: string } => {
+  // Clear Sky: Van Gogh Blue #AADCF2
+  if (code === 0) return { emoji: '☀️', description: 'Clear Sky', boxColor: 'bg-[#AADCF2]', textColor: 'text-[#5d5770]', iconBg: 'bg-white/40' };
+  
+  // Sunny / Mainly Clear: Chinese Yellow #FDB201
+  if (code === 1) return { emoji: '🌤️', description: 'Sunny', boxColor: 'bg-[#FDB201]', textColor: 'text-[#5d5770]', iconBg: 'bg-white/40' };
+  
+  // Cloudy: Azul #9197AA
+  if (code <= 48) return { emoji: '☁️', description: 'Cloudy', boxColor: 'bg-[#9197AA]', textColor: 'text-white', iconBg: 'bg-white/20' };
+  
+  // Rainy: Mystification #2E3E6D
+  if (code <= 67 || (code >= 80 && code <= 82)) return { emoji: '🌧️', description: 'Rainy', boxColor: 'bg-[#2E3E6D]', textColor: 'text-white', iconBg: 'bg-white/10' };
+  
+  // Snowy: Ivory #FDFFF4
+  if (code <= 77 || (code >= 85 && code <= 86)) return { emoji: '❄️', description: 'Snowy', boxColor: 'bg-[#FDFFF4]', textColor: 'text-[#5d5770]', iconBg: 'bg-[#7c6a75]/10' };
+  
+  // Thunderstorm fallback -> Mystification
+  return { emoji: '🌩️', description: 'Stormy', boxColor: 'bg-[#2E3E6D]', textColor: 'text-white', iconBg: 'bg-white/10' };
 };
 
 export default function WelcomeClock() {
@@ -122,20 +132,20 @@ export default function WelcomeClock() {
         </div>
 
         {/* Weather Widget */}
-        <div className="bg-white/60 border-2 border-[#7c6a75]/15 rounded-2xl p-5 flex items-center justify-between shadow-sm mt-2 hover:shadow-md transition-all">
+        <div className={`${weather ? weather.boxColor : 'bg-white/60'} border-2 border-[#7c6a75]/15 rounded-2xl p-5 flex items-center justify-between shadow-sm mt-2 hover:shadow-md transition-all duration-300`}>
           {weatherLoading ? (
             <span className="text-[#5d5770] text-sm animate-pulse font-bold tracking-wide w-full text-center py-4">Checking skies... 🌤️</span>
           ) : weather ? (
             <div className="flex items-center gap-5 w-full">
-              <div className={`w-16 h-16 rounded-2xl ${weather.color} border-3 border-[#7c6a75]/15 flex items-center justify-center text-3xl shadow-inner shrink-0 transform transition-transform hover:rotate-6 hover:scale-105 duration-300`}>
+              <div className={`w-16 h-16 rounded-2xl ${weather.iconBg} border-3 border-[#7c6a75]/15 flex items-center justify-center text-3xl shadow-inner shrink-0 transform transition-transform hover:rotate-6 hover:scale-105 duration-300`}>
                 {weather.emoji}
               </div>
               <div className="flex flex-col flex-1 justify-center">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-black text-[#5d5770] tracking-tighter">{weather.temp}°</span>
-                  <span className="text-sm font-bold text-[#5d5770]/60 uppercase">C</span>
+                  <span className={`text-3xl font-black ${weather.textColor} tracking-tighter`}>{weather.temp}°</span>
+                  <span className={`text-sm font-bold ${weather.textColor} opacity-60 uppercase`}>C</span>
                 </div>
-                <span className="text-sm font-bold text-[#5d5770]/80 tracking-wide uppercase leading-tight mt-0.5">{weather.description}</span>
+                <span className={`text-sm font-bold ${weather.textColor} opacity-80 tracking-wide uppercase leading-tight mt-0.5`}>{weather.description}</span>
               </div>
             </div>
           ) : (
