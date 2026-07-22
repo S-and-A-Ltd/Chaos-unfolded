@@ -122,21 +122,24 @@ export default function WelcomeClock() {
         </div>
 
         {/* Weather Widget */}
-        <div className="bg-white/50 border-2 border-[#7c6a75]/15 rounded-2xl p-8 flex flex-col items-center justify-center shadow-sm min-h-[220px]">
+        <div className="bg-white/60 border-2 border-[#7c6a75]/15 rounded-2xl p-5 flex items-center justify-between shadow-sm mt-2 hover:shadow-md transition-all">
           {weatherLoading ? (
-            <span className="text-[#5d5770] text-lg animate-pulse font-bold tracking-wide">Checking skies... 🌤️</span>
+            <span className="text-[#5d5770] text-sm animate-pulse font-bold tracking-wide w-full text-center py-4">Checking skies... 🌤️</span>
           ) : weather ? (
-            <div className="flex flex-col items-center gap-4 w-full">
-              <div className={`w-24 h-24 rounded-full ${weather.color} border-3 border-[#7c6a75]/20 flex items-center justify-center text-5xl shadow-inner shrink-0 transform transition-transform hover:scale-105 duration-300`}>
+            <div className="flex items-center gap-5 w-full">
+              <div className={`w-16 h-16 rounded-2xl ${weather.color} border-3 border-[#7c6a75]/15 flex items-center justify-center text-3xl shadow-inner shrink-0 transform transition-transform hover:rotate-6 hover:scale-105 duration-300`}>
                 {weather.emoji}
               </div>
-              <div className="flex flex-col items-center mt-2">
-                <span className="text-xl font-black text-[#5d5770] tracking-wide uppercase leading-tight text-center">{weather.description}</span>
-                <span className="text-lg text-[#5d5770]/70 font-bold mt-1">{weather.temp}°C Outside</span>
+              <div className="flex flex-col flex-1 justify-center">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-black text-[#5d5770] tracking-tighter">{weather.temp}°</span>
+                  <span className="text-sm font-bold text-[#5d5770]/60 uppercase">C</span>
+                </div>
+                <span className="text-sm font-bold text-[#5d5770]/80 tracking-wide uppercase leading-tight mt-0.5">{weather.description}</span>
               </div>
             </div>
           ) : (
-            <span className="text-[#5d5770]/60 text-lg italic font-bold">Weather unavailable ☁️</span>
+            <span className="text-[#5d5770]/60 text-sm italic font-bold w-full text-center py-4">Weather unavailable ☁️</span>
           )}
         </div>
       </div>
