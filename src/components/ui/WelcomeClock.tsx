@@ -4,15 +4,64 @@ import { useState, useEffect } from 'react';
 import { useUserStore } from '@/stores/useUserStore';
 import { useSessionStore } from '@/stores/useSessionStore';
 
+interface WeatherData {
+  temp: number;
+  description: string;
+  emoji: string;
+  color: string;
+}
+
+const getWeatherVisuals = (code: number): { emoji: string, description: string, color: string } => {
+  if (code === 0) return { emoji: '☀️', description: 'Sunny & Warm', color: 'bg-[#fcd89b]' };
+  if (code <= 3) return { emoji: '☁️', description: 'Cloudy & Cozy', color: 'bg-[#ababdc]' };
+  if (code <= 48) return { emoji: '🌫️', description: 'Misty Morning', color: 'bg-[#c5c1d3]' };
+  if (code <= 57) return { emoji: '🌧️', description: 'Soft Drizzle', color: 'bg-[#b7d3f4]' };
+  if (code <= 67) return { emoji: '☔', description: 'Rainy & Relaxing', color: 'bg-[#7181c8]' };
+  if (code <= 77) return { emoji: '❄️', description: 'Snowy & Snug', color: 'bg-[#e2f1f8]' };
+  if (code <= 82) return { emoji: '☔', description: 'Refreshing Showers', color: 'bg-[#b7d3f4]' };
+  if (code <= 86) return { emoji: '❄️', description: 'Snow Flurries', color: 'bg-[#e2f1f8]' };
+  return { emoji: '🌩️', description: 'Stormy (Stay Safe!)', color: 'bg-[#5d5770]' };
+};
+
 export default function WelcomeClock() {
   const { displayName, level, currentXP, xpToNextLevel, currentStreak, totalStudyHours } = useUserStore();
   const { focus } = useSessionStore();
   const [time, setTime] = useState<Date | null>(null);
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(true);
 
   useEffect(() => {
     setTime(new Date());
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}&current_weather=true`);
+            const data = await res.json();
+            if (data.current_weather) {
+              const visual = getWeatherVisuals(data.current_weather.weathercode);
+              setWeather({
+                temp: Math.round(data.current_weather.temperature),
+                ...visual
+              });
+            }
+          } catch (e) {
+            console.error(e);
+          } finally {
+            setWeatherLoading(false);
+          }
+        },
+        () => setWeatherLoading(false),
+        { timeout: 10000 }
+      );
+    } else {
+      setWeatherLoading(false);
+    }
   }, []);
 
   if (!time) {
@@ -76,6 +125,25 @@ export default function WelcomeClock() {
       <div className="w-full glass-card-pink-static p-8 shadow-[0_6px_0_#7c6a75] flex flex-col gap-6 font-fredoka">
         <div className="text-center text-lg font-black uppercase tracking-widest text-[#5d5770] border-b-2 border-[#7c6a75]/25 pb-3">
           System Info
+        </div>
+
+        {/* Weather Widget */}
+        <div className="bg-white/50 border-2 border-[#7c6a75]/15 rounded-xl p-4 flex flex-col items-center justify-center shadow-sm">
+          {weatherLoading ? (
+            <span className="text-[#5d5770] text-sm animate-pulse font-bold tracking-wide">Checking skies... 🌤️</span>
+          ) : weather ? (
+            <div className="flex items-center gap-4 w-full">
+              <div className={`w-12 h-12 rounded-full ${weather.color} border-2 border-[#7c6a75]/20 flex items-center justify-center text-2xl shadow-inner shrink-0`}>
+                {weather.emoji}
+              </div>
+              <div className="flex flex-col flex-1">
+                <span className="text-sm font-black text-[#5d5770] tracking-wide uppercase leading-tight">{weather.description}</span>
+                <span className="text-xs text-[#5d5770]/70 font-bold">{weather.temp}°C Outside</span>
+              </div>
+            </div>
+          ) : (
+            <span className="text-[#5d5770]/60 text-sm italic font-bold">Weather unavailable ☁️</span>
+          )}
         </div>
 
         <div className="flex flex-col gap-5 mt-1">
