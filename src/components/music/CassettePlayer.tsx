@@ -137,8 +137,8 @@ export default function CassettePlayer() {
         </div>
 
         {/* Pinch Rollers */}
-        <div className="absolute bottom-2 sm:bottom-3 left-[20%] sm:left-[25%] w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-[#5d5770] border-2 border-[#7c6a75] shadow-inner" />
-        <div className="absolute bottom-2 sm:bottom-3 right-[20%] sm:right-[25%] w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-[#5d5770] border-2 border-[#7c6a75] shadow-inner" />
+        <div className="absolute z-30 bottom-2 sm:bottom-3 left-[20%] sm:left-[25%] w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-[#5d5770] border-2 border-[#7c6a75] shadow-inner" />
+        <div className="absolute z-30 bottom-2 sm:bottom-3 right-[20%] sm:right-[25%] w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-[#5d5770] border-2 border-[#7c6a75] shadow-inner" />
 
         {/* Bottom Ridges */}
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-1/3 h-3 sm:h-4 flex flex-col justify-between">
