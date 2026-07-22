@@ -70,6 +70,20 @@ export default function CassettePlayer() {
     updateSettings({ bgmCategory: cat, enableBGM: true });
   };
 
+  const handlePlayNext = () => {
+    const cats: MusicCategory[] = ['focused', 'relaxation', 'motivation'];
+    const idx = cats.indexOf(bgmCategory as MusicCategory);
+    const nextIdx = (idx + 1) % cats.length;
+    handleCategory(cats[nextIdx]);
+  };
+
+  const handlePlayPrevious = () => {
+    const cats: MusicCategory[] = ['focused', 'relaxation', 'motivation'];
+    const idx = cats.indexOf(bgmCategory as MusicCategory);
+    const prevIdx = (idx - 1 + cats.length) % cats.length;
+    handleCategory(cats[prevIdx]);
+  };
+
   const currentInfo = CATEGORY_MAP[bgmCategory as MusicCategory] || CATEGORY_MAP.focused!;
 
   const reelAnimation = isPlaying ? 'spin 3s linear infinite' : 'none';
@@ -94,8 +108,21 @@ export default function CassettePlayer() {
         {/* Inner Label Area */}
         <div className="flex-1 rounded-xl border-2 border-[#7c6a75] mx-2 sm:mx-4 mt-2 mb-6 flex flex-col relative shadow-sm overflow-hidden bg-[#ffd1dc]/20">
           
-          {/* Reels Layer (Behind) */}
-          <div className="absolute inset-0 flex justify-center items-center gap-12 sm:gap-20 z-0">
+          {/* Picture Layer (Bottom) */}
+          <div className="absolute inset-0 z-0 bg-white">
+            <img 
+              src={currentInfo.cover} 
+              alt="Track Cover" 
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+                (e.target as HTMLImageElement).parentElement!.style.background = 'linear-gradient(45deg, rgba(255,209,220,0.8), rgba(171,171,220,0.8))';
+              }}
+            />
+          </div>
+
+          {/* Reels Layer (On top of picture) */}
+          <div className="absolute inset-0 flex justify-center items-center gap-12 sm:gap-20 z-10 bg-white/10 backdrop-blur-[1px]">
             {/* Left Reel */}
             <div className="w-12 h-12 sm:w-20 sm:h-20 rounded-full bg-[#7c6a75] flex items-center justify-center p-1" style={{ animation: reelAnimation }}>
               <div className="w-full h-full rounded-full border-[3px] sm:border-[4px] border-[#ababdc] flex items-center justify-center relative">
@@ -115,19 +142,6 @@ export default function CassettePlayer() {
             </div>
           </div>
 
-          {/* Full Cover Image Overlay (Transparent, on top of reels) */}
-          <div className="absolute inset-0 z-10 bg-white/30 backdrop-blur-[1px]">
-            <img 
-              src={currentInfo.cover} 
-              alt="Track Cover" 
-              className="w-full h-full object-cover opacity-75 mix-blend-multiply"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-                (e.target as HTMLImageElement).parentElement!.style.background = 'linear-gradient(45deg, rgba(255,209,220,0.8), rgba(171,171,220,0.8))';
-              }}
-            />
-          </div>
-
           {/* Header (On top of everything) */}
           <div className="relative z-20 flex justify-between items-center px-3 py-2 text-[#5d5770] font-bold text-[10px] sm:text-xs">
             <span className="bg-white/70 backdrop-blur-sm px-2 py-0.5 rounded-md border border-[#7c6a75]/20">SIDE A</span>
@@ -137,8 +151,8 @@ export default function CassettePlayer() {
         </div>
 
         {/* Pinch Rollers */}
-        <div className="absolute z-30 bottom-2 sm:bottom-3 left-[20%] sm:left-[25%] w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-[#5d5770] border-2 border-[#7c6a75] shadow-inner" />
-        <div className="absolute z-30 bottom-2 sm:bottom-3 right-[20%] sm:right-[25%] w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-[#5d5770] border-2 border-[#7c6a75] shadow-inner" />
+        <div className="absolute z-40 bottom-2 sm:bottom-3 left-[20%] sm:left-[25%] w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-[#333] border-2 border-[#7c6a75] shadow-md" />
+        <div className="absolute z-40 bottom-2 sm:bottom-3 right-[20%] sm:right-[25%] w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-[#333] border-2 border-[#7c6a75] shadow-md" />
 
         {/* Bottom Ridges */}
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-1/3 h-3 sm:h-4 flex flex-col justify-between">
@@ -150,8 +164,6 @@ export default function CassettePlayer() {
 
       {/* Controls */}
       <div className="flex flex-col gap-4 text-[#5d5770]">
-        <div className="text-center font-bold text-lg">{currentInfo.label} Stream</div>
-        
         {/* Scrubber */}
         <div className="flex items-center gap-3 text-sm font-semibold">
           <span className="w-10 text-right">{formatTime(position)}</span>
@@ -166,32 +178,11 @@ export default function CassettePlayer() {
           <span className="w-10 text-left">{formatTime(duration)}</span>
         </div>
 
-        {/* Playback Controls */}
-        <div className="flex items-center justify-center gap-6">
-          <button 
-            className="p-2 text-2xl hover:bg-white/50 rounded-full transition-colors text-[#7c6a75] hover:text-[#5d5770]"
-          >
-            ⏮
-          </button>
-          
-          <button 
-            onClick={handlePlayPause}
-            className="w-14 h-14 bg-[#7181c8] text-white text-xl rounded-full flex items-center justify-center shadow-[0_4px_0_#5a67a0] hover:translate-y-[2px] hover:shadow-[0_2px_0_#5a67a0] transition-all"
-          >
-            {isPlaying ? '⏸' : '▶'}
-          </button>
-          
-          <button 
-            className="p-2 text-2xl hover:bg-white/50 rounded-full transition-colors text-[#7c6a75] hover:text-[#5d5770]"
-          >
-            ⏭
-          </button>
-        </div>
-
-        {/* Bottom Row: Vol & Categories */}
-        <div className="flex flex-col sm:flex-row items-center gap-4 justify-between mt-2 pt-4 border-t-2 border-white/40">
+        {/* Playback Controls & Volume Row */}
+        <div className="flex flex-row items-center justify-between w-full">
+          {/* Volume Control */}
           <div className="flex items-center gap-2">
-            <span className="text-xl">🔊</span>
+            <span className="text-lg">🔊</span>
             <input 
               type="range" 
               min="0" 
@@ -199,25 +190,36 @@ export default function CassettePlayer() {
               step="0.01"
               value={bgmVolume}
               onChange={handleVolume}
-              className="w-20 sm:w-24 accent-[#7c6a75] h-1.5 bg-white rounded-full appearance-none cursor-pointer outline-none"
+              className="w-16 sm:w-20 accent-[#7c6a75] h-1.5 bg-white rounded-full appearance-none cursor-pointer outline-none"
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            {(['focused', 'relaxation', 'motivation'] as MusicCategory[]).map((cat) => (
-              <button
-                key={cat}
-                onClick={() => handleCategory(cat)}
-                className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
-                  bgmCategory === cat 
-                    ? 'bg-[#7c6a75] text-white shadow-sm' 
-                    : 'bg-white/60 text-[#7c6a75] hover:bg-white'
-                }`}
-              >
-                {CATEGORY_MAP[cat]?.label}
-              </button>
-            ))}
+          {/* Playback Controls */}
+          <div className="flex items-center justify-center gap-4 sm:gap-6">
+            <button 
+              onClick={handlePlayPrevious}
+              className="p-2 text-2xl hover:bg-white/50 rounded-full transition-colors text-[#7c6a75] hover:text-[#5d5770]"
+            >
+              ⏮
+            </button>
+            
+            <button 
+              onClick={handlePlayPause}
+              className="w-14 h-14 bg-[#7181c8] text-white text-xl rounded-full flex items-center justify-center shadow-[0_4px_0_#5a67a0] hover:translate-y-[2px] hover:shadow-[0_2px_0_#5a67a0] transition-all"
+            >
+              {isPlaying ? '⏸' : '▶'}
+            </button>
+            
+            <button 
+              onClick={handlePlayNext}
+              className="p-2 text-2xl hover:bg-white/50 rounded-full transition-colors text-[#7c6a75] hover:text-[#5d5770]"
+            >
+              ⏭
+            </button>
           </div>
+
+          {/* Spacer for centering */}
+          <div className="w-[100px] hidden sm:block"></div>
         </div>
       </div>
     </Card>
