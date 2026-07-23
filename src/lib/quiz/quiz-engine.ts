@@ -44,13 +44,14 @@ export class QuizEngine {
     context: string,
     difficulty: 'easy' | 'medium' | 'hard' | 'adaptive',
     count: number,
-    apiKey: string
+    apiKey: string,
+    type: 'mixed' | 'mcq' | 'short_answer' | 'concept_explanation' | 'recall' = 'mixed'
   ): Promise<QuizQuestion[]> {
     try {
       const response = await fetch('/api/ai/quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topics, context, difficulty, count, apiKey }),
+        body: JSON.stringify({ topics, context, difficulty, count, apiKey, type }),
       });
 
       if (!response.ok) {

@@ -109,9 +109,10 @@ export async function generateQuizQuestions(
   topics: string[],
   difficulty: 'easy' | 'medium' | 'hard' | 'adaptive',
   count: number,
-  apiKey: string
+  apiKey: string,
+  type: 'mixed' | 'mcq' | 'short_answer' | 'concept_explanation' | 'recall' = 'mixed'
 ): Promise<QuizQuestion[] | null> {
-  const prompt = quizGenerationPrompt(context, topics, difficulty, count);
+  const prompt = quizGenerationPrompt(context, topics, difficulty, count, type);
 
   const raw = await callOpenAI(
     [{ role: 'user', content: prompt }],

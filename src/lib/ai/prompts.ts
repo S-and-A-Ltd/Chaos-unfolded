@@ -7,13 +7,25 @@ export function quizGenerationPrompt(
   context: string,
   topics: string[],
   difficulty: 'easy' | 'medium' | 'hard' | 'adaptive',
-  count: number
+  count: number,
+  type: 'mixed' | 'mcq' | 'short_answer' | 'concept_explanation' | 'recall' = 'mixed'
 ): string {
   const difficultyGuide: Record<string, string> = {
     easy: 'Straightforward recall and basic comprehension questions. Test direct facts from the material.',
     medium: 'Application and analysis questions. Require understanding concepts, not just memorizing.',
     hard: 'Synthesis and evaluation questions. Require connecting multiple concepts, critical thinking, or applying knowledge to new scenarios.',
     adaptive: 'Mix of easy (30%), medium (50%), and hard (20%) questions for balanced assessment.',
+  };
+
+  const typeGuide: Record<string, string> = {
+    mixed: `1. **mcq** — Multiple choice with exactly 4 options. Only ONE correct answer.
+2. **short_answer** — Requires a brief factual answer (1-2 sentences).
+3. **concept_explanation** — Asks student to explain a concept in their own words.
+4. **recall** — Direct recall from the material (fill-in-the-blank style phrased as a question).`,
+    mcq: `1. **mcq** — Multiple choice with exactly 4 options. Only ONE correct answer.`,
+    short_answer: `1. **short_answer** — Requires a brief factual answer (1-2 sentences).`,
+    concept_explanation: `1. **concept_explanation** — Asks student to explain a concept in their own words.`,
+    recall: `1. **recall** — Direct recall from the material (fill-in-the-blank style phrased as a question).`
   };
 
   return `You are a quiz generator for study material. Generate exactly ${count} quiz questions based on the provided material.
@@ -27,11 +39,8 @@ ${topics.length > 0 ? topics.join(', ') : 'All topics found in the material'}
 ## DIFFICULTY LEVEL: ${difficulty.toUpperCase()}
 ${difficultyGuide[difficulty]}
 
-## QUESTION TYPES TO GENERATE (mix these):
-1. **mcq** — Multiple choice with exactly 4 options. Only ONE correct answer.
-2. **short_answer** — Requires a brief factual answer (1-2 sentences).
-3. **concept_explanation** — Asks student to explain a concept in their own words.
-4. **recall** — Direct recall from the material (fill-in-the-blank style phrased as a question).
+## QUESTION TYPES TO GENERATE:
+${typeGuide[type]}
 
 ## OUTPUT FORMAT
 Respond with a JSON array. Each element must have:

@@ -50,6 +50,7 @@ export default function Home() {
   const [quizOpen, setQuizOpen] = useState(false);
   const [isLoadingQuiz, setIsLoadingQuiz] = useState(false);
   const [quizResults, setQuizResults] = useState<QuizResult[]>([]);
+  const [selectedQuizType, setSelectedQuizType] = useState<'mixed' | 'mcq' | 'short_answer' | 'concept_explanation' | 'recall'>('mixed');
 
   // Stores
   const { setWindowFocused, setIdle, incrementTabSwitch, recordActivity, isRunning, isBreak } = useSessionStore();
@@ -424,7 +425,8 @@ export default function Home() {
           doc.extractedText,
           quizDifficulty,
           3,
-          key
+          key,
+          selectedQuizType
         );
       }
 
@@ -600,14 +602,29 @@ export default function Home() {
               {selectedDocId && (
                 <div className="w-full glass-card-yellow-static p-6 shadow-[0_6px_0_#7c6a75] flex flex-col gap-4 font-fredoka">
                   <span className="text-xs font-black text-[#5d5770] uppercase tracking-wider text-center border-b border-[#7c6a75]/25 pb-1.5">Master your material</span>
-                  <Button
-                    variant="primary"
-                    className="w-full py-3 text-sm font-black"
-                    isLoading={isLoadingQuiz}
-                    onClick={() => handleTriggerQuiz()}
-                  >
-                    Generate Dazai Quiz
-                  </Button>
+                  
+                  <div className="flex flex-col gap-3">
+                    <select
+                      value={selectedQuizType}
+                      onChange={(e) => setSelectedQuizType(e.target.value as any)}
+                      className="w-full p-2.5 rounded-xl border-2 border-[#7c6a75] bg-white/70 text-[#5d5770] font-bold text-sm focus:outline-none focus:border-[#7c6a75] appearance-none cursor-pointer"
+                    >
+                      <option value="mixed">Mixed Types</option>
+                      <option value="mcq">Multiple Choice</option>
+                      <option value="short_answer">Short Answer</option>
+                      <option value="concept_explanation">Concept Explanation</option>
+                      <option value="recall">Recall (Fill-in-the-blank)</option>
+                    </select>
+
+                    <Button
+                      variant="primary"
+                      className="w-full py-3 text-sm font-black"
+                      isLoading={isLoadingQuiz}
+                      onClick={() => handleTriggerQuiz(selectedDocId, true)}
+                    >
+                      Generate Dazai Quiz
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
