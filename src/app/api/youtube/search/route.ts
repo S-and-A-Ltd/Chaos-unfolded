@@ -30,19 +30,35 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Search query is required' }, { status: 400 });
     }
 
-    const results = await ytSearch(query);
     let items: any[] = [];
 
-    if (type === 'video') {
-      items = results.videos.slice(0, 15);
-    } else if (type === 'list') {
-      items = results.lists.slice(0, 15);
+    // Use official YouTube Data API if available (avoids Vercel IP blocks)
+    if (process.env.YOUTUBE_API_KEY) {
+      const ytApiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=15&q=${encodeURIComponent(query)}&type=${type === 'all' ? 'video,playlist' : type}&key=${process.env.YOUTUBE_API_KEY}`;
+      const apiRes = await fetch(ytApiUrl);
+      const apiData = await apiRes.json();
+      
+      if (apiData.items) {
+        items = apiData.items.map((item: any) => ({
+          type: item.id.kind === 'youtube#playlist' ? 'list' : 'video',
+          videoId: item.id.videoId,
+          listId: item.id.playlistId,
+          title: item.snippet.title,
+          url: item.id.videoId ? `https://youtube.com/watch?v=${item.id.videoId}` : `https://youtube.com/playlist?list=${item.id.playlistId}`,
+          thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
+          author: { name: item.snippet.channelTitle },
+        }));
+      }
     } else {
-      // Mixed: 10 videos, 5 playlists
-      items = [
-        ...results.videos.slice(0, 10),
-        ...results.lists.slice(0, 5)
-      ];
+      // Fallback to yt-search (works locally, but often blocked on Vercel)
+      const results = await ytSearch(query);
+      if (type === 'video') {
+        items = results.videos.slice(0, 15);
+      } else if (type === 'list') {
+        items = results.lists.slice(0, 15);
+      } else {
+        items = [...results.videos.slice(0, 10), ...results.lists.slice(0, 5)];
+      }
     }
 
     return NextResponse.json({ items });
