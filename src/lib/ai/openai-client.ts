@@ -15,26 +15,34 @@ import {
   topicExtractionPrompt,
 } from './prompts';
 
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+const OPENAI_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // --- Internal fetch helper ---
 
 async function callOpenAI(
   messages: { role: string; content: string }[],
   apiKey: string,
-  model: string = 'gpt-4o-mini',
+  model: string = 'nvidia/nemotron-3-super-120b-a12b:free',
   temperature: number = 0.7,
   maxTokens: number = 1024
 ): Promise<string | null> {
   try {
+    // Map OpenAI models to OpenRouter format if they lack a provider prefix
+    let actualModel = model;
+    if (!actualModel.includes('/') && actualModel.startsWith('gpt')) {
+      actualModel = `openai/${actualModel}`;
+    }
+
     const response = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
+        'HTTP-Referer': 'http://localhost:3000',
+        'X-Title': 'Dazai Study Companion',
       },
       body: JSON.stringify({
-        model,
+        model: actualModel,
         messages,
         temperature,
         max_tokens: maxTokens,
@@ -143,7 +151,7 @@ export async function generateQuizQuestions(
     const raw = await callOpenAI(
       [{ role: 'user', content: prompt }],
       apiKey,
-      'gpt-4o-mini',
+      'nvidia/nemotron-3-super-120b-a12b:free',
       0.5, // Lower temp for more reliable formatting
       2048
     );
@@ -379,7 +387,7 @@ export async function evaluateAnswer(
   const raw = await callOpenAI(
     [{ role: 'user', content: prompt }],
     apiKey,
-    'gpt-4o-mini',
+    'nvidia/nemotron-3-super-120b-a12b:free',
     0.3, // Low temperature for consistent evaluation
     512
   );
@@ -398,8 +406,8 @@ export async function generateSummary(
   return callOpenAI(
     [{ role: 'user', content: prompt }],
     apiKey,
-    'gpt-4o-mini',
-    0.5,
+    'nvidia/nemotron-3-super-120b-a12b:free',
+    0.7,
     1024
   );
 }
@@ -415,9 +423,9 @@ export async function extractTopics(
   const raw = await callOpenAI(
     [{ role: 'user', content: prompt }],
     apiKey,
-    'gpt-4o-mini',
+    'nvidia/nemotron-3-super-120b-a12b:free',
     0.3,
-    512
+    256
   );
   return parseJSON<string[]>(raw);
 }
