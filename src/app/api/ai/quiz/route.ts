@@ -4,7 +4,7 @@ import { generateQuizQuestions, evaluateAnswer } from '@/lib/ai/openai-client';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { topics, context, difficulty, count, apiKey, type } = body;
+    const { topics, context, config, apiKey } = body;
 
     const keyToUse = apiKey || process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 
@@ -25,10 +25,8 @@ export async function POST(req: NextRequest) {
     const quizQuestions = await generateQuizQuestions(
       context,
       topics || [],
-      difficulty || 'adaptive',
-      count || 3,
-      keyToUse,
-      type || 'mixed'
+      config,
+      keyToUse
     );
 
     if (!quizQuestions) {

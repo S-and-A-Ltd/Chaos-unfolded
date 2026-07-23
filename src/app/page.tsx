@@ -20,6 +20,7 @@ import TimerControls from '@/components/timer/TimerControls';
 import DocumentUploader from '@/components/study/DocumentUploader';
 import StudyMaterials from '@/components/study/StudyMaterials';
 import QuizModal from '@/components/quiz/QuizModal';
+import QuizConfigurationPanel from '@/components/quiz/QuizConfigurationPanel';
 import FocusWarning from '@/components/focus/FocusWarning';
 import CassettePlayer from '@/components/music/CassettePlayer';
 import AchievementPopup from '@/components/gamification/AchievementPopup';
@@ -33,7 +34,7 @@ import { FocusMonitor } from '@/lib/focus/focus-monitor';
 import { QuizEngine } from '@/lib/quiz/quiz-engine';
 
 // Types
-import { StudyDocument, DocumentType, QuizQuestion, CharacterState, TimerMode, MoodCategory, QuizResult } from '@/types';
+import { StudyDocument, DocumentType, QuizQuestion, CharacterState, TimerMode, MoodCategory, QuizResult, QuizConfig } from '@/types';
 import { AILearningEngine } from '@/lib/ai/learning-engine';
 import { saveDocumentBlob, deleteDocumentBlob } from '@/lib/storage/document-storage';
 
@@ -50,7 +51,6 @@ export default function Home() {
   const [quizOpen, setQuizOpen] = useState(false);
   const [isLoadingQuiz, setIsLoadingQuiz] = useState(false);
   const [quizResults, setQuizResults] = useState<QuizResult[]>([]);
-  const [selectedQuizType, setSelectedQuizType] = useState<'mixed' | 'mcq' | 'short_answer' | 'concept_explanation' | 'recall'>('mixed');
 
   // Stores
   const { setWindowFocused, setIdle, incrementTabSwitch, recordActivity, isRunning, isBreak } = useSessionStore();
@@ -385,7 +385,11 @@ export default function Home() {
   };
 
   // Generate Quiz
-  const handleTriggerQuiz = async (docId?: string, forceRegenerate: boolean = false) => {
+  const handleTriggerQuiz = async (
+    docId?: string, 
+    config?: QuizConfig, 
+    forceRegenerate: boolean = false
+  ) => {
     const targetDocId = docId || selectedDocId;
     if (!targetDocId) return;
 
@@ -394,27 +398,24 @@ export default function Home() {
 
     const key = openaiApiKey || '';
 
+    // If no config provided (e.g. auto timer), fallback to defaults
+    const activeConfig: QuizConfig = config || {
+      type: 'mixed',
+      count: 3,
+      difficulty: quizDifficulty as any
+    };
+
     setIsLoadingQuiz(true);
     setDialogue(forceRegenerate ? "Cooking up some brand new questions for you..." : "Crafting some witty questions for you... Try not to fail, okay?");
     setEmotion('excited');
 
     try {
       let questions: QuizQuestion[] = [];
+      const cacheKey = JSON.stringify(activeConfig);
 
       // Check for cached AI generated quiz questions unless forced
-      if (!forceRegenerate && doc.aiData?.quiz) {
-        const qBank = doc.aiData.quiz;
-        const allQuestions = [
-          ...(qBank.mcq || []),
-          ...(qBank.short_answer || []),
-          ...(qBank.concept_explanation || []),
-          ...(qBank.recall || [])
-        ];
-        
-        if (allQuestions.length > 0) {
-          // Shuffle and take 3 questions
-          questions = allQuestions.sort(() => Math.random() - 0.5).slice(0, 3);
-        }
+      if (!forceRegenerate && doc.aiData?.quizCache && doc.aiData.quizCache[cacheKey]) {
+        questions = doc.aiData.quizCache[cacheKey];
       }
 
       if (questions.length === 0) {
@@ -423,22 +424,30 @@ export default function Home() {
         questions = await engine.generateQuestions(
           doc.topics,
           doc.extractedText,
-          quizDifficulty,
-          3,
-          key,
-          selectedQuizType
+          activeConfig,
+          key
         );
+
+        // Save to cache
+        if (questions.length > 0) {
+          const updatedDoc = { ...doc };
+          if (!updatedDoc.aiData) updatedDoc.aiData = {};
+          if (!updatedDoc.aiData.quizCache) updatedDoc.aiData.quizCache = {};
+          
+          updatedDoc.aiData.quizCache[cacheKey] = questions;
+          saveDocuments(documents.map(d => d.id === updatedDoc.id ? updatedDoc : d));
+        }
       }
 
-      if (questions && questions.length > 0) {
+      if (questions.length > 0) {
         setQuizQuestions(questions);
         setActiveQuestionIndex(0);
         setQuizOpen(true);
         setEmotion('neutral');
         setDialogue("Here are your questions. Let's see what you've got.");
       } else {
-        setDialogue("I couldn't come up with any questions. Maybe the content is too simple?");
-        setEmotion('disappointed');
+        setDialogue("I couldn't generate any questions... Your notes must be absolutely incomprehensible.");
+        setEmotion('concerned');
       }
     } catch (err: any) {
       console.error(err);
@@ -600,32 +609,10 @@ export default function Home() {
 
               {/* Generate Quiz Card - Cozy Yellow */}
               {selectedDocId && (
-                <div className="w-full glass-card-yellow-static p-6 shadow-[0_6px_0_#7c6a75] flex flex-col gap-4 font-fredoka">
-                  <span className="text-xs font-black text-[#5d5770] uppercase tracking-wider text-center border-b border-[#7c6a75]/25 pb-1.5">Master your material</span>
-                  
-                  <div className="flex flex-col gap-3">
-                    <select
-                      value={selectedQuizType}
-                      onChange={(e) => setSelectedQuizType(e.target.value as any)}
-                      className="w-full p-2.5 rounded-xl border-2 border-[#7c6a75] bg-white/70 text-[#5d5770] font-bold text-sm focus:outline-none focus:border-[#7c6a75] appearance-none cursor-pointer"
-                    >
-                      <option value="mixed">Mixed Types</option>
-                      <option value="mcq">Multiple Choice</option>
-                      <option value="short_answer">Short Answer</option>
-                      <option value="concept_explanation">Concept Explanation</option>
-                      <option value="recall">Recall (Fill-in-the-blank)</option>
-                    </select>
-
-                    <Button
-                      variant="primary"
-                      className="w-full py-3 text-sm font-black"
-                      isLoading={isLoadingQuiz}
-                      onClick={() => handleTriggerQuiz(selectedDocId, true)}
-                    >
-                      Generate Dazai Quiz
-                    </Button>
-                  </div>
-                </div>
+                <QuizConfigurationPanel
+                  isLoading={isLoadingQuiz}
+                  onGenerateQuiz={(config, force) => handleTriggerQuiz(selectedDocId, config, force)}
+                />
               )}
             </div>
           </div>

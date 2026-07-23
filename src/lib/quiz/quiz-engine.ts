@@ -3,7 +3,7 @@
 // Orchestrates question generation, evaluation, and adaptation
 // ============================================================
 
-import type { QuizQuestion, QuestionType, QuizResult } from '@/types';
+import type { QuizQuestion, QuestionType, QuizResult, QuizConfig } from '@/types';
 
 // --- Performance tracking ---
 
@@ -42,16 +42,14 @@ export class QuizEngine {
   async generateQuestions(
     topics: string[],
     context: string,
-    difficulty: 'easy' | 'medium' | 'hard' | 'adaptive',
-    count: number,
-    apiKey: string,
-    type: 'mixed' | 'mcq' | 'short_answer' | 'concept_explanation' | 'recall' = 'mixed'
+    config: QuizConfig,
+    apiKey: string
   ): Promise<QuizQuestion[]> {
     try {
       const response = await fetch('/api/ai/quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topics, context, difficulty, count, apiKey, type }),
+        body: JSON.stringify({ topics, context, config, apiKey }),
       });
 
       if (!response.ok) {

@@ -3,12 +3,12 @@
 // All prompts return structured JSON from the model
 // ============================================================
 
+import type { QuizConfig } from '@/types';
+
 export function quizGenerationPrompt(
   context: string,
   topics: string[],
-  difficulty: 'easy' | 'medium' | 'hard' | 'adaptive',
-  count: number,
-  type: 'mixed' | 'mcq' | 'short_answer' | 'concept_explanation' | 'recall' = 'mixed'
+  config: QuizConfig
 ): string {
   const difficultyGuide: Record<string, string> = {
     easy: 'Straightforward recall and basic comprehension questions. Test direct facts from the material.',
@@ -17,18 +17,30 @@ export function quizGenerationPrompt(
     adaptive: 'Mix of easy (30%), medium (50%), and hard (20%) questions for balanced assessment.',
   };
 
-  const typeGuide: Record<string, string> = {
-    mixed: `1. **mcq** — Multiple choice with exactly 4 options. Only ONE correct answer.
-2. **short_answer** — Requires a brief factual answer (1-2 sentences).
-3. **concept_explanation** — Asks student to explain a concept in their own words.
-4. **recall** — Direct recall from the material (fill-in-the-blank style phrased as a question).`,
-    mcq: `1. **mcq** — Multiple choice with exactly 4 options. Only ONE correct answer.`,
-    short_answer: `1. **short_answer** — Requires a brief factual answer (1-2 sentences).`,
-    concept_explanation: `1. **concept_explanation** — Asks student to explain a concept in their own words.`,
-    recall: `1. **recall** — Direct recall from the material (fill-in-the-blank style phrased as a question).`
+  const typeDefs: Record<string, string> = {
+    mcq: `**mcq** — Multiple choice with exactly 4 options. Only ONE correct answer.`,
+    short_answer: `**short_answer** — Requires a brief factual answer (1-2 sentences).`,
+    concept_explanation: `**concept_explanation** — Asks student to explain a concept in their own words.`,
+    recall: `**recall** — Direct recall from the material (fill-in-the-blank style). You MUST leave a literal dash '____' in the question text where the missing word or phrase belongs.`
   };
 
-  return `You are a quiz generator for study material. Generate exactly ${count} quiz questions based on the provided material.
+  let typeGuide = '';
+  if (config.type === 'mixed') {
+    if (config.mixedMode === 'custom' && config.distribution) {
+      typeGuide = `Generate exactly:\n` +
+        `- ${config.distribution.mcq} questions of type: ${typeDefs.mcq}\n` +
+        `- ${config.distribution.short_answer} questions of type: ${typeDefs.short_answer}\n` +
+        `- ${config.distribution.concept_explanation} questions of type: ${typeDefs.concept_explanation}\n` +
+        `- ${config.distribution.recall} questions of type: ${typeDefs.recall}\n`;
+    } else {
+      typeGuide = `Generate a balanced mix of these types:\n` +
+        Object.values(typeDefs).map(t => `- ${t}`).join('\n');
+    }
+  } else {
+    typeGuide = `Generate ONLY questions of this type:\n- ${typeDefs[config.type]}`;
+  }
+
+  return `You are a quiz generator for study material. Generate exactly ${config.count} quiz questions based on the provided material.
 
 ## STUDY MATERIAL
 ${context.slice(0, 6000)}
@@ -36,11 +48,11 @@ ${context.slice(0, 6000)}
 ## TOPICS TO FOCUS ON
 ${topics.length > 0 ? topics.join(', ') : 'All topics found in the material'}
 
-## DIFFICULTY LEVEL: ${difficulty.toUpperCase()}
-${difficultyGuide[difficulty]}
+## DIFFICULTY LEVEL: ${config.difficulty.toUpperCase()}
+${difficultyGuide[config.difficulty]}
 
 ## QUESTION TYPES TO GENERATE:
-${typeGuide[type]}
+${typeGuide}
 
 ## OUTPUT FORMAT
 Respond with a JSON array. Each element must have:

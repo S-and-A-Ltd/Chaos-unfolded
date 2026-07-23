@@ -107,12 +107,10 @@ export async function createChatCompletion(
 export async function generateQuizQuestions(
   context: string,
   topics: string[],
-  difficulty: 'easy' | 'medium' | 'hard' | 'adaptive',
-  count: number,
-  apiKey: string,
-  type: 'mixed' | 'mcq' | 'short_answer' | 'concept_explanation' | 'recall' = 'mixed'
+  config: QuizConfig,
+  apiKey: string
 ): Promise<QuizQuestion[] | null> {
-  const prompt = quizGenerationPrompt(context, topics, difficulty, count, type);
+  const prompt = quizGenerationPrompt(context, topics, config);
 
   const raw = await callOpenAI(
     [{ role: 'user', content: prompt }],
@@ -133,7 +131,7 @@ export async function generateQuizQuestions(
       .filter((s) => s.length > 25 && s.length < 150);
 
     const fallbacks: Omit<QuizQuestion, 'id'>[] = [];
-    const targetCount = count || 3;
+    const targetCount = config.count || 3;
 
     if (sentences.length > 0) {
       const selectedSentences = [...sentences].sort(() => 0.5 - Math.random()).slice(0, targetCount);
@@ -142,13 +140,13 @@ export async function generateQuizQuestions(
         let qType: 'mcq' | 'short_answer' | 'concept_explanation' | 'recall' = 'recall';
         let qDiff: 'easy' | 'medium' | 'hard' = 'easy';
 
-        if (difficulty === 'easy') {
+        if (config.difficulty === 'easy') {
           qType = 'recall';
           qDiff = 'easy';
-        } else if (difficulty === 'medium') {
+        } else if (config.difficulty === 'medium') {
           qType = Math.random() > 0.5 ? 'short_answer' : 'recall';
           qDiff = 'medium';
-        } else if (difficulty === 'hard') {
+        } else if (config.difficulty === 'hard') {
           qType = Math.random() > 0.5 ? 'concept_explanation' : 'short_answer';
           qDiff = 'hard';
         } else { // adaptive
@@ -208,7 +206,7 @@ export async function generateQuizQuestions(
 
     // Secondary fallback in case no sentences matched
     if (fallbacks.length === 0) {
-      const qDiff: 'easy' | 'medium' | 'hard' = difficulty === 'adaptive' ? 'medium' : difficulty;
+      const qDiff: 'easy' | 'medium' | 'hard' = config.difficulty === 'adaptive' ? 'medium' : config.difficulty;
       fallbacks.push({
         type: 'mcq',
         question: 'What is the most effective way to improve long-term learning and memory recall?',

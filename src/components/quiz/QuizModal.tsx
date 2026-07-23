@@ -71,9 +71,9 @@ export default function QuizModal({ question, isOpen, onClose, onAnswer }: QuizM
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              {isMCQ ? (
+              {question.type === 'mcq' && question.options ? (
                 <div className="grid grid-cols-1 gap-2">
-                  {question.options!.map((option, idx) => (
+                  {question.options.map((option, idx) => (
                     <motion.button
                       key={idx}
                       whileHover={{ scale: 1.01 }}
@@ -93,16 +93,42 @@ export default function QuizModal({ question, isOpen, onClose, onAnswer }: QuizM
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
-                  <textarea
-                    value={textAnswer}
-                    onChange={(e) => setTextAnswer(e.target.value)}
-                    placeholder="Type your answer..."
-                    rows={3}
-                    className="w-full px-4 py-3 rounded-xl bg-white/30 border border-[#ababdc]/30
-                      text-sm text-[#5d5770] placeholder:text-[#5d5770]/40
-                      focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20
-                      resize-none transition-all"
-                  />
+                  {question.type === 'recall' ? (
+                    <div className="w-full relative">
+                      <input
+                        type="text"
+                        value={textAnswer}
+                        onChange={(e) => setTextAnswer(e.target.value)}
+                        placeholder="Type the missing word..."
+                        className="w-full px-4 py-3 rounded-xl bg-white/30 border border-[#ababdc]/30
+                          text-sm text-[#5d5770] placeholder:text-[#5d5770]/40 font-bold
+                          focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20
+                          transition-all text-center"
+                      />
+                    </div>
+                  ) : question.type === 'concept_explanation' ? (
+                    <textarea
+                      value={textAnswer}
+                      onChange={(e) => setTextAnswer(e.target.value)}
+                      placeholder="Explain in your own words..."
+                      rows={5}
+                      className="w-full px-4 py-3 rounded-xl bg-white/30 border border-[#ababdc]/30
+                        text-sm text-[#5d5770] placeholder:text-[#5d5770]/40
+                        focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20
+                        resize-none transition-all leading-relaxed"
+                    />
+                  ) : (
+                    <textarea
+                      value={textAnswer}
+                      onChange={(e) => setTextAnswer(e.target.value)}
+                      placeholder="Type your brief answer..."
+                      rows={2}
+                      className="w-full px-4 py-3 rounded-xl bg-white/30 border border-[#ababdc]/30
+                        text-sm text-[#5d5770] placeholder:text-[#5d5770]/40
+                        focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20
+                        resize-none transition-all"
+                    />
+                  )}
                   <Button
                     variant="primary"
                     onClick={() => handleSubmit(textAnswer)}
