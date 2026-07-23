@@ -19,7 +19,6 @@ import TimerControls from '@/components/timer/TimerControls';
 import DocumentUploader from '@/components/study/DocumentUploader';
 import StudyMaterials from '@/components/study/StudyMaterials';
 import QuizModal from '@/components/quiz/QuizModal';
-import CurrentStudySession from '@/components/study/CurrentStudySession';
 import FocusWarning from '@/components/focus/FocusWarning';
 import CassettePlayer from '@/components/music/CassettePlayer';
 import AchievementPopup from '@/components/gamification/AchievementPopup';
@@ -533,13 +532,7 @@ export default function Home() {
               {/* Gameboy Timer */}
               <StudyTimer />
               
-              {/* Document Uploader */}
-              <div className="w-full">
-                <DocumentUploader 
-                  onUpload={handleUpload} 
-                  onStartSelecting={() => { isSelectingFileRef.current = true; }} 
-                />
-              </div>
+              
               
               {/* Materials List */}
               <div className="w-full">
@@ -555,9 +548,12 @@ export default function Home() {
               {/* Shifted Mood Meter */}
               <MoodMeter />
               
-              {/* Current Study Session replaces Quiz Results */}
+              {/* Current Study Session (Document Uploader) replaces placeholder */}
               <div className="w-full">
-                <CurrentStudySession />
+                <DocumentUploader 
+                  onUpload={handleUpload} 
+                  onStartSelecting={() => { isSelectingFileRef.current = true; }} 
+                />
               </div>
 
               {/* Generate Quiz Card - Cozy Yellow */}

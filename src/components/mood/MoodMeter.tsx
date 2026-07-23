@@ -50,7 +50,7 @@ export default function MoodMeter() {
   const needleDeg = 180 + (cortisolLevel / 100) * 180;
 
   return (
-    <div className={`${boxClass} p-6 shadow-[0_6px_0_#7c6a75] flex flex-col items-center w-full transition-colors duration-500`}>
+    <div className={`${boxClass} p-6 border-[3px] border-[#8DAF9B] shadow-[0_6px_0_#7c6a75] flex flex-col items-center w-full transition-colors duration-500`}>
       <div className="text-lg font-black text-[#5d5770] uppercase tracking-widest border-b-2 border-[#7c6a75]/25 pb-2 w-full text-center">
         Cortisol Level
       </div>
@@ -75,7 +75,7 @@ export default function MoodMeter() {
           <motion.g
             initial={{ rotate: 180 }}
             animate={{ rotate: needleDeg }}
-            style={{ originX: '100px', originY: '110px' }}
+            style={{ transformOrigin: '100px 110px' }}
             transition={{ type: "spring", stiffness: 40, damping: 15 }}
           >
             <polygon points="100,105 100,115 170,110" fill="#3b4b81" />
