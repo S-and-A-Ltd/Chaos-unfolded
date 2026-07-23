@@ -26,6 +26,7 @@ import AchievementPopup from '@/components/gamification/AchievementPopup';
 import ProfileCard from '@/components/gamification/ProfileCard';
 import DashboardView from '@/components/dashboard/DashboardView';
 import StudyHub from '@/components/study/StudyHub';
+import YoutubeHub from '@/components/study/YoutubeHub';
 
 // Focus monitor
 import { FocusMonitor } from '@/lib/focus/focus-monitor';
@@ -614,6 +615,10 @@ export default function Home() {
         ) : activeTab === 'dashboard' ? (
           <div className="w-full max-w-7xl mx-auto p-8 pb-32">
             <DashboardView />
+          </div>
+        ) : activeTab === 'youtube' ? (
+          <div className="w-full max-w-[1550px] mx-auto p-8 pb-32">
+            <YoutubeHub onAddYoutubeUrl={handleAddYoutubeUrl} />
           </div>
         ) : (
           <div className="w-full max-w-[1550px] mx-auto p-8 pb-32">

@@ -21,14 +21,6 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
   const [selectedDocId, setSelectedDocId] = useState<string>('');
   const [activePdfBlob, setActivePdfBlob] = useState<File | Blob | null>(null);
 
-  // YouTube Search State
-  const [youtubeSearch, setYoutubeSearch] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [selectedPlaylistTitle, setSelectedPlaylistTitle] = useState('');
-  const [message, setMessage] = useState('');
-  const [currentVideoUrl, setCurrentVideoUrl] = useState('');
-
   const activeDoc = documents.find((d) => d.id === selectedDocId);
   const pdfDocs = documents.filter((d) => d.type !== 'youtube');
   const youtubeDocs = documents.filter((d) => d.type === 'youtube');
@@ -44,74 +36,7 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
       }
     }
     loadBlob();
-    
-    // Auto-load youtube iframe URL if a youtube doc is selected
-    if (activeDoc && activeDoc.type === 'youtube') {
-      const url = activeDoc.extractedText.match(/URL: (https?:\/\/[^\s]+)/)?.[1] || '';
-      if (url) {
-        let videoId = '';
-        try {
-          const parsedUrl = new URL(url);
-          if (parsedUrl.hostname.includes('youtube.com')) {
-            videoId = parsedUrl.searchParams.get('v') || '';
-          } else if (parsedUrl.hostname.includes('youtu.be')) {
-            videoId = parsedUrl.pathname.slice(1);
-          }
-        } catch (e) {
-          const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-          const match = url.match(regExp);
-          if (match && match[2].length === 11) {
-            videoId = match[2];
-          }
-        }
-        if (videoId) {
-          setCurrentVideoUrl(`https://www.youtube.com/embed/${videoId}`);
-        }
-      }
-    } else {
-      setCurrentVideoUrl('');
-    }
   }, [activeDoc]);
-
-  // YouTube Search Logic
-  const handleSearchYoutube = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!youtubeSearch.trim()) return;
-
-    setIsSearching(true);
-    setSearchResults([]);
-    setSelectedPlaylistTitle('');
-    setMessage('');
-
-    try {
-      const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(youtubeSearch)}`);
-      const data = await res.json();
-      if (data.items) setSearchResults(data.items);
-    } catch (err) {
-      setMessage("Failed to search YouTube.");
-      setTimeout(() => setMessage(''), 4000);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleFetchPlaylist = async (listId: string, title: string) => {
-    setIsSearching(true);
-    setSearchResults([]);
-    setSelectedPlaylistTitle(`Playlist: ${title}`);
-    setMessage('');
-
-    try {
-      const res = await fetch(`/api/youtube/search?listId=${listId}`);
-      const data = await res.json();
-      if (data.items) setSearchResults(data.items);
-    } catch (err) {
-      setMessage("Failed to fetch playlist videos.");
-      setTimeout(() => setMessage(''), 4000);
-    } finally {
-      setIsSearching(false);
-    }
-  };
 
   // Context Menu State
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; text: string } | null>(null);
@@ -159,40 +84,15 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
         )}
       </AnimatePresence>
 
-      {/* Toast Alert message */}
-      <AnimatePresence>
-        {message && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-[#ffd1dc] border-3 border-[#7c6a75] text-[#5d5770] font-black text-xs p-3 rounded-xl shadow-lg flex items-center gap-3"
-          >
-            <span className="text-xl">⚠️</span>
-            <span>{message}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* LEFT COLUMN: Explorer (Documents & Search) */}
+      {/* LEFT COLUMN: Explorer (Documents) */}
       <div className="w-[320px] shrink-0 flex flex-col gap-4">
         {/* Workspace Switcher */}
         <div className="flex bg-[#7c6a75]/10 p-1.5 rounded-xl border-2 border-[#7c6a75]/15">
           <button
             onClick={() => setActiveSidebarTab('documents')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-black uppercase transition-all ${
-              activeSidebarTab === 'documents' ? 'bg-white text-[#7181c8] shadow-sm border border-[#7c6a75]/10' : 'text-[#5d5770]/60 hover:text-[#5d5770]'
-            }`}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-black uppercase transition-all bg-white text-[#7181c8] shadow-sm border border-[#7c6a75]/10`}
           >
             📂 Local
-          </button>
-          <button
-            onClick={() => setActiveSidebarTab('youtube')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-black uppercase transition-all ${
-              activeSidebarTab === 'youtube' ? 'bg-white text-[#7181c8] shadow-sm border border-[#7c6a75]/10' : 'text-[#5d5770]/60 hover:text-[#5d5770]'
-            }`}
-          >
-            📺 Web
           </button>
         </div>
 
@@ -219,69 +119,12 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
               ))}
             </div>
           )}
-
-          {activeSidebarTab === 'youtube' && (
-            <div className="flex-1 flex flex-col p-3 gap-3 overflow-hidden">
-              <form onSubmit={handleSearchYoutube} className="flex gap-2 w-full">
-                <input
-                  type="text"
-                  placeholder="Search YouTube..."
-                  value={youtubeSearch}
-                  onChange={(e) => setYoutubeSearch(e.target.value)}
-                  className="flex-1 min-w-0 bg-white/60 border-2 border-[#7c6a75]/20 rounded-xl px-3 py-1.5 text-xs text-[#5d5770] focus:outline-none focus:border-[#7181c8] font-bold"
-                />
-                <Button variant="primary" type="submit" isLoading={isSearching} className="px-3 py-1.5 text-xs shrink-0">
-                  🔍
-                </Button>
-              </form>
-              
-              <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
-                {selectedPlaylistTitle && (
-                  <div className="bg-[#7c6a75]/10 px-2 py-1.5 rounded-lg flex justify-between items-center mb-2">
-                    <span className="text-[9px] font-black uppercase truncate text-[#5d5770]">{selectedPlaylistTitle}</span>
-                    <button onClick={() => { setSelectedPlaylistTitle(''); setSearchResults([]); setYoutubeSearch(''); }} className="text-[9px] text-blue-500 font-bold hover:underline shrink-0 ml-2">Clear</button>
-                  </div>
-                )}
-                {isSearching ? (
-                  <div className="text-center text-xs font-bold text-[#5d5770]/60 py-10">Searching...</div>
-                ) : searchResults.map((item, idx) => (
-                  <div 
-                    key={idx} 
-                    onClick={() => {
-                      if (item.type === 'list') {
-                        handleFetchPlaylist(item.listId, item.title);
-                      } else {
-                        // Normally this would upload it, but for Phase 4.1 we just load it into the player if we want to preview it,
-                        // However, the user wants it to trigger the AI upload flow. 
-                        // Since StudyHub doesn't have handleUpload prop in the current structure, we rely on the user to upload it in the Dashboard, OR we can provide a quick mock here to dispatch an event or alert.
-                        // For now, we preview it. We will add a Context Menu later to "Generate Notes".
-                        setCurrentVideoUrl(item.url);
-                        setSelectedDocId(''); // deselect current doc to show search video
-                      }
-                    }}
-                    className="flex gap-2 p-1.5 rounded-lg hover:bg-white/70 cursor-pointer transition-colors border-2 border-transparent hover:border-[#7c6a75]/30 group"
-                  >
-                    <div className="relative shrink-0 w-[80px] h-[45px] rounded overflow-hidden bg-black/10">
-                      <img src={item.thumbnail} alt="thumb" className="w-full h-full object-cover" />
-                      {item.type === 'list' && (
-                        <div className="absolute right-0 bottom-0 bg-black/70 text-white text-[7px] font-bold px-1 m-0.5 rounded">LIST</div>
-                      )}
-                    </div>
-                    <div className="flex flex-col overflow-hidden justify-center flex-1">
-                      <span className="text-[10px] font-bold text-[#5d5770] leading-tight line-clamp-2">{item.title}</span>
-                      <span className="text-[9px] text-[#5d5770]/70 truncate mt-0.5">{item.author?.name}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
       {/* CENTER COLUMN: Reader / Viewer */}
       <div className="flex-1 flex flex-col">
-        {!activeDoc && !currentVideoUrl ? (
+        {!activeDoc ? (
           <div className="flex-1 flex items-center justify-center border-3 border-[#7c6a75]/20 border-dashed rounded-2xl bg-white/20">
             <div className="text-center">
               <span className="text-4xl opacity-50 block mb-2">📚</span>
@@ -290,31 +133,6 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
           </div>
         ) : activeDoc?.type === 'pdf' ? (
           <PDFViewer file={activePdfBlob || ''} />
-        ) : activeDoc?.type === 'youtube' || currentVideoUrl ? (
-          <div className="flex-1 flex flex-col gap-4 h-full">
-            <div className="flex-1 bg-black rounded-2xl border-3 border-[#7c6a75] overflow-hidden relative shadow-inner">
-               <iframe
-                  src={currentVideoUrl}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  className="absolute inset-0 w-full h-full border-none"
-                />
-            </div>
-            {!activeDoc && currentVideoUrl && (
-              <div className="w-full shrink-0 flex justify-end">
-                <Button 
-                  variant="primary" 
-                  className="px-6 py-3 font-black text-sm"
-                  onClick={async () => {
-                    const originalUrl = currentVideoUrl.replace('embed/', 'watch?v=');
-                    await onAddYoutubeUrl(originalUrl);
-                  }}
-                >
-                  ✨ Generate AI Notes & Quiz
-                </Button>
-              </div>
-            )}
-          </div>
         ) : (
           <div 
             className="flex-1 bg-[#f4f2ee] rounded-2xl border-3 border-[#7c6a75] p-6 overflow-y-auto shadow-inner text-[#3e3835] font-sans text-sm whitespace-pre-wrap"

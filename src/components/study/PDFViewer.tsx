@@ -7,7 +7,10 @@ import 'react-pdf/dist/Page/TextLayer.css';
 import Button from '@/components/ui/Button';
 
 // Setup pdf worker
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString();
 
 interface PDFViewerProps {
   file: Blob | File | string;
