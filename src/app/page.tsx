@@ -620,6 +620,7 @@ export default function Home() {
             <StudyHub 
               documents={documents} 
               onTriggerQuiz={(force) => handleTriggerQuiz(undefined, force)}
+              onAddYoutubeUrl={handleAddYoutubeUrl}
             />
           </div>
         )}

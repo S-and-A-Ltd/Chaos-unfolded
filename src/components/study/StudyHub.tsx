@@ -13,9 +13,10 @@ const PDFViewer = dynamic(() => import('./PDFViewer'), { ssr: false });
 interface StudyHubProps {
   documents: StudyDocument[];
   onTriggerQuiz: (forceRegenerate?: boolean) => void;
+  onAddYoutubeUrl: (url: string) => Promise<void>;
 }
 
-export default function StudyHub({ documents, onTriggerQuiz }: StudyHubProps) {
+export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: StudyHubProps) {
   const [activeSidebarTab, setActiveSidebarTab] = useState<'documents' | 'youtube'>('documents');
   const [selectedDocId, setSelectedDocId] = useState<string>('');
   const [activePdfBlob, setActivePdfBlob] = useState<File | Blob | null>(null);
@@ -290,13 +291,29 @@ export default function StudyHub({ documents, onTriggerQuiz }: StudyHubProps) {
         ) : activeDoc?.type === 'pdf' ? (
           <PDFViewer file={activePdfBlob || ''} />
         ) : activeDoc?.type === 'youtube' || currentVideoUrl ? (
-          <div className="flex-1 bg-black rounded-2xl border-3 border-[#7c6a75] overflow-hidden relative shadow-inner">
-             <iframe
-                src={currentVideoUrl}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                className="absolute inset-0 w-full h-full border-none"
-              />
+          <div className="flex-1 flex flex-col gap-4 h-full">
+            <div className="flex-1 bg-black rounded-2xl border-3 border-[#7c6a75] overflow-hidden relative shadow-inner">
+               <iframe
+                  src={currentVideoUrl}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="absolute inset-0 w-full h-full border-none"
+                />
+            </div>
+            {!activeDoc && currentVideoUrl && (
+              <div className="w-full shrink-0 flex justify-end">
+                <Button 
+                  variant="primary" 
+                  className="px-6 py-3 font-black text-sm"
+                  onClick={async () => {
+                    const originalUrl = currentVideoUrl.replace('embed/', 'watch?v=');
+                    await onAddYoutubeUrl(originalUrl);
+                  }}
+                >
+                  ✨ Generate AI Notes & Quiz
+                </Button>
+              </div>
+            )}
           </div>
         ) : (
           <div 
