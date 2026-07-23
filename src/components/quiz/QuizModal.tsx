@@ -68,9 +68,21 @@ export default function QuizModal({ questions, currentIndex, sessionResults, isO
       setEvalResult(evalData);
       onAnswer(answer, evaluation.correct, evalData);
     } else {
-      // Fallback if API fails
-      setIsCorrect(false);
-      onAnswer(answer, false);
+      // API failed — give benefit of the doubt instead of auto-failing
+      // A student who wrote a long answer deserves at least partial credit
+      const hasSubstantialAnswer = answer.trim().length > 20;
+      setIsCorrect(hasSubstantialAnswer);
+      const fallbackData = {
+        score: hasSubstantialAnswer ? 6 : 3,
+        maxScore: 10,
+        grade: hasSubstantialAnswer ? 'Good Understanding' : 'Partial Understanding',
+        aiExplanation: 'Dazai couldn\'t reach the grading server right now. Your answer has been given provisional credit based on its length and effort. Try again later for a full evaluation!',
+        strengths: hasSubstantialAnswer ? ['Provided a detailed response'] : ['Attempted to answer the question'],
+        missingPoints: [],
+        suggestions: ['Try submitting again when the AI service is available for a full evaluation'],
+      };
+      setEvalResult(fallbackData);
+      onAnswer(answer, hasSubstantialAnswer, fallbackData);
     }
   };
 

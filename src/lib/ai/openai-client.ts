@@ -24,8 +24,11 @@ const OPENAI_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 function getModelForTask(task: 'chat' | 'quiz_hard' | 'quiz_easy' | 'evaluation' | 'summary' | 'extract'): string {
   switch (task) {
     case 'quiz_hard':
+      return 'nvidia/nemotron-3-super-120b-a12b:free'; // High accuracy for hard questions
     case 'evaluation':
-      return 'nvidia/nemotron-3-super-120b-a12b:free'; // High accuracy
+      // Use nano for evaluation — it's fast and the prompt is well-structured enough
+      // The 120B model was causing timeouts on free tier, leading to auto-fail
+      return 'nvidia/nemotron-3-nano-30b-a3b:free';
     case 'chat':
     case 'quiz_easy':
     case 'summary':
@@ -43,43 +46,54 @@ async function callOpenAI(
   apiKey: string,
   model: string = 'nvidia/nemotron-3-nano-30b-a3b:free',
   temperature: number = 0.7,
-  maxTokens: number = 1024
+  maxTokens: number = 1024,
+  retries: number = 2
 ): Promise<string | null> {
-  try {
-    // Map OpenAI models to OpenRouter format if they lack a provider prefix
-    let actualModel = model;
-    if (!actualModel.includes('/') && actualModel.startsWith('gpt')) {
-      actualModel = `openai/${actualModel}`;
-    }
+  // Map OpenAI models to OpenRouter format if they lack a provider prefix
+  let actualModel = model;
+  if (!actualModel.includes('/') && actualModel.startsWith('gpt')) {
+    actualModel = `openai/${actualModel}`;
+  }
 
-    const response = await fetch(OPENAI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        'HTTP-Referer': 'http://localhost:3000',
-        'X-Title': 'Dazai Study Companion',
-      },
-      body: JSON.stringify({
-        model: actualModel,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-      }),
-    });
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(OPENAI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+          'HTTP-Referer': 'http://localhost:3000',
+          'X-Title': 'Dazai Study Companion',
+        },
+        body: JSON.stringify({
+          model: actualModel,
+          messages,
+          temperature,
+          max_tokens: maxTokens,
+        }),
+      });
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error(`OpenAI API error (${response.status}):`, error);
+      if (!response.ok) {
+        const error = await response.text();
+        console.error(`[AI] API error (${response.status}) attempt ${attempt + 1}/${retries + 1}:`, error);
+        if (attempt < retries) continue; // Retry on failure
+        return null;
+      }
+
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content?.trim() ?? null;
+      if (content) return content;
+
+      console.error(`[AI] Empty response on attempt ${attempt + 1}/${retries + 1}`);
+      if (attempt < retries) continue;
+      return null;
+    } catch (error) {
+      console.error(`[AI] Call failed attempt ${attempt + 1}/${retries + 1}:`, error);
+      if (attempt < retries) continue;
       return null;
     }
-
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content?.trim() ?? null;
-  } catch (error) {
-    console.error('OpenAI API call failed:', error);
-    return null;
   }
+  return null;
 }
 
 // --- Parse JSON from model output (handles markdown fences) ---
