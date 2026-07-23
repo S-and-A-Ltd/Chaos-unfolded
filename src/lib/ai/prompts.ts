@@ -165,18 +165,22 @@ ${userAnswer}
 
 ## EVALUATION RULES
 - CRITICAL: DO NOT simply compare the student's answer to the 'CORRECT ANSWER' verbatim.
-- If the student's answer is logically, factually, and conceptually correct, YOU MUST mark "isCorrect": true, even if they use completely different words or examples.
-- For concept explanations and short answers: evaluate their understanding of the core concept. If they grasp the concept naturally, mark it correct.
-- Only mark as incorrect if the answer contains fundamentally wrong information, contradicts the concept, or completely misses the point.
-- For MCQs: the selected option must conceptually match the correct answer.
-- For factual/recall questions: the answer must be substantially correct, exact wording is NOT required.
-- Be fair. If they get the gist of it but miss a minor detail, mark it correct but mention the missing detail in the explanation. Partial understanding should be marked correct with 'partialCredit': true, unless it's missing the absolute core concept.
+- If the student's answer is logically, factually, and conceptually correct, YOU MUST mark "correct": true, even if they use completely different words or examples.
+- For concept explanations and short answers: evaluate their understanding of the core concept. Score their answer out of 10.
+- Only mark "correct": false if the answer contains fundamentally wrong information, contradicts the concept, or completely misses the point (Score < 5).
+- For MCQs: the selected option must conceptually match the correct answer (Score 10 or 0).
+- Be fair. If they get the gist of it but miss a minor detail, give a high score (e.g., 7-9) and mention the missing detail in missingPoints.
+- Provide clear strengths (what they got right) and missingPoints (what they forgot or got wrong).
+
 ## RESPONSE FORMAT
 Respond with JSON:
 {
-  "isCorrect": true | false,
-  "explanation": "Brief explanation of why the answer is correct or incorrect, and the key concept they should understand",
-  "partialCredit": true | false,
+  "correct": true | false,
+  "score": 8,
+  "maxScore": 10,
+  "feedback": "Brief explanation of their performance and the core concept",
+  "strengths": ["Clear explanation of X", "Correctly identified Y"],
+  "missingPoints": ["Failed to mention Z"],
   "emotion": "proud" | "happy" | "neutral" | "concerned" | "disappointed" | "annoyed"
 }
 

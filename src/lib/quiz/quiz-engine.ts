@@ -83,8 +83,12 @@ export class QuizEngine {
     userAnswer: string,
     apiKey: string
   ): Promise<{
-    isCorrect: boolean;
-    explanation: string;
+    correct: boolean;
+    score: number;
+    maxScore: number;
+    feedback: string;
+    strengths: string[];
+    missingPoints: string[];
     emotion: string;
   } | null> {
     try {

@@ -469,20 +469,32 @@ export default function Home() {
   };
 
   // Handle Quiz Answer
-  const handleQuizAnswer = (answer: string, isCorrect: boolean) => {
+  const handleQuizAnswer = (answer: string, isCorrect: boolean, evalData?: Partial<QuizResult>) => {
     const q = quizQuestions[activeQuestionIndex];
     if (!q) return;
+
+    // Determine XP based on score, or fallback to fixed amount
+    let xp = isCorrect ? 25 : 5;
+    if (evalData?.score !== undefined && evalData?.maxScore !== undefined) {
+      xp = Math.round((evalData.score / evalData.maxScore) * 25);
+      // Ensure they get at least 5 XP for trying
+      if (xp < 5) xp = 5;
+    }
 
     const result: QuizResult = {
       questionId: q.id,
       userAnswer: answer,
       isCorrect,
-      aiExplanation: isCorrect
+      aiExplanation: evalData?.aiExplanation || (isCorrect
         ? `Correct! The answer is: ${q.correctAnswer}`
-        : `Incorrect. The correct answer was: ${q.correctAnswer}`,
+        : `Incorrect. The correct answer was: ${q.correctAnswer}`),
       characterReaction: isCorrect ? 'proud' : 'disappointed',
       timestamp: Date.now(),
-      xpEarned: isCorrect ? 25 : 5,
+      xpEarned: xp,
+      score: evalData?.score,
+      maxScore: evalData?.maxScore,
+      strengths: evalData?.strengths,
+      missingPoints: evalData?.missingPoints,
     };
 
     const updatedResults = [...quizResults, result];

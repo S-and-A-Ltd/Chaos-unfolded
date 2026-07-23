@@ -60,6 +60,10 @@ export interface QuizResult {
   characterReaction: EmotionState;
   xpEarned: number;
   timestamp: number;
+  score?: number;
+  maxScore?: number;
+  strengths?: string[];
+  missingPoints?: string[];
 }
 
 // --- Study Session Types ---

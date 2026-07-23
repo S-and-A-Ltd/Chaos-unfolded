@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import type { QuizQuestion, QuizResult } from '@/types';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { QuizEngine } from '@/lib/quiz/quiz-engine';
 
 interface QuizModalProps {
   questions: QuizQuestion[];
@@ -12,7 +14,7 @@ interface QuizModalProps {
   sessionResults: QuizResult[];
   isOpen: boolean;
   onClose: () => void;
-  onAnswer: (answer: string, isCorrect: boolean) => void;
+  onAnswer: (answer: string, isCorrect: boolean, evalData?: Partial<QuizResult>) => void;
   onNext: () => void;
 }
 
@@ -21,26 +23,65 @@ export default function QuizModal({ questions, currentIndex, sessionResults, isO
   const [textAnswer, setTextAnswer] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evalResult, setEvalResult] = useState<Partial<QuizResult> | null>(null);
+  const { openaiApiKey } = useSettingsStore();
 
   if (!questions || questions.length === 0) return null;
 
   const isSummary = currentIndex >= questions.length;
   const question = isSummary ? null : questions[currentIndex];
 
-  const handleSubmit = (answer: string) => {
+  const handleSubmit = async (answer: string) => {
     if (!question) return;
-    const correct =
-      answer.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase();
+    
+    // Deterministic for MCQ and Recall
+    if (question.type === 'mcq' || question.type === 'recall') {
+      const correct = answer.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase();
+      setSelectedAnswer(answer);
+      setIsCorrect(correct);
+      setSubmitted(true);
+      onAnswer(answer, correct);
+      return;
+    }
+
+    // AI Evaluation for Concept Explanation and Short Answer
+    setIsEvaluating(true);
+    const engine = new QuizEngine();
+    const evaluation = await engine.evaluateAnswer(question, answer, openaiApiKey);
+    setIsEvaluating(false);
+
     setSelectedAnswer(answer);
-    setIsCorrect(correct);
     setSubmitted(true);
-    onAnswer(answer, correct);
+    
+    if (evaluation) {
+      setIsCorrect(evaluation.correct);
+      setEvalResult({
+        score: evaluation.score,
+        maxScore: evaluation.maxScore,
+        aiExplanation: evaluation.feedback,
+        strengths: evaluation.strengths,
+        missingPoints: evaluation.missingPoints,
+      });
+      onAnswer(answer, evaluation.correct, {
+        score: evaluation.score,
+        maxScore: evaluation.maxScore,
+        aiExplanation: evaluation.feedback,
+        strengths: evaluation.strengths,
+        missingPoints: evaluation.missingPoints,
+      });
+    } else {
+      // Fallback if API fails
+      setIsCorrect(false);
+      onAnswer(answer, false);
+    }
   };
 
   const handleNext = () => {
     setSelectedAnswer(null);
     setTextAnswer('');
     setSubmitted(false);
+    setEvalResult(null);
     onNext();
   };
 
@@ -48,6 +89,7 @@ export default function QuizModal({ questions, currentIndex, sessionResults, isO
     setSelectedAnswer(null);
     setTextAnswer('');
     setSubmitted(false);
+    setEvalResult(null);
     onClose();
   };
 
@@ -194,9 +236,9 @@ export default function QuizModal({ questions, currentIndex, sessionResults, isO
                       <Button
                         variant="primary"
                         onClick={() => handleSubmit(textAnswer)}
-                        disabled={!textAnswer.trim()}
+                        disabled={!textAnswer.trim() || isEvaluating}
                       >
-                        Submit Answer
+                        {isEvaluating ? "Dazai is reviewing..." : "Submit Answer"}
                       </Button>
                     </div>
                   )}
@@ -213,24 +255,61 @@ export default function QuizModal({ questions, currentIndex, sessionResults, isO
                     className={`
                       p-4 rounded-xl border flex items-center gap-3
                       ${isCorrect
-                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800'
-                        : 'bg-red-500/10 border-red-500/30 text-red-800'}
+                        ? 'bg-emerald-500/10 border-emerald-500/30'
+                        : 'bg-red-500/10 border-red-500/30'}
                     `}
                   >
                     <span className="text-2xl">{isCorrect ? '✅' : '❌'}</span>
-                    <div>
-                      <p className={`text-sm font-bold ${isCorrect ? 'text-emerald-700' : 'text-red-600'}`}>
-                        {isCorrect ? 'Correct! Well done!' : 'Not quite right.'}
+                    <div className="flex-1">
+                      {isCorrect ? (
+                        <h4 className="text-xl font-black text-emerald-600 mb-1">Brilliant! ✨</h4>
+                      ) : (
+                        <h4 className="text-xl font-black text-red-500 mb-1">Not quite!</h4>
+                      )}
+
+                      {evalResult?.score !== undefined && (
+                        <div className="font-bold text-[#5d5770] mb-3 border-b border-black/5 pb-2">
+                          Score: <span className={isCorrect ? "text-emerald-600" : "text-red-500"}>{evalResult.score}/{evalResult.maxScore}</span>
+                        </div>
+                      )}
+
+                      <p className="text-sm font-semibold text-[#7c6a75] leading-relaxed mb-4">
+                        {evalResult?.aiExplanation || (isCorrect
+                          ? `You got it right! The answer is exactly ${question.correctAnswer}.`
+                          : `The correct answer was: ${question.correctAnswer}.`)}
                       </p>
-                      <p className="text-xs text-[#5d5770]/60 mt-0.5">
-                        Answer: <span className="text-[#5d5770] font-semibold">{question.correctAnswer}</span>
-                      </p>
+
+                      {evalResult?.strengths && evalResult.strengths.length > 0 && (
+                        <div className="mb-3 text-left">
+                          <span className="text-xs font-bold uppercase text-emerald-600">What you got right:</span>
+                          <ul className="mt-1 space-y-1">
+                            {evalResult.strengths.map((str, idx) => (
+                              <li key={idx} className="text-sm text-emerald-700 font-medium flex gap-2">
+                                <span>✓</span> <span>{str}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {evalResult?.missingPoints && evalResult.missingPoints.length > 0 && (
+                        <div className="mb-4 text-left">
+                          <span className="text-xs font-bold uppercase text-red-500">Missing or incorrect:</span>
+                          <ul className="mt-1 space-y-1">
+                            {evalResult.missingPoints.map((pt, idx) => (
+                              <li key={idx} className="text-sm text-red-600 font-medium flex gap-2">
+                                <span>✗</span> <span>{pt}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      <Button variant="secondary" onClick={handleNext} className="w-full py-3">
+                        {currentIndex < questions.length - 1 ? 'Next Question' : 'View Summary'}
+                      </Button>
                     </div>
                   </div>
-
-                  <Button variant="secondary" onClick={handleNext} className="w-full">
-                    {currentIndex < questions.length - 1 ? 'Next Question' : 'View Summary'}
-                  </Button>
                 </motion.div>
               )}
             </AnimatePresence>

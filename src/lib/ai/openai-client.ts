@@ -394,9 +394,12 @@ export async function evaluateAnswer(
   apiKey: string,
   correctAnswer?: string
 ): Promise<{
-  isCorrect: boolean;
-  explanation: string;
-  partialCredit: boolean;
+  correct: boolean;
+  score: number;
+  maxScore: number;
+  feedback: string;
+  strengths: string[];
+  missingPoints: string[];
   emotion: string;
 } | null> {
   const prompt = answerEvaluationPrompt(
