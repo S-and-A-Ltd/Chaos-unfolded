@@ -25,15 +25,15 @@ function getModelForTask(task: 'chat' | 'quiz_hard' | 'quiz_easy' | 'evaluation'
   switch (task) {
     case 'quiz_hard':
     case 'evaluation':
-      // The 120B model was timing out. Switched to Google Gemma 4 31B (fast & free)
-      return 'google/gemma-4-31b-it:free';
+      // The 120B model was timing out. Switched to Google Gemma 4 26B (reliable, fast & free)
+      return 'google/gemma-4-26b-a4b-it:free';
     case 'chat':
     case 'quiz_easy':
     case 'summary':
     case 'extract':
-      return 'google/gemma-4-31b-it:free';
+      return 'google/gemma-4-26b-a4b-it:free';
     default:
-      return 'google/gemma-4-31b-it:free';
+      return 'google/gemma-4-26b-a4b-it:free';
   }
 }
 
