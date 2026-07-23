@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { question, userAnswer, correctAnswer, apiKey } = body;
+    const { question, userAnswer, correctAnswer, questionType, apiKey } = body;
 
     const keyToUse = apiKey || process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 
@@ -74,7 +74,8 @@ export async function PUT(req: NextRequest) {
       question,
       userAnswer,
       keyToUse,
-      correctAnswer
+      correctAnswer,
+      questionType
     );
 
     if (!evaluation) {

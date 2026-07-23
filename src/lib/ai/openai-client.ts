@@ -386,13 +386,14 @@ export async function generateQuizQuestions(
 }
 
 /**
- * Evaluate a student's answer (uses gpt-4o-mini).
+ * Evaluate a student's answer using AI semantic evaluation.
  */
 export async function evaluateAnswer(
   question: string,
   userAnswer: string,
   apiKey: string,
-  correctAnswer?: string
+  correctAnswer?: string,
+  questionType?: string
 ): Promise<{
   correct: boolean;
   score: number;
@@ -405,7 +406,8 @@ export async function evaluateAnswer(
   const prompt = answerEvaluationPrompt(
     question,
     correctAnswer ?? '(not provided — evaluate based on the question)',
-    userAnswer
+    userAnswer,
+    questionType
   );
 
   const raw = await callOpenAI(

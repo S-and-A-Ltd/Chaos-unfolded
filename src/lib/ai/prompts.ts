@@ -150,42 +150,60 @@ Respond with a JSON array containing EXACTLY ${config.count} elements. Each elem
 export function answerEvaluationPrompt(
   question: string,
   correctAnswer: string,
-  userAnswer: string
+  userAnswer: string,
+  questionType?: string
 ): string {
-  return `Evaluate the student's answer to this question.
+  return `You are a fair and encouraging teacher grading a student's answer. Your job is to evaluate whether the student UNDERSTANDS the concept, NOT whether they memorized or parroted the reference material.
 
 ## QUESTION
 ${question}
 
-## CORRECT ANSWER
+## QUESTION TYPE
+${questionType || 'short_answer'}
+
+## REFERENCE ANSWER (for your context only — do NOT compare word-for-word)
 ${correctAnswer}
 
 ## STUDENT'S ANSWER
 ${userAnswer}
 
-## EVALUATION RULES
-- CRITICAL: DO NOT simply compare the student's answer to the 'CORRECT ANSWER' verbatim.
-- If the student's answer is logically, factually, and conceptually correct, YOU MUST mark "correct": true, even if they use completely different words or examples.
-- For concept explanations and short answers: evaluate their understanding of the core concept. Score their answer out of 10.
-- Only mark "correct": false if the answer contains fundamentally wrong information, contradicts the concept, or completely misses the point (Score < 5).
-- For MCQs: the selected option must conceptually match the correct answer (Score 10 or 0).
-- Be fair. If they get the gist of it but miss a minor detail, give a high score (e.g., 7-9) and mention the missing detail in missingPoints.
-- Provide clear strengths (what they got right) and missingPoints (what they forgot or got wrong).
+## GRADING RUBRIC
+Score the student's answer out of 10 using these four criteria:
+
+1. **Conceptual Understanding (0-4 points)**: Does the student demonstrate they understand the core idea? Even if they use different terminology, analogies, or examples — if the underlying concept is correct, award full marks here.
+
+2. **Technical Correctness (0-3 points)**: Is the information factually accurate? Are there any outright errors or misconceptions? Minor imprecisions are acceptable.
+
+3. **Completeness (0-2 points)**: Did the student cover the key aspects? Missing a minor detail is fine (deduct at most 1 point). Only deduct both points if major components are entirely absent.
+
+4. **Clarity (0-1 point)**: Is the answer understandable and coherent? Award this point unless the answer is genuinely confusing or incoherent.
+
+## CRITICAL RULES
+- A student who explains a concept correctly in their own words MUST receive a high score (7-10), even if their wording is completely different from the reference.
+- DO NOT penalize for: different word choices, different sentence structure, using simpler language, providing different (but valid) examples, or explaining things in a different order.
+- DO penalize for: factual errors, fundamental misunderstandings, contradicting the concept, or completely missing the point.
+- Score >= 5 means "correct": true. Score < 5 means "correct": false.
+- For partially correct answers (score 5-6), set "correct": true but note what was missing.
+- Always provide at least one strength, even for weak answers (e.g., "Attempted to address the question").
 
 ## RESPONSE FORMAT
-Respond with JSON:
+Return ONLY this JSON (no markdown fences, no extra text):
 {
-  "correct": true | false,
+  "correct": true,
   "score": 8,
   "maxScore": 10,
-  "feedback": "Brief explanation of their performance and the core concept",
-  "strengths": ["Clear explanation of X", "Correctly identified Y"],
-  "missingPoints": ["Failed to mention Z"],
-  "emotion": "proud" | "happy" | "neutral" | "concerned" | "disappointed" | "annoyed"
+  "feedback": "One or two sentences summarizing their performance",
+  "strengths": ["What the student got right — be specific"],
+  "missingPoints": ["What important points were missed, if any"],
+  "emotion": "proud"
 }
 
-The emotion reflects how Dazai would feel about this answer quality.
-Return ONLY JSON, no markdown fences.`;
+The "emotion" field reflects how Dazai (a witty, literary anime tutor) would feel:
+- 9-10: "proud" or "excited"
+- 7-8: "happy"
+- 5-6: "neutral" or "concerned"
+- 3-4: "disappointed"
+- 0-2: "annoyed"`;
 }
 
 export function summaryPrompt(text: string): string {

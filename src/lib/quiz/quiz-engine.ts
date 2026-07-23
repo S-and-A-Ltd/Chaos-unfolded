@@ -98,6 +98,7 @@ export class QuizEngine {
         body: JSON.stringify({
           question: question.question,
           correctAnswer: question.correctAnswer,
+          questionType: question.type,
           userAnswer,
           apiKey,
         }),
