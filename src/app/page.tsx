@@ -5,6 +5,7 @@ import { useSessionStore } from '@/stores/useSessionStore';
 import { useCharacterStore } from '@/stores/useCharacterStore';
 import { useUserStore } from '@/stores/useUserStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useCortisolStore } from '@/stores/useCortisolStore';
 
 // Components
 import Button from '@/components/ui/Button';
@@ -450,10 +451,14 @@ export default function Home() {
       setEmotion('proud');
       setDialogue(`Spot on! See? You're actually capable of studying when you apply yourself.`);
       adjustMood(10);
+      // Correct answer calms Dazai down
+      useCortisolStore.getState().decrease(8);
     } else {
       setEmotion('disappointed');
       setDialogue(`Wrong! Hmm, did you even read the material, or were you just staring at my handsome face?`);
       adjustMood(-8);
+      // Wrong answer stresses Dazai out
+      useCortisolStore.getState().increase(12);
     }
     useCharacterStore.getState().triggerVoice();
 

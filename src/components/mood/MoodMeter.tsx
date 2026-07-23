@@ -1,13 +1,13 @@
 'use client';
 
+import { useEffect } from 'react';
 import { motion, useSpring, useTransform } from 'motion/react';
-import { useState, useMemo } from 'react';
 import Card from '@/components/ui/Card';
+import { useCortisolStore } from '@/stores/useCortisolStore';
 
 export default function MoodMeter() {
-  // Cortisol level (0-100). Default low (~20).
-  // Quiz evaluation will update this value.
-  const [cortisolLevel] = useState(20);
+  // Read cortisol level from shared store (updated by quiz answers)
+  const cortisolLevel = useCortisolStore((s) => s.level);
 
   // SVG layout
   const width = 240;
@@ -142,8 +142,13 @@ function AnimatedNeedle({
 }) {
   const degToRad = (deg: number) => (deg * Math.PI) / 180;
 
-  // Spring-animated angle
-  const springAngle = useSpring(targetAngle, { stiffness: 40, damping: 14 });
+  // Spring-animated angle – smooth like a clock hand
+  const springAngle = useSpring(targetAngle, { stiffness: 30, damping: 20 });
+
+  // Update the spring target whenever cortisolLevel changes
+  useEffect(() => {
+    springAngle.set(targetAngle);
+  }, [targetAngle, springAngle]);
 
   // Derive the polygon points string from the animated angle
   const points = useTransform(springAngle, (angle) => {
