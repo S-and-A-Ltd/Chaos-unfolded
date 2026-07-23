@@ -32,9 +32,12 @@ export async function GET(req: NextRequest) {
 
     let items: any[] = [];
 
+    // The user requested to hardcode the API key directly in the code for convenience on Vercel
+    const apiKey = process.env.YOUTUBE_API_KEY || 'AIzaSyC7Gni4wrOkDM-0lW1dQRFFA1AwtsKB2kw';
+
     // Use official YouTube Data API if available (avoids Vercel IP blocks)
-    if (process.env.YOUTUBE_API_KEY) {
-      const ytApiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=15&q=${encodeURIComponent(query)}&type=${type === 'all' ? 'video,playlist' : type}&key=${process.env.YOUTUBE_API_KEY}`;
+    if (apiKey) {
+      const ytApiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=15&q=${encodeURIComponent(query)}&type=${type === 'all' ? 'video,playlist' : type}&key=${apiKey}`;
       const apiRes = await fetch(ytApiUrl);
       const apiData = await apiRes.json();
       
