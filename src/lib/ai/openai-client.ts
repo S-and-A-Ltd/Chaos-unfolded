@@ -5,7 +5,11 @@
 
 import type { AIMessage, AIResponse, QuizQuestion } from '@/types';
 import {
-  quizGenerationPrompt,
+  generateMCQPrompt,
+  generateShortAnswerPrompt,
+  generateRecallPrompt,
+  generateConceptPrompt,
+  generateMixedPrompt,
   answerEvaluationPrompt,
   summaryPrompt,
   topicExtractionPrompt,
@@ -110,21 +114,95 @@ export async function generateQuizQuestions(
   config: QuizConfig,
   apiKey: string
 ): Promise<QuizQuestion[] | null> {
-  const prompt = quizGenerationPrompt(context, topics, config);
+  let prompt = '';
+  switch (config.type) {
+    case 'mcq':
+      prompt = generateMCQPrompt(context, topics, config);
+      break;
+    case 'short_answer':
+      prompt = generateShortAnswerPrompt(context, topics, config);
+      break;
+    case 'recall':
+      prompt = generateRecallPrompt(context, topics, config);
+      break;
+    case 'concept_explanation':
+      prompt = generateConceptPrompt(context, topics, config);
+      break;
+    case 'mixed':
+    default:
+      prompt = generateMixedPrompt(context, topics, config);
+      break;
+  }
 
-  const raw = await callOpenAI(
-    [{ role: 'user', content: prompt }],
-    apiKey,
-    'gpt-4o-mini',
-    0.7,
-    2048
-  );
+  let parsed: Omit<QuizQuestion, 'id'>[] | null = null;
+  const maxRetries = 2;
 
-  let parsed = parseJSON<Omit<QuizQuestion, 'id'>[]>(raw);
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const raw = await callOpenAI(
+      [{ role: 'user', content: prompt }],
+      apiKey,
+      'gpt-4o-mini',
+      0.5, // Lower temp for more reliable formatting
+      2048
+    );
 
-  // Fallback: Generate local questions if OpenAI fails/rate-limits
-  if (!parsed || !Array.isArray(parsed) || parsed.length === 0) {
-    console.warn("OpenAI quiz generation failed. Crafting offline fallback questions...");
+    const maybeParsed = parseJSON<Omit<QuizQuestion, 'id'>[]>(raw);
+    
+    if (Array.isArray(maybeParsed) && maybeParsed.length > 0) {
+      // Validate schema
+      let isValid = true;
+      for (const q of maybeParsed) {
+        if (!q.question || !q.correctAnswer || !q.topic || !q.difficulty || !q.type) {
+          isValid = false;
+          break;
+        }
+        
+        // Type specific validation
+        if (config.type !== 'mixed' && q.type !== config.type) {
+          isValid = false; // Strictly enforce requested type if not mixed
+          break;
+        }
+
+        if (q.type === 'mcq' && (!Array.isArray(q.options) || q.options.length !== 4)) {
+          isValid = false;
+          break;
+        }
+
+        if (q.type === 'recall' && !q.question.includes('____')) {
+          isValid = false;
+          break;
+        }
+      }
+
+      // Check distribution if mixed custom
+      if (isValid && config.type === 'mixed' && config.mixedMode === 'custom' && config.distribution) {
+        const counts = { mcq: 0, short_answer: 0, concept_explanation: 0, recall: 0 };
+        maybeParsed.forEach(q => counts[q.type as keyof typeof counts]++);
+        if (
+          counts.mcq !== config.distribution.mcq ||
+          counts.short_answer !== config.distribution.short_answer ||
+          counts.recall !== config.distribution.recall ||
+          counts.concept_explanation !== config.distribution.concept_explanation
+        ) {
+          isValid = false;
+        }
+      }
+
+      if (isValid) {
+        parsed = maybeParsed;
+        break; // Success!
+      } else {
+        console.warn(`[Attempt ${attempt + 1}] AI returned invalid schema for type: ${config.type}. Retrying...`);
+        // We could append a correction prompt here, but simply retrying with the strict prompt often works
+      }
+    } else {
+      console.warn(`[Attempt ${attempt + 1}] AI failed to return a JSON array. Retrying...`);
+    }
+  }
+
+  // Fallback: Generate local questions if OpenAI fails/rate-limits or failed validation 3 times
+  if (!parsed || parsed.length === 0) {
+    console.warn("OpenAI quiz generation failed after retries. Crafting offline fallback questions...");
     const sentences = context
       .split(/[.!?]\s+/)
       .map((s) => s.trim())

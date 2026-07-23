@@ -3,44 +3,17 @@
 // All prompts return structured JSON from the model
 // ============================================================
 
-import type { QuizConfig } from '@/types';
+import type { QuizConfig, QuizDistribution } from '@/types';
 
-export function quizGenerationPrompt(
-  context: string,
-  topics: string[],
-  config: QuizConfig
-): string {
-  const difficultyGuide: Record<string, string> = {
-    easy: 'Straightforward recall and basic comprehension questions. Test direct facts from the material.',
-    medium: 'Application and analysis questions. Require understanding concepts, not just memorizing.',
-    hard: 'Synthesis and evaluation questions. Require connecting multiple concepts, critical thinking, or applying knowledge to new scenarios.',
-    adaptive: 'Mix of easy (30%), medium (50%), and hard (20%) questions for balanced assessment.',
-  };
+const difficultyGuide: Record<string, string> = {
+  easy: 'Straightforward recall and basic comprehension questions. Test direct facts from the material.',
+  medium: 'Application and analysis questions. Require understanding concepts, not just memorizing.',
+  hard: 'Synthesis and evaluation questions. Require connecting multiple concepts, critical thinking, or applying knowledge to new scenarios.',
+  adaptive: 'Mix of easy (30%), medium (50%), and hard (20%) questions for balanced assessment.',
+};
 
-  const typeDefs: Record<string, string> = {
-    mcq: `**mcq** — Multiple choice with exactly 4 options. Only ONE correct answer.`,
-    short_answer: `**short_answer** — Requires a brief factual answer (1-2 sentences).`,
-    concept_explanation: `**concept_explanation** — Asks student to explain a concept in their own words.`,
-    recall: `**recall** — Direct recall from the material (fill-in-the-blank style). You MUST leave a literal dash '____' in the question text where the missing word or phrase belongs.`
-  };
-
-  let typeGuide = '';
-  if (config.type === 'mixed') {
-    if (config.mixedMode === 'custom' && config.distribution) {
-      typeGuide = `Generate exactly:\n` +
-        `- ${config.distribution.mcq} questions of type: ${typeDefs.mcq}\n` +
-        `- ${config.distribution.short_answer} questions of type: ${typeDefs.short_answer}\n` +
-        `- ${config.distribution.concept_explanation} questions of type: ${typeDefs.concept_explanation}\n` +
-        `- ${config.distribution.recall} questions of type: ${typeDefs.recall}\n`;
-    } else {
-      typeGuide = `Generate a balanced mix of these types:\n` +
-        Object.values(typeDefs).map(t => `- ${t}`).join('\n');
-    }
-  } else {
-    typeGuide = `Generate ONLY questions of this type:\n- ${typeDefs[config.type]}`;
-  }
-
-  return `You are a quiz generator for study material. Generate exactly ${config.count} quiz questions based on the provided material.
+function getBasePrompt(context: string, topics: string[], difficulty: string, count: number): string {
+  return `You are an expert quiz generator for study material. Generate exactly ${count} quiz questions based on the provided material.
 
 ## STUDY MATERIAL
 ${context.slice(0, 6000)}
@@ -48,24 +21,124 @@ ${context.slice(0, 6000)}
 ## TOPICS TO FOCUS ON
 ${topics.length > 0 ? topics.join(', ') : 'All topics found in the material'}
 
-## DIFFICULTY LEVEL: ${config.difficulty.toUpperCase()}
-${difficultyGuide[config.difficulty]}
+## DIFFICULTY LEVEL: ${difficulty.toUpperCase()}
+${difficultyGuide[difficulty]}
+`;
+}
 
-## QUESTION TYPES TO GENERATE:
-${typeGuide}
+export function generateMCQPrompt(context: string, topics: string[], config: QuizConfig): string {
+  return `${getBasePrompt(context, topics, config.difficulty, config.count)}
+
+## QUESTION TYPE TO GENERATE:
+Generate ONLY Multiple Choice Questions (MCQs).
+Do not generate open-ended questions.
 
 ## OUTPUT FORMAT
 Respond with a JSON array. Each element must have:
 {
-  "type": "mcq" | "short_answer" | "concept_explanation" | "recall",
+  "type": "mcq",
   "question": "The question text",
-  "options": ["A", "B", "C", "D"],  // ONLY for mcq type, omit for others
-  "correctAnswer": "The correct answer text",
-  "topic": "Which topic this question covers",
-  "difficulty": "easy" | "medium" | "hard"
+  "options": ["A", "B", "C", "D"],  // Exactly 4 options.
+  "correctAnswer": "The exact string from the options array that is correct",
+  "topic": "The specific topic this relates to",
+  "difficulty": "${config.difficulty === 'adaptive' ? 'easy, medium, or hard' : config.difficulty}"
+}
+`;
 }
 
-Return ONLY the JSON array, no markdown fences, no explanation.`;
+export function generateShortAnswerPrompt(context: string, topics: string[], config: QuizConfig): string {
+  return `${getBasePrompt(context, topics, config.difficulty, config.count)}
+
+## QUESTION TYPE TO GENERATE:
+Generate ONLY Short Answer Questions.
+Each question should require a concise written factual response (1-3 sentences).
+Do not provide options.
+
+## OUTPUT FORMAT
+Respond with a JSON array. Each element must have:
+{
+  "type": "short_answer",
+  "question": "The question text",
+  "correctAnswer": "The expected ideal answer",
+  "topic": "The specific topic this relates to",
+  "difficulty": "${config.difficulty === 'adaptive' ? 'easy, medium, or hard' : config.difficulty}"
+}
+`;
+}
+
+export function generateRecallPrompt(context: string, topics: string[], config: QuizConfig): string {
+  return `${getBasePrompt(context, topics, config.difficulty, config.count)}
+
+## QUESTION TYPE TO GENERATE:
+Generate ONLY Fill-in-the-Blank / Recall questions.
+You MUST leave a literal dash '____' in the question text where the missing word or phrase belongs.
+Do not generate explanation-style questions.
+
+## OUTPUT FORMAT
+Respond with a JSON array. Each element must have:
+{
+  "type": "recall",
+  "question": "The sentence with exactly one '____' replacing the key word.",
+  "correctAnswer": "The exact missing word or short phrase",
+  "topic": "The specific topic this relates to",
+  "difficulty": "${config.difficulty === 'adaptive' ? 'easy, medium, or hard' : config.difficulty}"
+}
+`;
+}
+
+export function generateConceptPrompt(context: string, topics: string[], config: QuizConfig): string {
+  return `${getBasePrompt(context, topics, config.difficulty, config.count)}
+
+## QUESTION TYPE TO GENERATE:
+Generate ONLY Conceptual Reasoning questions.
+These questions must ask the student to explain a concept in their own words, analyze why something happens, or describe the significance of an idea.
+Do not generate MCQs or fill-in-the-blank questions.
+
+## OUTPUT FORMAT
+Respond with a JSON array. Each element must have:
+{
+  "type": "concept_explanation",
+  "question": "The question text",
+  "correctAnswer": "A comprehensive explanation of what a correct answer should include",
+  "topic": "The specific topic this relates to",
+  "difficulty": "${config.difficulty === 'adaptive' ? 'easy, medium, or hard' : config.difficulty}"
+}
+`;
+}
+
+export function generateMixedPrompt(context: string, topics: string[], config: QuizConfig): string {
+  let distributionInstruction = 'Generate a balanced mix of MCQs, Short Answers, Recall, and Concept Explanations.';
+  
+  if (config.mixedMode === 'custom' && config.distribution) {
+    distributionInstruction = `Generate EXACTLY:
+- ${config.distribution.mcq} Multiple Choice (mcq)
+- ${config.distribution.short_answer} Short Answer (short_answer)
+- ${config.distribution.recall} Recall / Fill-in-the-blank (recall)
+- ${config.distribution.concept_explanation} Concept Explanation (concept_explanation)`;
+  }
+
+  return `${getBasePrompt(context, topics, config.difficulty, config.count)}
+
+## QUESTION DISTRIBUTION:
+${distributionInstruction}
+
+## TYPE RULES:
+- **mcq**: Must include exactly 4 "options" and "correctAnswer" must strictly match one option.
+- **short_answer**: Requires a brief factual answer (1-2 sentences).
+- **recall**: Fill-in-the-blank style. You MUST include a literal dash '____' in the question text.
+- **concept_explanation**: Asks the student to explain a concept in their own words.
+
+## OUTPUT FORMAT
+Respond with a JSON array containing EXACTLY ${config.count} elements. Each element must follow this schema based on its type:
+{
+  "type": "mcq" | "short_answer" | "concept_explanation" | "recall",
+  "question": "The question text (must contain '____' if type is recall)",
+  "options": ["A", "B", "C", "D"], // REQUIRED ONLY for mcq
+  "correctAnswer": "The correct answer / expected explanation",
+  "topic": "The topic",
+  "difficulty": "${config.difficulty === 'adaptive' ? 'easy, medium, or hard' : config.difficulty}"
+}
+`;
 }
 
 export function answerEvaluationPrompt(
