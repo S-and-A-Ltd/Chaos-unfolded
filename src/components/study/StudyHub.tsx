@@ -21,7 +21,10 @@ export default function StudyHub({ documents }: StudyHubProps) {
   const [activeTab, setActiveTab] = useState<TabType>('youtube');
   
   // YouTube State
-  const [youtubeInput, setYoutubeInput] = useState('');
+  const [youtubeSearch, setYoutubeSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedPlaylistTitle, setSelectedPlaylistTitle] = useState('');
   const [currentVideoUrl, setCurrentVideoUrl] = useState(DEFAULT_VIDEOS[0].url);
   const [message, setMessage] = useState('');
   
@@ -33,9 +36,48 @@ export default function StudyHub({ documents }: StudyHubProps) {
   const pdfDocs = documents.filter(d => d.type !== 'youtube');
   const youtubeDocs = documents.filter(d => d.type === 'youtube');
 
-  // Parse standard YouTube links to embed links
-  const handleLoadYoutube = useCallback((urlToLoad?: string) => {
-    const targetUrl = urlToLoad || youtubeInput;
+  // YouTube Search Handler
+  const handleSearchYoutube = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!youtubeSearch.trim()) return;
+
+    setIsSearching(true);
+    setSearchResults([]);
+    setSelectedPlaylistTitle('');
+    setMessage('');
+
+    try {
+      const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(youtubeSearch)}`);
+      const data = await res.json();
+      if (data.items) setSearchResults(data.items);
+    } catch (err) {
+      setMessage("Failed to search YouTube.");
+      setTimeout(() => setMessage(''), 4000);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleFetchPlaylist = async (listId: string, title: string) => {
+    setIsSearching(true);
+    setSearchResults([]);
+    setSelectedPlaylistTitle(`Playlist: ${title}`);
+    setMessage('');
+
+    try {
+      const res = await fetch(`/api/youtube/search?listId=${listId}`);
+      const data = await res.json();
+      if (data.items) setSearchResults(data.items);
+    } catch (err) {
+      setMessage("Failed to fetch playlist videos.");
+      setTimeout(() => setMessage(''), 4000);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleLoadYoutube = useCallback(async (urlToLoad?: string) => {
+    const targetUrl = urlToLoad;
     if (!targetUrl) return;
     
     let videoId = '';
@@ -55,15 +97,15 @@ export default function StudyHub({ documents }: StudyHubProps) {
       }
     }
 
-    if (videoId) {
-      setCurrentVideoUrl(`https://www.youtube.com/embed/${videoId}`);
-      setMessage('');
-      if (!urlToLoad) setYoutubeInput('');
-    } else {
-      setMessage("Invalid YouTube URL. Please make sure it follows standard link formats.");
+    if (!videoId) {
+      setMessage("Invalid YouTube URL.");
       setTimeout(() => setMessage(''), 4000);
+      return;
     }
-  }, [youtubeInput]);
+    
+    // Update player to show this video
+    setCurrentVideoUrl(`https://www.youtube.com/embed/${videoId}`);
+  }, []);
 
   // Set default document if list updates
   useEffect(() => {
@@ -158,31 +200,27 @@ export default function StudyHub({ documents }: StudyHubProps) {
       <div className="flex-1 flex flex-col">
         {activeTab === 'youtube' && (
           <div className="flex flex-col gap-4 flex-1">
-            {/* YouTube Loader Input */}
-            <div className="flex gap-3">
+            <form onSubmit={handleSearchYoutube} className="flex gap-3 relative">
               <input
                 type="text"
-                placeholder="Paste YouTube Link (e.g., https://www.youtube.com/watch?v=...)"
-                value={youtubeInput}
-                onChange={(e) => setYoutubeInput(e.target.value)}
-                className="flex-1 bg-white/40 border-3 border-[#7c6a75] shadow-[0_3px_0_#7c6a75] rounded-xl px-4 py-2.5 text-xs text-[#5d5770] focus:outline-none focus:border-[#7181c8] font-bold"
+                placeholder="Search YouTube for study videos or playlists..."
+                value={youtubeSearch}
+                onChange={(e) => setYoutubeSearch(e.target.value)}
+                className="flex-1 bg-white/40 border-3 border-[#7c6a75] shadow-[0_3px_0_#7c6a75] rounded-xl px-10 py-2.5 text-xs text-[#5d5770] focus:outline-none focus:border-[#7181c8] font-bold"
               />
-              <Button variant="primary" className="px-4 py-2 text-xs" onClick={() => handleLoadYoutube()}>
-                Load URL
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-[#5d5770]/60">🔍</span>
+              <Button variant="primary" className="px-5 py-2 text-xs" type="submit" isLoading={isSearching}>
+                Search
               </Button>
-            </div>
+            </form>
 
-            {/* Presets and Linked videos list */}
             <div className="flex flex-col gap-2.5 bg-white/30 border border-[#7c6a75]/10 rounded-xl p-3">
               <div className="flex gap-2 items-center flex-wrap">
                 <span className="text-[10px] font-black text-[#5d5770]/60 uppercase tracking-widest">Presets:</span>
                 {DEFAULT_VIDEOS.map((vid, idx) => (
                   <button
                     key={idx}
-                    onClick={() => {
-                      setCurrentVideoUrl(vid.url);
-                      setYoutubeInput('');
-                    }}
+                    onClick={() => setCurrentVideoUrl(vid.url)}
                     className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border transition-all cursor-pointer ${
                       currentVideoUrl === vid.url
                         ? 'bg-[#ffd1dc] border-[#7c6a75] text-[#5d5770] shadow-[0_2.5px_0_#7c6a75]'
@@ -194,19 +232,17 @@ export default function StudyHub({ documents }: StudyHubProps) {
                 ))}
               </div>
 
-              {/* Linked YouTube Videos list */}
               {youtubeDocs.length > 0 && (
                 <div className="flex gap-2 items-center flex-wrap border-t border-[#7c6a75]/10 pt-2.5">
                   <span className="text-[10px] font-black text-[#5d5770]/60 uppercase tracking-widest">Linked Videos:</span>
                   {youtubeDocs.map((doc) => (
                     <button
                       key={doc.id}
-                      onClick={() => handleLoadYoutube(doc.extractedText)}
-                      className={`px-2.5 py-1 rounded-full text-[10px] font-black truncate max-w-[180px] border transition-all cursor-pointer ${
-                        currentVideoUrl.includes(doc.extractedText.split('v=').pop() || 'INVALID') || currentVideoUrl.includes(doc.extractedText.split('/').pop() || 'INVALID')
-                          ? 'bg-[#ffd1dc] border-[#7c6a75] text-[#5d5770] shadow-[0_2.5px_0_#7c6a75]'
-                          : 'bg-white/40 border-[#7c6a75]/20 text-[#5d5770]/70 hover:bg-white/60'
-                      }`}
+                      onClick={() => {
+                        const url = doc.extractedText.match(/URL: (https?:\/\/[^\s]+)/)?.[1] || '';
+                        if (url) handleLoadYoutube(url);
+                      }}
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-black truncate max-w-[180px] border transition-all cursor-pointer bg-white/40 border-[#7c6a75]/20 text-[#5d5770]/70 hover:bg-white/60`}
                       title={doc.name}
                     >
                       📺 {doc.name.replace('YouTube Video: ', '')}
@@ -216,14 +252,64 @@ export default function StudyHub({ documents }: StudyHubProps) {
               )}
             </div>
 
-            {/* Embed Iframe Container */}
-            <div className="flex-1 min-h-[440px] relative border-3 border-[#7c6a75] rounded-2xl overflow-hidden shadow-inner bg-black">
-              <iframe
-                src={currentVideoUrl}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                className="absolute inset-0 w-full h-full border-none"
-              />
+            {/* Main Content Area */}
+            <div className="flex-1 flex gap-4 min-h-[440px]">
+              
+              {/* Search Results Drawer */}
+              {(searchResults.length > 0 || isSearching || selectedPlaylistTitle) && (
+                <div className="w-[300px] flex flex-col border-3 border-[#7c6a75] rounded-2xl bg-white/50 overflow-hidden shadow-inner">
+                  <div className="bg-[#7c6a75]/10 px-3 py-2 border-b border-[#7c6a75]/20 flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-[#5d5770] tracking-wider truncate">
+                      {selectedPlaylistTitle || 'Search Results'}
+                    </span>
+                    {selectedPlaylistTitle && (
+                      <button onClick={() => { setSelectedPlaylistTitle(''); setSearchResults([]); setYoutubeSearch(''); }} className="text-[10px] text-blue-500 hover:underline cursor-pointer font-bold">Close</button>
+                    )}
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-2 space-y-2 max-h-[400px]">
+                    {isSearching ? (
+                      <div className="text-center text-xs font-bold text-[#5d5770]/60 py-10">Searching YouTube...</div>
+                    ) : searchResults.length > 0 ? (
+                      searchResults.map((item, idx) => (
+                        <div 
+                          key={idx} 
+                          onClick={() => {
+                            if (item.type === 'list') {
+                              handleFetchPlaylist(item.listId, item.title);
+                            } else {
+                              handleLoadYoutube(item.url);
+                            }
+                          }}
+                          className="flex gap-2 p-1.5 rounded-lg hover:bg-white/70 cursor-pointer transition-colors border border-transparent hover:border-[#7c6a75]/30 group"
+                        >
+                          <div className="relative shrink-0 w-[90px] h-[50px] rounded overflow-hidden bg-black/10">
+                            <img src={item.thumbnail} alt="thumb" className="w-full h-full object-cover" />
+                            {item.type === 'list' && (
+                              <div className="absolute right-0 bottom-0 bg-black/70 text-white text-[8px] font-bold px-1 py-0.5 m-0.5 rounded">PLAYLIST</div>
+                            )}
+                          </div>
+                          <div className="flex flex-col overflow-hidden justify-center flex-1">
+                            <span className="text-[10px] font-bold text-[#5d5770] leading-tight line-clamp-2">{item.title}</span>
+                            <span className="text-[9px] text-[#5d5770]/70 truncate mt-0.5">{item.author?.name}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center text-xs font-bold text-[#5d5770]/60 py-10">No results found.</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Video Player */}
+              <div className={`flex-1 relative border-3 border-[#7c6a75] rounded-2xl overflow-hidden shadow-inner bg-black ${searchResults.length === 0 && !isSearching && !selectedPlaylistTitle ? 'w-full' : ''}`}>
+                <iframe
+                  src={currentVideoUrl}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="absolute inset-0 w-full h-full border-none"
+                />
+              </div>
             </div>
           </div>
         )}
