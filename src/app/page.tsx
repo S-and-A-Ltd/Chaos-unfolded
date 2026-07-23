@@ -255,9 +255,10 @@ export default function Home() {
         type: docType,
         uploadedAt: Date.now(),
         extractedText: data.text,
-        topics: data.topics || [],
-        summary: data.summary || '',
+        topics: data.aiData?.quiz?.mcq?.map((q: any) => q.topic).filter(Boolean) || [],
+        summary: data.aiData?.summary || 'Document successfully processed.',
         isProcessed: true,
+        aiData: data.aiData,
       };
 
       const updatedDocs = [...documents, newDoc];
@@ -305,33 +306,40 @@ export default function Home() {
       return;
     }
 
+    const headers: Record<string, string> = {};
+    if (openaiApiKey) {
+      headers['x-api-key'] = openaiApiKey;
+    }
+
     try {
-      setDialogue("Analyzing YouTube video... Dazai is reading the video details.");
+      setDialogue("Watching the video... Dazai is learning everything he can from it.");
       setEmotion('motivated');
 
-      const res = await fetch('/api/youtube/analyze', {
+      const formData = new FormData();
+      formData.append('url', url);
+
+      const res = await fetch('/api/documents/upload', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url }),
+        headers,
+        body: formData,
       });
 
       if (!res.ok) {
-        throw new Error('Analysis failed');
+        throw new Error('Video transcript extraction or analysis failed');
       }
 
       const data = await res.json();
 
       const newDoc: StudyDocument = {
         id: `yt_${Date.now()}`,
-        name: data.title || `YouTube Video: ${videoId}`,
+        name: `YouTube Video: ${videoId}`,
         type: 'youtube',
         uploadedAt: Date.now(),
-        extractedText: `YouTube Video: ${data.title}\nVideo ID: ${videoId}\nURL: ${url}\n\nDescription:\n${data.description}\n\nSummary:\n${data.summary}`,
-        topics: ['Video', 'YouTube'],
-        summary: data.description ? (data.description.length > 200 ? data.description.substring(0, 200) + '...' : data.description) : 'Linked YouTube Video',
+        extractedText: data.text || `YouTube Video URL: ${url}\nVideo ID: ${videoId}`,
+        topics: data.aiData?.quiz?.mcq?.map((q: any) => q.topic).filter(Boolean) || ['Video', 'YouTube'],
+        summary: data.aiData?.summary || 'Linked YouTube Video',
         isProcessed: true,
+        aiData: data.aiData,
       };
 
       const updatedDocs = [...documents, newDoc];
@@ -339,7 +347,7 @@ export default function Home() {
       setSelectedDocId(newDoc.id);
 
       setEmotion('happy');
-      setDialogue(`Linked "${data.title || 'video'}"! I've analyzed its details, so you can test yourself on it now~`);
+      setDialogue(`Finished watching! I've analyzed its details, so you can test yourself on it now~`);
     } catch (err) {
       console.error(err);
       
@@ -359,7 +367,7 @@ export default function Home() {
       setSelectedDocId(newDoc.id);
 
       setEmotion('concerned');
-      setDialogue("I couldn't fetch the video details automatically, but I've linked the URL anyway. You can still watch it!");
+      setDialogue("I couldn't process the video details (it might lack captions), but I've linked the URL anyway.");
     }
   };
 
@@ -384,14 +392,35 @@ export default function Home() {
     setEmotion('excited');
 
     try {
-      const engine = new QuizEngine();
-      const questions = await engine.generateQuestions(
-        doc.topics,
-        doc.extractedText,
-        quizDifficulty,
-        3,
-        key
-      );
+      let questions: QuizQuestion[] = [];
+
+      // Check for cached AI generated quiz questions
+      if (doc.aiData?.quiz) {
+        const qBank = doc.aiData.quiz;
+        const allQuestions = [
+          ...(qBank.mcq || []),
+          ...(qBank.short_answer || []),
+          ...(qBank.concept_explanation || []),
+          ...(qBank.recall || [])
+        ];
+        
+        if (allQuestions.length > 0) {
+          // Shuffle and take 3 questions
+          questions = allQuestions.sort(() => Math.random() - 0.5).slice(0, 3);
+        }
+      }
+
+      if (questions.length === 0) {
+        // Fallback to API if no cached questions exist
+        const engine = new QuizEngine();
+        questions = await engine.generateQuestions(
+          doc.topics,
+          doc.extractedText,
+          quizDifficulty,
+          3,
+          key
+        );
+      }
 
       if (questions && questions.length > 0) {
         setQuizQuestions(questions);
@@ -406,7 +435,7 @@ export default function Home() {
     } catch (err: any) {
       console.error(err);
       if (err.message === 'API_KEY_MISSING') {
-        setDialogue("I need an OpenAI API Key to generate custom quizzes! Please add it to your .env file or enter it in Settings.");
+        setDialogue("I need an API Key to generate custom quizzes! Please add it in Settings.");
         setEmotion('concerned');
         setIsSettingsOpen(true);
       } else {

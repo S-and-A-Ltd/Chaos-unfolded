@@ -106,6 +106,40 @@ export interface FocusState {
 
 export type DocumentType = 'pdf' | 'docx' | 'txt' | 'pptx' | 'youtube';
 
+export interface Flashcard {
+  id: string;
+  front: string;
+  back: string;
+  topic: string;
+}
+
+export interface QuizBank {
+  mcq: QuizQuestion[];
+  short_answer: QuizQuestion[];
+  concept_explanation: QuizQuestion[];
+  recall: QuizQuestion[];
+}
+
+export interface AIProcessedResult {
+  summary: string;
+  aiNotes: {
+    chapterSummary: string;
+    keyConcepts: string[];
+    importantFacts: string[];
+    frequentlyAskedQuestions: { question: string; answer: string }[];
+  };
+  revisionNotes: {
+    oneLineSummaries: string[];
+    importantPoints: string[];
+    commonExamQuestions: string[];
+  };
+  definitions: { term: string; definition: string }[];
+  formulas: { name: string; formula: string; description: string }[];
+  examples: { concept: string; example: string }[];
+  flashcards: Flashcard[];
+  quiz: QuizBank;
+}
+
 export interface StudyDocument {
   id: string;
   name: string;
@@ -115,6 +149,7 @@ export interface StudyDocument {
   topics: string[];
   summary: string;
   isProcessed: boolean;
+  aiData?: AIProcessedResult;
 }
 
 export interface DocumentTopic {
