@@ -493,8 +493,10 @@ export default function Home() {
       xpEarned: xp,
       score: evalData?.score,
       maxScore: evalData?.maxScore,
+      grade: evalData?.grade,
       strengths: evalData?.strengths,
       missingPoints: evalData?.missingPoints,
+      suggestions: evalData?.suggestions,
     };
 
     const updatedResults = [...quizResults, result];

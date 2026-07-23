@@ -62,8 +62,10 @@ export interface QuizResult {
   timestamp: number;
   score?: number;
   maxScore?: number;
+  grade?: string;
   strengths?: string[];
   missingPoints?: string[];
+  suggestions?: string[];
 }
 
 // --- Study Session Types ---

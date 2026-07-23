@@ -56,20 +56,17 @@ export default function QuizModal({ questions, currentIndex, sessionResults, isO
     
     if (evaluation) {
       setIsCorrect(evaluation.correct);
-      setEvalResult({
+      const evalData = {
         score: evaluation.score,
         maxScore: evaluation.maxScore,
+        grade: evaluation.grade,
         aiExplanation: evaluation.feedback,
         strengths: evaluation.strengths,
         missingPoints: evaluation.missingPoints,
-      });
-      onAnswer(answer, evaluation.correct, {
-        score: evaluation.score,
-        maxScore: evaluation.maxScore,
-        aiExplanation: evaluation.feedback,
-        strengths: evaluation.strengths,
-        missingPoints: evaluation.missingPoints,
-      });
+        suggestions: evaluation.suggestions,
+      };
+      setEvalResult(evalData);
+      onAnswer(answer, evaluation.correct, evalData);
     } else {
       // Fallback if API fails
       setIsCorrect(false);
@@ -261,44 +258,73 @@ export default function QuizModal({ questions, currentIndex, sessionResults, isO
                   >
                     <span className="text-2xl">{isCorrect ? '✅' : '❌'}</span>
                     <div className="flex-1">
-                      {isCorrect ? (
-                        <h4 className="text-xl font-black text-emerald-600 mb-1">Brilliant! ✨</h4>
-                      ) : (
-                        <h4 className="text-xl font-black text-red-500 mb-1">Not quite!</h4>
-                      )}
-
-                      {evalResult?.score !== undefined && (
-                        <div className="font-bold text-[#5d5770] mb-3 border-b border-black/5 pb-2">
-                          Score: <span className={isCorrect ? "text-emerald-600" : "text-red-500"}>{evalResult.score}/{evalResult.maxScore}</span>
+                      {/* Grade badge + Score */}
+                      {evalResult?.score !== undefined ? (
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className={`
+                            px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider
+                            ${(evalResult.score ?? 0) >= 9 ? 'bg-emerald-500/15 text-emerald-700 border border-emerald-500/30' :
+                              (evalResult.score ?? 0) >= 7 ? 'bg-blue-500/15 text-blue-700 border border-blue-500/30' :
+                              (evalResult.score ?? 0) >= 5 ? 'bg-amber-500/15 text-amber-700 border border-amber-500/30' :
+                              'bg-red-500/15 text-red-600 border border-red-500/30'}
+                          `}>
+                            {evalResult.grade || 'Evaluated'}
+                          </span>
+                          <span className="text-lg font-black text-[#5d5770]">
+                            {evalResult.score}<span className="text-sm font-bold text-[#5d5770]/50">/{evalResult.maxScore}</span>
+                          </span>
                         </div>
+                      ) : (
+                        isCorrect ? (
+                          <h4 className="text-xl font-black text-emerald-600 mb-1">Correct! ✨</h4>
+                        ) : (
+                          <h4 className="text-xl font-black text-red-500 mb-1">Incorrect</h4>
+                        )
                       )}
 
+                      {/* Feedback */}
                       <p className="text-sm font-semibold text-[#7c6a75] leading-relaxed mb-4">
                         {evalResult?.aiExplanation || (isCorrect
-                          ? `You got it right! The answer is exactly ${question.correctAnswer}.`
+                          ? `You got it right! The answer is: ${question.correctAnswer}.`
                           : `The correct answer was: ${question.correctAnswer}.`)}
                       </p>
 
+                      {/* Strengths */}
                       {evalResult?.strengths && evalResult.strengths.length > 0 && (
                         <div className="mb-3 text-left">
-                          <span className="text-xs font-bold uppercase text-emerald-600">What you got right:</span>
+                          <span className="text-xs font-bold uppercase text-emerald-600">✦ What you got right</span>
                           <ul className="mt-1 space-y-1">
                             {evalResult.strengths.map((str, idx) => (
                               <li key={idx} className="text-sm text-emerald-700 font-medium flex gap-2">
-                                <span>✓</span> <span>{str}</span>
+                                <span className="text-emerald-500">✓</span> <span>{str}</span>
                               </li>
                             ))}
                           </ul>
                         </div>
                       )}
 
+                      {/* Missing Points */}
                       {evalResult?.missingPoints && evalResult.missingPoints.length > 0 && (
-                        <div className="mb-4 text-left">
-                          <span className="text-xs font-bold uppercase text-red-500">Missing or incorrect:</span>
+                        <div className="mb-3 text-left">
+                          <span className="text-xs font-bold uppercase text-amber-600">✦ Missing concepts</span>
                           <ul className="mt-1 space-y-1">
                             {evalResult.missingPoints.map((pt, idx) => (
-                              <li key={idx} className="text-sm text-red-600 font-medium flex gap-2">
-                                <span>✗</span> <span>{pt}</span>
+                              <li key={idx} className="text-sm text-amber-700 font-medium flex gap-2">
+                                <span className="text-amber-500">○</span> <span>{pt}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Suggestions */}
+                      {evalResult?.suggestions && evalResult.suggestions.length > 0 && (
+                        <div className="mb-4 text-left">
+                          <span className="text-xs font-bold uppercase text-blue-600">✦ How to improve</span>
+                          <ul className="mt-1 space-y-1">
+                            {evalResult.suggestions.map((sug, idx) => (
+                              <li key={idx} className="text-sm text-blue-700 font-medium flex gap-2">
+                                <span className="text-blue-500">→</span> <span>{sug}</span>
                               </li>
                             ))}
                           </ul>

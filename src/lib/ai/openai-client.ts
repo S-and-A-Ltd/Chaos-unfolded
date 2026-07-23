@@ -398,9 +398,11 @@ export async function evaluateAnswer(
   correct: boolean;
   score: number;
   maxScore: number;
+  grade: string;
   feedback: string;
   strengths: string[];
   missingPoints: string[];
+  suggestions: string[];
   emotion: string;
 } | null> {
   const prompt = answerEvaluationPrompt(
@@ -415,10 +417,46 @@ export async function evaluateAnswer(
     apiKey,
     getModelForTask('evaluation'),
     0.3, // Low temperature for consistent evaluation
-    512
+    600
   );
 
-  return parseJSON(raw);
+  const parsed = parseJSON<{
+    score: number;
+    maxScore: number;
+    grade?: string;
+    feedback: string;
+    strengths: string[];
+    missingPoints: string[];
+    suggestions?: string[];
+    emotion: string;
+  }>(raw);
+
+  if (!parsed) return null;
+
+  // Derive correct from score (>= 5 means the student understands the concept)
+  const score = parsed.score ?? 0;
+  const correct = score >= 5;
+
+  // Derive grade if the AI didn't provide one
+  const grade = parsed.grade || (
+    score >= 9 ? 'Excellent' :
+    score >= 7 ? 'Very Good' :
+    score >= 5 ? 'Good Understanding' :
+    score >= 3 ? 'Partial Understanding' :
+    score >= 1 ? 'Major Misconceptions' : 'Incorrect'
+  );
+
+  return {
+    correct,
+    score,
+    maxScore: parsed.maxScore ?? 10,
+    grade,
+    feedback: parsed.feedback ?? '',
+    strengths: parsed.strengths ?? [],
+    missingPoints: parsed.missingPoints ?? [],
+    suggestions: parsed.suggestions ?? [],
+    emotion: parsed.emotion ?? 'neutral',
+  };
 }
 
 /**

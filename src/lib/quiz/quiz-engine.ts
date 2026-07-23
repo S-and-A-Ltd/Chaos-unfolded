@@ -86,9 +86,11 @@ export class QuizEngine {
     correct: boolean;
     score: number;
     maxScore: number;
+    grade: string;
     feedback: string;
     strengths: string[];
     missingPoints: string[];
+    suggestions: string[];
     emotion: string;
   } | null> {
     try {

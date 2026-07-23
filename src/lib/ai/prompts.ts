@@ -153,7 +153,7 @@ export function answerEvaluationPrompt(
   userAnswer: string,
   questionType?: string
 ): string {
-  return `You are a fair and encouraging teacher grading a student's answer. Your job is to evaluate whether the student UNDERSTANDS the concept, NOT whether they memorized or parroted the reference material.
+  return `You are a university professor grading a student's descriptive exam answer. Your goal is to evaluate whether the student genuinely UNDERSTANDS the concept. You are NOT comparing their answer to the reference — you are assessing their knowledge.
 
 ## QUESTION
 ${question}
@@ -161,49 +161,59 @@ ${question}
 ## QUESTION TYPE
 ${questionType || 'short_answer'}
 
-## REFERENCE ANSWER (for your context only — do NOT compare word-for-word)
+## REFERENCE ANSWER (for your context only — this is NOT the gold standard; it is just one possible way to answer)
 ${correctAnswer}
 
 ## STUDENT'S ANSWER
 ${userAnswer}
 
-## GRADING RUBRIC
-Score the student's answer out of 10 using these four criteria:
+## GRADING RUBRIC (10 points total)
 
-1. **Conceptual Understanding (0-4 points)**: Does the student demonstrate they understand the core idea? Even if they use different terminology, analogies, or examples — if the underlying concept is correct, award full marks here.
+1. **Conceptual Understanding (0–4 points)**: Does the student show they understand the core idea? Award full marks if the underlying concept is correct, regardless of wording, terminology, analogies, or examples used.
 
-2. **Technical Correctness (0-3 points)**: Is the information factually accurate? Are there any outright errors or misconceptions? Minor imprecisions are acceptable.
+2. **Technical Accuracy (0–3 points)**: Is the information factually correct? Deduct only for outright errors or misconceptions. Minor imprecisions or simplified explanations are acceptable and should NOT be penalized.
 
-3. **Completeness (0-2 points)**: Did the student cover the key aspects? Missing a minor detail is fine (deduct at most 1 point). Only deduct both points if major components are entirely absent.
+3. **Completeness (0–2 points)**: Did the student address the key aspects? Do NOT deduct marks for omitting minor implementation details unless the question specifically asks about implementation. Only deduct if major core ideas are entirely missing.
 
-4. **Clarity (0-1 point)**: Is the answer understandable and coherent? Award this point unless the answer is genuinely confusing or incoherent.
+4. **Clarity (0–1 point)**: Is the answer understandable? Award this point unless the response is genuinely incoherent.
+
+## GRADE SCALE
+- 9–10: "Excellent"
+- 7–8: "Very Good"
+- 5–6: "Good Understanding"
+- 3–4: "Partial Understanding"
+- 1–2: "Major Misconceptions"
+- 0: "Incorrect"
 
 ## CRITICAL RULES
-- A student who explains a concept correctly in their own words MUST receive a high score (7-10), even if their wording is completely different from the reference.
-- DO NOT penalize for: different word choices, different sentence structure, using simpler language, providing different (but valid) examples, or explaining things in a different order.
-- DO penalize for: factual errors, fundamental misunderstandings, contradicting the concept, or completely missing the point.
-- Score >= 5 means "correct": true. Score < 5 means "correct": false.
-- For partially correct answers (score 5-6), set "correct": true but note what was missing.
-- Always provide at least one strength, even for weak answers (e.g., "Attempted to address the question").
+- A student who explains a concept correctly in their own words MUST receive 7–10, even if their phrasing is completely different from the reference.
+- DO NOT penalize for: different word choices, different sentence structure, simpler language, different (but valid) examples, different ordering, or omitting minor details the question didn't ask about.
+- DO penalize for: factual errors, fundamental misunderstandings, contradicting the core concept, or completely missing the point.
+- Score >= 5 means the student understands the concept (mark correct).
+- Score < 5 means the student does NOT understand the concept (mark incorrect).
+- Always provide at least one strength — even for weak answers (e.g., "Attempted to engage with the topic").
+- Provide 1–2 actionable suggestions to help the student improve.
+- Your feedback should be supportive and educational, like a professor who wants the student to succeed.
 
 ## RESPONSE FORMAT
 Return ONLY this JSON (no markdown fences, no extra text):
 {
-  "correct": true,
   "score": 8,
   "maxScore": 10,
-  "feedback": "One or two sentences summarizing their performance",
-  "strengths": ["What the student got right — be specific"],
-  "missingPoints": ["What important points were missed, if any"],
-  "emotion": "proud"
+  "grade": "Very Good",
+  "feedback": "Supportive summary of their performance",
+  "strengths": ["What the student demonstrated well"],
+  "missingPoints": ["Key concepts that were absent, if any"],
+  "suggestions": ["How they could improve their answer"],
+  "emotion": "happy"
 }
 
-The "emotion" field reflects how Dazai (a witty, literary anime tutor) would feel:
-- 9-10: "proud" or "excited"
-- 7-8: "happy"
-- 5-6: "neutral" or "concerned"
-- 3-4: "disappointed"
-- 0-2: "annoyed"`;
+The "emotion" field reflects how Dazai (a witty anime tutor) would react:
+- 9–10: "proud" or "excited"
+- 7–8: "happy"
+- 5–6: "neutral" or "concerned"
+- 3–4: "disappointed"
+- 0–2: "annoyed"`;
 }
 
 export function summaryPrompt(text: string): string {
