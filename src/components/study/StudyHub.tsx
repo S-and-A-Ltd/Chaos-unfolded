@@ -132,7 +132,15 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
             </div>
           </div>
         ) : activeDoc?.type === 'pdf' ? (
-          <PDFViewer file={activePdfBlob || ''} />
+          activePdfBlob ? (
+            <PDFViewer file={activePdfBlob} />
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center border-3 border-[#7c6a75]/20 border-dashed rounded-2xl bg-[#ffd1dc]/30 p-8 text-center gap-4">
+              <span className="text-4xl opacity-50 block">⚠️</span>
+              <p className="text-[#5d5770] font-black uppercase tracking-widest text-sm">Document File Missing</p>
+              <p className="text-[#5d5770]/80 text-xs font-bold max-w-sm">The actual PDF file for this document could not be found in your browser storage. This usually happens if you clear your browser data or restart the development server. Please delete this document and re-upload it.</p>
+            </div>
+          )
         ) : (
           <div 
             className="flex-1 bg-[#f4f2ee] rounded-2xl border-3 border-[#7c6a75] p-6 overflow-y-auto shadow-inner text-[#3e3835] font-sans text-sm whitespace-pre-wrap"
