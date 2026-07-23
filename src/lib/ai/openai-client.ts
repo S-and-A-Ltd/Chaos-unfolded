@@ -24,18 +24,16 @@ const OPENAI_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 function getModelForTask(task: 'chat' | 'quiz_hard' | 'quiz_easy' | 'evaluation' | 'summary' | 'extract'): string {
   switch (task) {
     case 'quiz_hard':
-      return 'nvidia/nemotron-3-super-120b-a12b:free'; // High accuracy for hard questions
     case 'evaluation':
-      // Use nano for evaluation — it's fast and the prompt is well-structured enough
-      // The 120B model was causing timeouts on free tier, leading to auto-fail
-      return 'nvidia/nemotron-3-nano-30b-a3b:free';
+      // The 120B model was timing out. Switched to Google Gemma 4 31B (fast & free)
+      return 'google/gemma-4-31b-it:free';
     case 'chat':
     case 'quiz_easy':
     case 'summary':
     case 'extract':
-      return 'nvidia/nemotron-3-nano-30b-a3b:free'; // Fast generation
+      return 'google/gemma-4-31b-it:free';
     default:
-      return 'nvidia/nemotron-3-nano-30b-a3b:free';
+      return 'google/gemma-4-31b-it:free';
   }
 }
 
