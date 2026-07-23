@@ -1,52 +1,71 @@
 'use client';
 
-import { motion } from 'motion/react';
-import { useState } from 'react';
+import { motion, useSpring, useTransform } from 'motion/react';
+import { useState, useMemo } from 'react';
 import Card from '@/components/ui/Card';
 
 export default function MoodMeter() {
-  // Cortisol level (0-100). Default low (~20). 
+  // Cortisol level (0-100). Default low (~20).
   // Quiz evaluation will update this value.
   const [cortisolLevel] = useState(20);
 
-  // SVG dimensions
-  const width = 220;
-  const height = 140;
-  const cx = width / 2;  // center x = 110
-  const cy = 120;         // center y near bottom
-  const r = 80;           // radius of gauge arc
+  // SVG layout
+  const width = 240;
+  const height = 150;
+  const cx = width / 2;   // 120 – knob center X
+  const cy = 130;          // knob center Y (near bottom)
+  const r = 85;            // arc radius
+  const needleLen = 70;    // how far needle reaches from knob
 
   const degToRad = (deg: number) => (deg * Math.PI) / 180;
 
-  const polarToCartesian = (angleDeg: number) => ({
-    x: cx + r * Math.cos(degToRad(angleDeg)),
-    y: cy + r * Math.sin(degToRad(angleDeg)),
+  // Convert polar (angle in degrees) to SVG cartesian coords
+  const polar = (angleDeg: number, radius: number) => ({
+    x: cx + radius * Math.cos(degToRad(angleDeg)),
+    y: cy + radius * Math.sin(degToRad(angleDeg)),
   });
 
-  // Build an arc path from startDeg to endDeg
+  // Build SVG arc path
   const arcPath = (startDeg: number, endDeg: number) => {
-    const s = polarToCartesian(startDeg);
-    const e = polarToCartesian(endDeg);
+    const s = polar(startDeg, r);
+    const e = polar(endDeg, r);
     const large = endDeg - startDeg > 180 ? 1 : 0;
     return `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${e.x.toFixed(2)} ${e.y.toFixed(2)}`;
   };
 
-  // 5 segments spanning 180° to 360° (top half of a circle in SVG coords)
-  const segDeg = 36; // 180 / 5
+  // 5 colored segments, each 36° across the top semicircle (180° → 360°)
+  const segDeg = 36;
   const segments = [
-    { color: '#4CAF50' },  // green
-    { color: '#CDDC39' },  // yellow-green
-    { color: '#FFEB3B' },  // yellow
-    { color: '#FF9800' },  // orange
-    { color: '#F44336' },  // red
+    '#4CAF50', // green (LOW)
+    '#CDDC39', // yellow-green
+    '#FFEB3B', // yellow (MEDIUM)
+    '#FF9800', // orange
+    '#F44336', // red (HIGH)
   ];
 
-  // Needle rotation: 0% = -90° (pointing left), 100% = +90° (pointing right)
-  // In CSS rotation terms: 0% maps to -90deg, 100% maps to +90deg
-  const needleRotation = -90 + (cortisolLevel / 100) * 180;
+  // Needle angle: cortisol 0 → 180° (pointing left = LOW), cortisol 100 → 360° (pointing right = HIGH)
+  // In SVG coords: 180° = left, 270° = straight up, 360° = right
+  const needleAngle = 180 + (cortisolLevel / 100) * 180;
 
-  // Needle length
-  const needleLen = r - 8;
+  // Calculate the tapered needle as a polygon (triangle with base at knob, tip at arc)
+  // Tip point = endpoint along needleAngle
+  const tip = polar(needleAngle, needleLen);
+  // Two base points = perpendicular to needle direction, offset ±3px from knob center
+  const perpAngle = needleAngle + 90;
+  const baseOffset = 4;
+  const base1 = {
+    x: cx + baseOffset * Math.cos(degToRad(perpAngle)),
+    y: cy + baseOffset * Math.sin(degToRad(perpAngle)),
+  };
+  const base2 = {
+    x: cx - baseOffset * Math.cos(degToRad(perpAngle)),
+    y: cy - baseOffset * Math.sin(degToRad(perpAngle)),
+  };
+
+  const needlePoints = `${base1.x.toFixed(2)},${base1.y.toFixed(2)} ${base2.x.toFixed(2)},${base2.y.toFixed(2)} ${tip.x.toFixed(2)},${tip.y.toFixed(2)}`;
+
+  // Animated needle using spring for the angle
+  const springAngle = useSpring(needleAngle, { stiffness: 40, damping: 14 });
 
   return (
     <Card padding="md" bgVariant="mint" className="w-full shadow-[0_6px_0_#7c6a75]">
@@ -64,52 +83,85 @@ export default function MoodMeter() {
             viewBox={`0 0 ${width} ${height}`}
             className="overflow-visible"
           >
-            {/* Colored arc segments with small gaps */}
-            {segments.map((seg, i) => (
+            {/* Colored arc segments with small gaps between them */}
+            {segments.map((color, i) => (
               <path
                 key={i}
                 d={arcPath(180 + i * segDeg + 1, 180 + (i + 1) * segDeg - 1)}
                 fill="none"
-                stroke={seg.color}
-                strokeWidth="26"
+                stroke={color}
+                strokeWidth="28"
                 strokeLinecap="butt"
               />
             ))}
 
-            {/* Knob (dark circle at pivot) */}
-            <circle cx={cx} cy={cy} r="10" fill="#2c3e6b" />
-
-            {/* Needle – a line from the knob center outward */}
-            <motion.line
-              x1={cx}
-              y1={cy}
-              x2={cx}
-              y2={cy - needleLen}
-              stroke="#2c3e6b"
-              strokeWidth="4"
-              strokeLinecap="round"
-              style={{ transformOrigin: `${cx}px ${cy}px` }}
-              initial={{ rotate: -90 }}
-              animate={{ rotate: needleRotation }}
-              transition={{ type: 'spring', stiffness: 40, damping: 14 }}
+            {/* Animated needle (tapered triangle) */}
+            <AnimatedNeedle
+              cx={cx}
+              cy={cy}
+              needleLen={needleLen}
+              targetAngle={needleAngle}
             />
 
-            {/* Small white dot at knob center */}
-            <circle cx={cx} cy={cy} r="3" fill="#fff" />
+            {/* Knob circle on top of needle base */}
+            <circle cx={cx} cy={cy} r="11" fill="#1e2d52" />
+            <circle cx={cx} cy={cy} r="4" fill="#4a5a8a" />
           </svg>
 
-          {/* Labels */}
-          <span className="absolute left-[2px] bottom-[12px] text-[11px] font-black text-[#2c3e6b] uppercase font-fredoka">
+          {/* Labels – pushed further out so they don't overlap the gauge */}
+          <span className="absolute left-[-8px] bottom-[-4px] text-[11px] font-black text-[#1e2d52] uppercase font-fredoka tracking-wide">
             Low
           </span>
-          <span className="absolute left-1/2 -translate-x-1/2 top-[-2px] text-[11px] font-black text-[#2c3e6b] uppercase font-fredoka">
+          <span className="absolute left-1/2 -translate-x-1/2 top-[-6px] text-[11px] font-black text-[#1e2d52] uppercase font-fredoka tracking-wide">
             Medium
           </span>
-          <span className="absolute right-[2px] bottom-[12px] text-[11px] font-black text-[#2c3e6b] uppercase font-fredoka">
+          <span className="absolute right-[-10px] bottom-[-4px] text-[11px] font-black text-[#1e2d52] uppercase font-fredoka tracking-wide">
             High
           </span>
         </div>
       </div>
     </Card>
   );
+}
+
+/**
+ * Animated needle sub-component.
+ * Calculates the tapered triangle points from a spring-animated angle value
+ * so the needle smoothly swings to its target position.
+ */
+function AnimatedNeedle({
+  cx,
+  cy,
+  needleLen,
+  targetAngle,
+}: {
+  cx: number;
+  cy: number;
+  needleLen: number;
+  targetAngle: number;
+}) {
+  const degToRad = (deg: number) => (deg * Math.PI) / 180;
+
+  // Spring-animated angle
+  const springAngle = useSpring(targetAngle, { stiffness: 40, damping: 14 });
+
+  // Derive the polygon points string from the animated angle
+  const points = useTransform(springAngle, (angle) => {
+    const baseOffset = 4;
+    const perpAngle = angle + 90;
+
+    // Tip of the needle (far end)
+    const tipX = cx + needleLen * Math.cos(degToRad(angle));
+    const tipY = cy + needleLen * Math.sin(degToRad(angle));
+
+    // Two base corners (perpendicular to needle at the knob center)
+    const b1x = cx + baseOffset * Math.cos(degToRad(perpAngle));
+    const b1y = cy + baseOffset * Math.sin(degToRad(perpAngle));
+    const b2x = cx - baseOffset * Math.cos(degToRad(perpAngle));
+    const b2y = cy - baseOffset * Math.sin(degToRad(perpAngle));
+
+    return `${b1x.toFixed(2)},${b1y.toFixed(2)} ${b2x.toFixed(2)},${b2y.toFixed(2)} ${tipX.toFixed(2)},${tipY.toFixed(2)}`;
+  });
+
+  return <motion.polygon points={points} fill="#1e2d52" />;
 }
