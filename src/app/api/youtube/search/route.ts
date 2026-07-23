@@ -38,7 +38,13 @@ export async function GET(req: NextRequest) {
     // Use official YouTube Data API if available (avoids Vercel IP blocks)
     if (apiKey) {
       const ytApiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=15&q=${encodeURIComponent(query)}&type=${type === 'all' ? 'video,playlist' : type}&key=${apiKey}`;
-      const apiRes = await fetch(ytApiUrl);
+      const referer = req.headers.get('referer') || 'https://dazai-study-companion.vercel.app/';
+      
+      const apiRes = await fetch(ytApiUrl, {
+        headers: {
+          'Referer': referer
+        }
+      });
       const apiData = await apiRes.json();
       
       if (apiData.items) {
