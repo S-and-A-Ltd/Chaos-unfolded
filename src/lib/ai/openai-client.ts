@@ -133,6 +133,8 @@ export async function generateQuizQuestions(
       prompt = generateMixedPrompt(context, topics, config);
       break;
   }
+  console.log('[DEBUG ROUTE] Calling AI with type:', config.type);
+  console.log('[DEBUG ROUTE] Generated Prompt snippet (first 100 chars):', prompt.slice(0, 100));
 
   let parsed: Omit<QuizQuestion, 'id'>[] | null = null;
   const maxRetries = 2;
@@ -216,28 +218,36 @@ export async function generateQuizQuestions(
       selectedSentences.forEach((sentence, idx) => {
         // Map types/difficulty based on selected difficulty
         let qType: 'mcq' | 'short_answer' | 'concept_explanation' | 'recall' = 'recall';
-        let qDiff: 'easy' | 'medium' | 'hard' = 'easy';
+        let qDiff: 'easy' | 'medium' | 'hard' = config.difficulty === 'adaptive' ? 'medium' : config.difficulty;
 
-        if (config.difficulty === 'easy') {
-          qType = 'recall';
-          qDiff = 'easy';
-        } else if (config.difficulty === 'medium') {
-          qType = Math.random() > 0.5 ? 'short_answer' : 'recall';
-          qDiff = 'medium';
-        } else if (config.difficulty === 'hard') {
-          qType = Math.random() > 0.5 ? 'concept_explanation' : 'short_answer';
-          qDiff = 'hard';
-        } else { // adaptive
-          const rand = Math.random();
-          if (rand < 0.3) {
-            qType = 'recall';
-            qDiff = 'easy';
-          } else if (rand < 0.8) {
-            qType = 'short_answer';
-            qDiff = 'medium';
+        // If a specific type is requested, enforce it
+        if (config.type !== 'mixed') {
+          qType = config.type;
+        } else {
+          // If mixed mode is custom, try to satisfy the distribution (loosely in offline mode)
+          if (config.mixedMode === 'custom' && config.distribution) {
+             const dist = config.distribution;
+             const total = dist.mcq + dist.short_answer + dist.recall + dist.concept_explanation;
+             const rand = Math.random() * total;
+             if (rand < dist.mcq) qType = 'mcq';
+             else if (rand < dist.mcq + dist.short_answer) qType = 'short_answer';
+             else if (rand < dist.mcq + dist.short_answer + dist.recall) qType = 'recall';
+             else qType = 'concept_explanation';
           } else {
-            qType = 'concept_explanation';
-            qDiff = 'hard';
+            // Otherwise, balance based on difficulty
+            if (config.difficulty === 'easy') {
+              qType = Math.random() > 0.5 ? 'recall' : 'mcq';
+            } else if (config.difficulty === 'medium') {
+              qType = Math.random() > 0.5 ? 'short_answer' : 'mcq';
+            } else if (config.difficulty === 'hard') {
+              qType = Math.random() > 0.5 ? 'concept_explanation' : 'short_answer';
+            } else { // adaptive
+              const rand = Math.random();
+              if (rand < 0.25) qType = 'recall';
+              else if (rand < 0.5) qType = 'mcq';
+              else if (rand < 0.75) qType = 'short_answer';
+              else qType = 'concept_explanation';
+            }
           }
         }
 
@@ -267,6 +277,20 @@ export async function generateQuizQuestions(
             type: 'short_answer',
             question: `In reference to the text: Explain the significance of this statement: "${sentence}"`,
             correctAnswer: 'Verify details from context.',
+            topic: topics[0] || 'Key Concept',
+            difficulty: qDiff,
+          });
+        } else if (qType === 'mcq') {
+          fallbacks.push({
+            type: 'mcq',
+            question: `Which of the following statements is true regarding this concept: "${sentence.slice(0, 30)}..."?`,
+            options: [
+              sentence,
+              "This concept is entirely false and deprecated.",
+              "It only applies in very specific, unrelated edge cases.",
+              "None of the above are correct."
+            ],
+            correctAnswer: sentence,
             topic: topics[0] || 'Key Concept',
             difficulty: qDiff,
           });

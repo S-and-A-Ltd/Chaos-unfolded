@@ -405,6 +405,8 @@ export default function Home() {
       difficulty: quizDifficulty as any
     };
 
+    console.log('[DEBUG PAGE] handleTriggerQuiz calling with config:', activeConfig);
+
     setIsLoadingQuiz(true);
     setDialogue(forceRegenerate ? "Cooking up some brand new questions for you..." : "Crafting some witty questions for you... Try not to fail, okay?");
     setEmotion('excited');

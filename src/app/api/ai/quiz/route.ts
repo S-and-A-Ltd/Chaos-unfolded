@@ -22,6 +22,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    console.log('[DEBUG ROUTE] Received Quiz Request');
+    console.log('[DEBUG ROUTE] config:', JSON.stringify(config, null, 2));
+
     const quizQuestions = await generateQuizQuestions(
       context,
       topics || [],

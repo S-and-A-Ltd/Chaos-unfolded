@@ -45,6 +45,7 @@ export class QuizEngine {
     config: QuizConfig,
     apiKey: string
   ): Promise<QuizQuestion[]> {
+    console.log('[DEBUG ENGINE] generateQuestions called with config:', config);
     try {
       const response = await fetch('/api/ai/quiz', {
         method: 'POST',
