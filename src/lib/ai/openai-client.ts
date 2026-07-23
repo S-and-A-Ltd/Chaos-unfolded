@@ -3,7 +3,7 @@
 // gpt-4o for personality, gpt-4o-mini for utility tasks
 // ============================================================
 
-import type { AIMessage, AIResponse, QuizQuestion } from '@/types';
+import type { AIMessage, AIResponse, QuizQuestion, QuizConfig } from '@/types';
 import {
   generateMCQPrompt,
   generateShortAnswerPrompt,
@@ -17,12 +17,31 @@ import {
 
 const OPENAI_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
+// --- Dynamic Model Routing ---
+// We route to different free OpenRouter models based on the task requirement:
+// - Complex/Hard generation -> 120B Super
+// - Fast generation / Easy tasks -> 30B Nano
+function getModelForTask(task: 'chat' | 'quiz_hard' | 'quiz_easy' | 'evaluation' | 'summary' | 'extract'): string {
+  switch (task) {
+    case 'quiz_hard':
+    case 'evaluation':
+      return 'nvidia/nemotron-3-super-120b-a12b:free'; // High accuracy
+    case 'chat':
+    case 'quiz_easy':
+    case 'summary':
+    case 'extract':
+      return 'nvidia/nemotron-3-nano-30b-a3b:free'; // Fast generation
+    default:
+      return 'nvidia/nemotron-3-nano-30b-a3b:free';
+  }
+}
+
 // --- Internal fetch helper ---
 
 async function callOpenAI(
   messages: { role: string; content: string }[],
   apiKey: string,
-  model: string = 'nvidia/nemotron-3-super-120b-a12b:free',
+  model: string = 'nvidia/nemotron-3-nano-30b-a3b:free',
   temperature: number = 0.7,
   maxTokens: number = 1024
 ): Promise<string | null> {
@@ -146,12 +165,14 @@ export async function generateQuizQuestions(
 
   let parsed: Omit<QuizQuestion, 'id'>[] | null = null;
   const maxRetries = 2;
+  const isComplex = config.difficulty === 'hard' || config.difficulty === 'adaptive' || config.type === 'concept_explanation';
+  const modelToUse = getModelForTask(isComplex ? 'quiz_hard' : 'quiz_easy');
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const raw = await callOpenAI(
       [{ role: 'user', content: prompt }],
       apiKey,
-      'nvidia/nemotron-3-super-120b-a12b:free',
+      modelToUse,
       0.5, // Lower temp for more reliable formatting
       2048
     );
@@ -387,7 +408,7 @@ export async function evaluateAnswer(
   const raw = await callOpenAI(
     [{ role: 'user', content: prompt }],
     apiKey,
-    'nvidia/nemotron-3-super-120b-a12b:free',
+    getModelForTask('evaluation'),
     0.3, // Low temperature for consistent evaluation
     512
   );
@@ -406,7 +427,7 @@ export async function generateSummary(
   return callOpenAI(
     [{ role: 'user', content: prompt }],
     apiKey,
-    'nvidia/nemotron-3-super-120b-a12b:free',
+    getModelForTask('summary'),
     0.7,
     1024
   );
@@ -423,7 +444,7 @@ export async function extractTopics(
   const raw = await callOpenAI(
     [{ role: 'user', content: prompt }],
     apiKey,
-    'nvidia/nemotron-3-super-120b-a12b:free',
+    getModelForTask('extract'),
     0.3,
     256
   );
