@@ -37,7 +37,7 @@ import { AILearningEngine } from '@/lib/ai/learning-engine';
 import { saveDocumentBlob, deleteDocumentBlob } from '@/lib/storage/document-storage';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'study' | 'dashboard' | 'browser'>('study');
+  const [activeTab, setActiveTab] = useState<'study' | 'dashboard' | 'browser' | 'youtube'>('study');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const isSelectingFileRef = useRef(false);
   
@@ -656,6 +656,16 @@ export default function Home() {
         >
           <span className="text-2xl">🌐</span>
           <span className="text-[10px] font-black uppercase tracking-wider">Hub</span>
+        </button>
+        <div className="w-[3px] h-10 bg-[#7c6a75]/25" />
+        <button
+          onClick={() => setActiveTab('youtube')}
+          className={`flex flex-col items-center gap-1.5 cursor-pointer transition-all ${
+            activeTab === 'youtube' ? 'scale-110 text-[#7181c8] font-black' : 'text-[#5d5770]/60 hover:text-[#7181c8] hover:scale-105'
+          }`}
+        >
+          <span className="text-2xl">📺</span>
+          <span className="text-[10px] font-black uppercase tracking-wider">YouTube</span>
         </button>
         <div className="w-[3px] h-10 bg-[#7c6a75]/25" />
         <button
