@@ -51,6 +51,7 @@ export default function Home() {
   const [quizOpen, setQuizOpen] = useState(false);
   const [isLoadingQuiz, setIsLoadingQuiz] = useState(false);
   const [quizResults, setQuizResults] = useState<QuizResult[]>([]);
+  const [sessionQuizResults, setSessionQuizResults] = useState<QuizResult[]>([]);
 
   // Stores
   const { setWindowFocused, setIdle, incrementTabSwitch, recordActivity, isRunning, isBreak } = useSessionStore();
@@ -444,6 +445,7 @@ export default function Home() {
       if (questions.length > 0) {
         setQuizQuestions(questions);
         setActiveQuestionIndex(0);
+        setSessionQuizResults([]);
         setQuizOpen(true);
         setEmotion('neutral');
         setDialogue("Here are your questions. Let's see what you've got.");
@@ -486,6 +488,9 @@ export default function Home() {
     const updatedResults = [...quizResults, result];
     saveQuizResults(updatedResults);
 
+    const updatedSessionResults = [...sessionQuizResults, result];
+    setSessionQuizResults(updatedSessionResults);
+
     // Update global state & stats
     addXP({
       type: isCorrect ? 'correct_answer' : 'wrong_answer',
@@ -509,20 +514,19 @@ export default function Home() {
       useCortisolStore.getState().increase(12);
     }
     useCharacterStore.getState().triggerVoice();
+  };
 
-    // Progression check
-    setTimeout(() => {
-      if (activeQuestionIndex < quizQuestions.length - 1) {
-        setActiveQuestionIndex(activeQuestionIndex + 1);
-      } else {
-        // Quiz completed
-        setQuizOpen(false);
-        checkAchievements();
-        updateStreak();
-        setDialogue("Quiz complete! Let's get back to the timer, shall we?");
-        setEmotion('happy');
-      }
-    }, 4000);
+  const handleNextQuizQuestion = () => {
+    setActiveQuestionIndex(prev => prev + 1);
+  };
+
+  const handleCloseQuiz = () => {
+    setQuizOpen(false);
+    setSessionQuizResults([]);
+    checkAchievements();
+    updateStreak();
+    setDialogue("Quiz complete! Let's get back to the timer, shall we?");
+    setEmotion('happy');
   };
 
   return (
@@ -802,12 +806,15 @@ export default function Home() {
       </Modal>
 
       {/* Quiz Modal */}
-      {quizOpen && quizQuestions[activeQuestionIndex] && (
+      {quizOpen && (
         <QuizModal
-          question={quizQuestions[activeQuestionIndex]}
+          questions={quizQuestions}
+          currentIndex={activeQuestionIndex}
+          sessionResults={sessionQuizResults}
           isOpen={quizOpen}
-          onClose={() => setQuizOpen(false)}
+          onClose={handleCloseQuiz}
           onAnswer={handleQuizAnswer}
+          onNext={handleNextQuizQuestion}
         />
       )}
     </div>
