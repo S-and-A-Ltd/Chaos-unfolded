@@ -164,11 +164,13 @@ ${correctAnswer}
 ${userAnswer}
 
 ## EVALUATION RULES
-- For factual questions: the answer must be substantially correct, exact wording is NOT required.
-- For concept explanations: check if the core idea is communicated, even if phrasing differs.
-- For MCQs: the selected option must match the correct answer.
-- Be fair but not overly lenient. Partial understanding counts as incorrect but deserves acknowledgment.
-
+- CRITICAL: DO NOT simply compare the student's answer to the 'CORRECT ANSWER' verbatim.
+- If the student's answer is logically, factually, and conceptually correct, YOU MUST mark "isCorrect": true, even if they use completely different words or examples.
+- For concept explanations and short answers: evaluate their understanding of the core concept. If they grasp the concept naturally, mark it correct.
+- Only mark as incorrect if the answer contains fundamentally wrong information, contradicts the concept, or completely misses the point.
+- For MCQs: the selected option must conceptually match the correct answer.
+- For factual/recall questions: the answer must be substantially correct, exact wording is NOT required.
+- Be fair. If they get the gist of it but miss a minor detail, mark it correct but mention the missing detail in the explanation. Partial understanding should be marked correct with 'partialCredit': true, unless it's missing the absolute core concept.
 ## RESPONSE FORMAT
 Respond with JSON:
 {
