@@ -32,7 +32,9 @@ import { FocusMonitor } from '@/lib/focus/focus-monitor';
 import { QuizEngine } from '@/lib/quiz/quiz-engine';
 
 // Types
-import type { StudyDocument, QuizQuestion, QuizResult, DocumentType, TimerMode } from '@/types';
+import { StudyDocument, DocumentType, QuizQuestion, CharacterState, TimerMode, MoodCategory, QuizResult } from '@/types';
+import { AILearningEngine } from '@/lib/ai/learning-engine';
+import { saveDocumentBlob, deleteDocumentBlob } from '@/lib/storage/document-storage';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'study' | 'dashboard' | 'browser'>('study');
@@ -261,6 +263,8 @@ export default function Home() {
         aiData: data.aiData,
       };
 
+      await saveDocumentBlob(newDoc.id, file);
+
       const updatedDocs = [...documents, newDoc];
       saveDocuments(updatedDocs);
       setSelectedDocId(newDoc.id);
@@ -371,14 +375,15 @@ export default function Home() {
     }
   };
 
-  const handleDeleteDoc = (id: string) => {
+  const handleDeleteDoc = async (id: string) => {
     const updated = documents.filter((d) => d.id !== id);
     saveDocuments(updated);
+    await deleteDocumentBlob(id);
     if (selectedDocId === id) setSelectedDocId(null);
   };
 
   // Generate Quiz
-  const handleTriggerQuiz = async (docId?: string) => {
+  const handleTriggerQuiz = async (docId?: string, forceRegenerate: boolean = false) => {
     const targetDocId = docId || selectedDocId;
     if (!targetDocId) return;
 
@@ -388,14 +393,14 @@ export default function Home() {
     const key = openaiApiKey || '';
 
     setIsLoadingQuiz(true);
-    setDialogue("Crafting some witty questions for you... Try not to fail, okay?");
+    setDialogue(forceRegenerate ? "Cooking up some brand new questions for you..." : "Crafting some witty questions for you... Try not to fail, okay?");
     setEmotion('excited');
 
     try {
       let questions: QuizQuestion[] = [];
 
-      // Check for cached AI generated quiz questions
-      if (doc.aiData?.quiz) {
+      // Check for cached AI generated quiz questions unless forced
+      if (!forceRegenerate && doc.aiData?.quiz) {
         const qBank = doc.aiData.quiz;
         const allQuestions = [
           ...(qBank.mcq || []),
@@ -612,7 +617,10 @@ export default function Home() {
           </div>
         ) : (
           <div className="w-full max-w-[1550px] mx-auto p-8 pb-32">
-            <StudyHub documents={documents} />
+            <StudyHub 
+              documents={documents} 
+              onTriggerQuiz={(force) => handleTriggerQuiz(undefined, force)}
+            />
           </div>
         )}
       </div>
