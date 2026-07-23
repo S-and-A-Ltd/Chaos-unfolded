@@ -1,6 +1,7 @@
 'use client';
 
 import { useUserStore } from '@/stores/useUserStore';
+import { useSessionStore } from '@/stores/useSessionStore';
 import Card from '@/components/ui/Card';
 import ProgressBar from '@/components/ui/ProgressBar';
 
@@ -13,6 +14,14 @@ export default function ProfileCard() {
     currentStreak,
     totalStudyHours,
   } = useUserStore();
+
+  const { focus } = useSessionStore();
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
+  };
 
   const xpProgress = xpToNextLevel > 0 ? (currentXP / xpToNextLevel) * 100 : 0;
 
@@ -55,9 +64,31 @@ export default function ProfileCard() {
 
       {/* Total hours */}
       <div className="flex items-center justify-between text-base font-fredoka">
-        <span className="text-[#5d5770]/70 font-black">Total Study Time</span>
+        <span className="text-[#5d5770]/70 font-black flex items-center gap-2">
+          <span>📚</span> Total Study Time
+        </span>
         <span className="text-[#5d5770] font-black text-lg">
           {totalStudyHours.toFixed(1)} hrs
+        </span>
+      </div>
+
+      {/* Distracted Time */}
+      <div className="flex items-center justify-between text-base font-fredoka mt-3">
+        <span className="text-[#5d5770]/70 font-black flex items-center gap-2">
+          <span>⚠️</span> Distracted
+        </span>
+        <span className="text-rose-500 font-black text-lg">
+          {formatTime(focus.distractedTime)}
+        </span>
+      </div>
+
+      {/* Tab Switches */}
+      <div className="flex items-center justify-between text-base font-fredoka mt-3">
+        <span className="text-[#5d5770]/70 font-black flex items-center gap-2">
+          <span>🔄</span> Tab Switches
+        </span>
+        <span className="text-amber-600 font-black text-lg">
+          {focus.tabSwitchCount} times
         </span>
       </div>
     </Card>

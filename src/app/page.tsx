@@ -21,7 +21,6 @@ import StudyMaterials from '@/components/study/StudyMaterials';
 import QuizModal from '@/components/quiz/QuizModal';
 import QuizResults from '@/components/quiz/QuizResults';
 import FocusWarning from '@/components/focus/FocusWarning';
-import FocusScore from '@/components/focus/FocusScore';
 import CassettePlayer from '@/components/music/CassettePlayer';
 import AchievementPopup from '@/components/gamification/AchievementPopup';
 import ProfileCard from '@/components/gamification/ProfileCard';
@@ -515,21 +514,12 @@ export default function Home() {
                     <span className="flex items-center gap-2">🤝 Trust</span>
                     <span className="text-xs font-black text-[#58659c]">{Math.min(100, Math.round((useUserStore.getState().currentStreak * 5) + (useSessionStore.getState().focus.focusScore * 0.5)))}%</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">📚 Study Hours</span>
-                    <span className="text-xs font-black text-[#58659c]">{useUserStore.getState().totalStudyHours.toFixed(1)} hrs</span>
-                  </div>
                   <div className="flex items-center justify-between border-t border-[#7c6a75]/10 pt-3">
                     <span className="flex items-center gap-2">📍 Status</span>
                     <span className={`text-xs font-black uppercase ${isRunning && !isBreak ? 'text-green-600' : isBreak ? 'text-amber-600' : 'text-[#58659c]'}`}>{isRunning && !isBreak ? '● Studying' : isBreak ? '● On Break' : '● Idle'}</span>
                   </div>
                 </div>
               </Card>
-
-              {/* Quiz Results */}
-              <div className="w-full">
-                <QuizResults results={quizResults} />
-              </div>
             </div>
 
             {/* Center Column */}
@@ -565,9 +555,9 @@ export default function Home() {
               {/* Shifted Mood Meter */}
               <MoodMeter />
               
-              {/* Focus score details */}
+              {/* Quiz Results replaces Focus Score */}
               <div className="w-full">
-                <FocusScore />
+                <QuizResults results={quizResults} />
               </div>
 
               {/* Generate Quiz Card - Cozy Yellow */}
