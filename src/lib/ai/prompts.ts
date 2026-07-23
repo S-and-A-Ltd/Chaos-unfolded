@@ -33,12 +33,18 @@ export function generateMCQPrompt(context: string, topics: string[], config: Qui
 Generate ONLY Multiple Choice Questions (MCQs).
 Do not generate open-ended questions.
 
+## STRICT MCQ QUALITY GUIDELINES
+1. The question wording MUST NOT hint at or reveal the correct answer.
+2. The options must include exactly one correct answer and three plausible, realistic distractors that are conceptually related to the correct answer. Avoid obviously wrong or humorous distractors.
+3. Test understanding and application rather than simple recognition, if possible.
+4. Format the question like a formal university or competitive exam question.
+
 ## OUTPUT FORMAT
 Respond with a JSON array. Each element must have:
 {
   "type": "mcq",
   "question": "The question text",
-  "options": ["A", "B", "C", "D"],  // Exactly 4 options.
+  "options": ["A plausible distractor", "Another distractor", "The correct answer", "A third distractor"],  // Exactly 4 options.
   "correctAnswer": "The exact string from the options array that is correct",
   "topic": "The specific topic this relates to",
   "difficulty": "${config.difficulty === 'adaptive' ? 'easy, medium, or hard' : config.difficulty}"

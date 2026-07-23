@@ -334,11 +334,26 @@ export async function generateQuizQuestions(
     parsed = fallbacks;
   }
 
-  // Add IDs to each question
-  return parsed.map((q, i) => ({
-    ...q,
-    id: `q_fallback_${Date.now()}_${i}`,
-  }));
+  // Add IDs to each question and shuffle options for MCQs
+  return parsed.map((q, i) => {
+    if (q.type === 'mcq' && Array.isArray(q.options)) {
+      // Create a shuffled copy of options using Fisher-Yates
+      const shuffledOptions = [...q.options];
+      for (let j = shuffledOptions.length - 1; j > 0; j--) {
+        const k = Math.floor(Math.random() * (j + 1));
+        [shuffledOptions[j], shuffledOptions[k]] = [shuffledOptions[k], shuffledOptions[j]];
+      }
+      return {
+        ...q,
+        options: shuffledOptions,
+        id: `q_${Date.now()}_${i}`,
+      };
+    }
+    return {
+      ...q,
+      id: `q_${Date.now()}_${i}`,
+    };
+  });
 }
 
 /**
