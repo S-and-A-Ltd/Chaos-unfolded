@@ -8,7 +8,7 @@ import dynamic from 'next/dynamic';
 import NotesPanel from './NotesPanel';
 import { getDocumentBlob } from '@/lib/storage/document-storage';
 
-const PDFViewer = dynamic(() => import('./PDFViewer'), { ssr: false });
+const PDFWorkspace = dynamic(() => import('./PDFWorkspace'), { ssr: false });
 
 interface StudyHubProps {
   documents: StudyDocument[];
@@ -133,7 +133,16 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
           </div>
         ) : activeDoc?.type === 'pdf' ? (
           activePdfBlob ? (
-            <PDFViewer file={activePdfBlob} />
+            <PDFWorkspace
+              document={activeDoc}
+              file={activePdfBlob}
+              onAddToPersonalNotes={(text, pageNum) => {
+                console.log('Added to notes from PDF:', text, 'Page:', pageNum);
+              }}
+              onTriggerQuizFromSelection={(text) => {
+                onTriggerQuiz(false);
+              }}
+            />
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center border-3 border-[#7c6a75]/20 border-dashed rounded-2xl bg-[#ffd1dc]/30 p-8 text-center gap-4">
               <span className="text-4xl opacity-50 block">⚠️</span>

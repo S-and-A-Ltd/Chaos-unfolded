@@ -151,6 +151,24 @@ export interface AIProcessedResult {
     recentQuizQuestionIds: string[][]; // IDs used in last N generations (up to 5)
     recentFlashcardIds: string[][];    // IDs used in last N generations (up to 5)
   };
+  annotations?: PDFAnnotation[];
+  pdfPreferences?: PDFPreferences;
+}
+
+export interface PDFAnnotation {
+  id: string;
+  pageNumber: number;
+  type: 'highlight' | 'underline';
+  color: string;
+  text: string;
+  createdAt: number;
+}
+
+export interface PDFPreferences {
+  zoom: number;
+  pageNumber: number;
+  readingMode: 'light' | 'dark';
+  viewMode: 'single' | 'continuous';
 }
 
 export interface StudyDocument {
