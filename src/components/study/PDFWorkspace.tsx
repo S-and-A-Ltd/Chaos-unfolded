@@ -425,6 +425,18 @@ export default function PDFWorkspace({
     saveAnnotationsToStorage(updated);
   };
 
+  const hexToRgba = (hex: string, alpha = 0.55) => {
+    if (!hex || !hex.startsWith('#')) return hex;
+    let c = hex.substring(1);
+    if (c.length === 3) c = c.split('').map(char => char + char).join('');
+    const num = parseInt(c, 16);
+    if (isNaN(num)) return hex;
+    const r = (num >> 16) & 255;
+    const g = (num >> 8) & 255;
+    const b = num & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
   const makeCustomTextRenderer = useCallback(
     (pageIdx: number) =>
       ({ str }: { str: string; itemIndex: number }) => {
@@ -461,7 +473,7 @@ export default function PDFWorkspace({
                 const isUnderline = annot.type === 'underline';
                 const style = isUnderline
                   ? 'background-color: transparent; border-bottom: 3px solid #8F477B; color: inherit; padding: 0 2px; border-radius: 4px;'
-                  : `background-color: ${annot.color}; color: inherit; padding: 0 2px; border-radius: 4px;`;
+                  : `background-color: ${hexToRgba(annot.color, 0.55)}; color: #000; mix-blend-mode: multiply; padding: 0 2px; border-radius: 3px;`;
 
                 if (strLower.includes(annotTextLower)) {
                   const escapedAnnot = annot.text.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -488,7 +500,7 @@ export default function PDFWorkspace({
           const isActivePage = currentMatchIndex >= 0 && searchMatches[currentMatchIndex]?.pageNumber === pageIdx;
           const bg = isActivePage ? '#fb923c' : '#fef08a';
           const shadow = isActivePage ? '0 0 6px rgba(251, 146, 60, 0.8)' : 'none';
-          const style = `background-color: ${bg}; color: #000; padding: 0 2px; border-radius: 3px; font-weight: bold; box-shadow: ${shadow};`;
+          const style = `background-color: ${hexToRgba(bg, 0.65)}; color: #000; mix-blend-mode: multiply; padding: 0 2px; border-radius: 3px; font-weight: bold; box-shadow: ${shadow};`;
 
           const escapedQuery = query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
           const regex = new RegExp(`(<[^>]*>)|(${escapedQuery})`, 'gi');
