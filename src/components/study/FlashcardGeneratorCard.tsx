@@ -8,10 +8,11 @@ import type { StudyDocument, Flashcard } from '@/types';
 import { useUserStore } from '@/stores/useUserStore';
 import { useCharacterStore } from '@/stores/useCharacterStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
+import { ContentPoolManager } from '@/lib/study/content-pool-manager';
 
 interface FlashcardGeneratorCardProps {
   activeDocument: StudyDocument | null;
-  onUpdateFlashcards?: (docId: string, flashcards: Flashcard[]) => void;
+  onUpdateFlashcards?: (docId: string, flashcards: Flashcard[], fullDocUpdate?: StudyDocument) => void;
 }
 
 export default function FlashcardGeneratorCard({
@@ -59,22 +60,29 @@ export default function FlashcardGeneratorCard({
         setDialogue("Crafting custom flashcards from your material! Ready for some rapid-fire review?");
       }
 
-      const res = await fetch('/api/ai/flashcards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          context: activeDocument.extractedText,
-          apiKey: useSettingsStore.getState().openaiApiKey || (typeof window !== 'undefined' ? localStorage.getItem('dazai_openai_api_key') : '') || '',
-        }),
-      });
+      const targetCount = 10;
+      const { flashcards: newCards, updatedDoc } = await ContentPoolManager.sampleFlashcards(
+        activeDocument,
+        targetCount,
+        async () => {
+          const res = await fetch('/api/ai/flashcards', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              context: activeDocument.extractedText,
+              apiKey: useSettingsStore.getState().openaiApiKey || (typeof window !== 'undefined' ? localStorage.getItem('dazai_openai_api_key') : '') || '',
+            }),
+          });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `Generation failed with status ${res.status}`);
-      }
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `Generation failed with status ${res.status}`);
+          }
 
-      const data = await res.json();
-      const newCards: Flashcard[] = data.flashcards || [];
+          const data = await res.json();
+          return data.flashcards || [];
+        }
+      );
 
       if (newCards.length > 0) {
         setCards(newCards);
@@ -82,9 +90,10 @@ export default function FlashcardGeneratorCard({
         setCurrentIndex(0);
         setIsFlipped(false);
 
-        // Cache flashcards in study material
+        // Cache flashcards in study material along with pool and 5-generation history
         if (onUpdateFlashcards && activeDocument.id) {
-          onUpdateFlashcards(activeDocument.id, newCards);
+          updatedDoc.aiData!.flashcards = newCards;
+          onUpdateFlashcards(activeDocument.id, newCards, updatedDoc);
         }
 
         addXP({

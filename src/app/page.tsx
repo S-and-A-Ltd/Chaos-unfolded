@@ -33,6 +33,7 @@ import FlashcardGeneratorCard from '@/components/study/FlashcardGeneratorCard';
 // Focus monitor
 import { FocusMonitor } from '@/lib/focus/focus-monitor';
 import { QuizEngine } from '@/lib/quiz/quiz-engine';
+import { ContentPoolManager } from '@/lib/study/content-pool-manager';
 
 // Types
 import { StudyDocument, DocumentType, QuizQuestion, CharacterState, TimerMode, MoodCategory, QuizResult, QuizConfig, Flashcard } from '@/types';
@@ -414,34 +415,27 @@ export default function Home() {
     setEmotion('excited');
 
     try {
-      let questions: QuizQuestion[] = [];
-      const cacheKey = JSON.stringify(activeConfig);
-
-      // Check for cached AI generated quiz questions unless forced
-      if (!forceRegenerate && doc.aiData?.quizCache && doc.aiData.quizCache[cacheKey]) {
-        questions = doc.aiData.quizCache[cacheKey];
-      }
-
-      if (questions.length === 0) {
-        // Fallback to API if no cached questions exist
-        const engine = new QuizEngine();
-        questions = await engine.generateQuestions(
-          doc.topics,
-          doc.extractedText,
-          activeConfig,
-          key
-        );
-
-        // Save to cache
-        if (questions.length > 0) {
-          const updatedDoc = { ...doc };
-          if (!updatedDoc.aiData) updatedDoc.aiData = {};
-          if (!updatedDoc.aiData.quizCache) updatedDoc.aiData.quizCache = {};
-          
-          updatedDoc.aiData.quizCache[cacheKey] = questions;
-          saveDocuments(documents.map(d => d.id === updatedDoc.id ? updatedDoc : d));
+      const engine = new QuizEngine();
+      const { questions, updatedDoc } = await ContentPoolManager.sampleQuizQuestions(
+        doc,
+        activeConfig,
+        async () => {
+          // Generate a larger batch for the pool so future quizzes don't need repeated API calls
+          const batchConfig: QuizConfig = {
+            ...activeConfig,
+            count: Math.max(12, (activeConfig.count || 5) * 2),
+          };
+          return await engine.generateQuestions(
+            doc.topics,
+            doc.extractedText,
+            batchConfig,
+            key
+          );
         }
-      }
+      );
+
+      // Save updated pool and 5-generation history back to documents
+      saveDocuments(documents.map((d) => (d.id === updatedDoc.id ? updatedDoc : d)));
 
       if (questions.length > 0) {
         setQuizQuestions(questions);
@@ -544,9 +538,12 @@ export default function Home() {
     setEmotion('happy');
   };
 
-  const handleUpdateFlashcards = (docId: string, flashcards: Flashcard[]) => {
+  const handleUpdateFlashcards = (docId: string, flashcards: Flashcard[], fullDocUpdate?: StudyDocument) => {
     const updated = documents.map((d) => {
       if (d.id === docId) {
+        if (fullDocUpdate) {
+          return fullDocUpdate;
+        }
         return {
           ...d,
           aiData: {

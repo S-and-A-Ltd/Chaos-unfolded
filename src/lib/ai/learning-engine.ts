@@ -66,12 +66,20 @@ export class AILearningEngine {
 
       const parsed: AIProcessedResult = JSON.parse(cleanJson);
       
-      // Ensure arrays exist even if LLM omitted them
       parsed.definitions = parsed.definitions || [];
       parsed.formulas = parsed.formulas || [];
       parsed.examples = parsed.examples || [];
       parsed.flashcards = parsed.flashcards || [];
       parsed.quiz = parsed.quiz || { mcq: [], short_answer: [], concept_explanation: [], recall: [] };
+
+      // Initialize pools with initial AI-generated flashcards and quiz questions
+      const initialQuizQuestions: any[] = Object.values(parsed.quiz).flat();
+      parsed.quizPool = initialQuizQuestions;
+      parsed.flashcardPool = [...parsed.flashcards];
+      parsed.generationHistory = {
+        recentQuizQuestionIds: [],
+        recentFlashcardIds: [],
+      };
 
       return parsed;
     } catch (error) {

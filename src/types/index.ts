@@ -144,6 +144,13 @@ export interface AIProcessedResult {
   examples: { concept: string; example: string }[];
   flashcards: Flashcard[];
   quiz: QuizBank;
+  quizCache?: Record<string, QuizQuestion[]>; // legacy cache fallback
+  flashcardPool?: Flashcard[];
+  quizPool?: QuizQuestion[];
+  generationHistory?: {
+    recentQuizQuestionIds: string[][]; // IDs used in last N generations (up to 5)
+    recentFlashcardIds: string[][];    // IDs used in last N generations (up to 5)
+  };
 }
 
 export interface StudyDocument {
