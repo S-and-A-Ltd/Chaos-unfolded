@@ -13,6 +13,7 @@ import {
   getPDFPreferences,
 } from '@/lib/storage/document-storage';
 import { motion, AnimatePresence } from 'motion/react';
+import { cleanAIResponseText } from '@/lib/utils/clean-response';
 
 // Setup pdf worker using the exact version loaded by react-pdf
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -624,14 +625,12 @@ export default function PDFWorkspace({
     });
 
     try {
-      const promptText = `You are Osamu Dazai from Bungo Stray Dogs. Explain this concept in your signature witty, sarcastic, slightly dramatic, and sharp Dazai style — complete with dry humor, clever commentary, and theatrical flair — while ensuring the student fully understands the core underlying concept. Selected text from "${activeDocument.name}":\n\n"${selectionText}"`;
-      const res = await fetch('/api/ai/chat', {
+      const res = await fetch('/api/ai/explain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [{ role: 'user', content: promptText }],
-          message: promptText,
-          character: 'Dazai',
+          text: selectionText,
+          documentName: activeDocument.name,
           apiKey: getApiKey(),
         }),
       });
@@ -645,10 +644,11 @@ export default function PDFWorkspace({
         });
         return;
       }
+      const cleanContent = cleanAIResponseText(data.text || data.reply || data.dialogue || data.error);
       setAiModal({
         open: true,
         title: '💡 Dazai’s Concept Explanation',
-        content: data.reply || data.dialogue || data.error || 'Here is the explanation for the concept.',
+        content: cleanContent || 'Here is the explanation for the concept.',
         isLoading: false,
       });
     } catch (err) {
@@ -673,14 +673,12 @@ export default function PDFWorkspace({
     });
 
     try {
-      const promptText = `You are Osamu Dazai from Bungo Stray Dogs. Provide a 3-bullet point summary of this selected text from "${activeDocument.name}" written in your signature witty, sarcastic, and dramatic Dazai style — sharp, entertaining, concise, and crystal clear:\n\n"${selectionText}"`;
-      const res = await fetch('/api/ai/chat', {
+      const res = await fetch('/api/ai/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [{ role: 'user', content: promptText }],
-          message: promptText,
-          character: 'Dazai',
+          text: selectionText,
+          documentName: activeDocument.name,
           apiKey: getApiKey(),
         }),
       });
@@ -694,10 +692,11 @@ export default function PDFWorkspace({
         });
         return;
       }
+      const cleanSummary = cleanAIResponseText(data.text || data.reply || data.summary || data.error);
       setAiModal({
         open: true,
         title: '📑 Passage Summary',
-        content: data.reply || data.dialogue || data.error || 'Summary generated.',
+        content: cleanSummary || 'Summary generated.',
         isLoading: false,
       });
     } catch (err) {

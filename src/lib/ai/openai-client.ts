@@ -101,7 +101,7 @@ async function callGoogleGeminiAPI(
 
 // --- Internal fetch helper ---
 
-async function callOpenAI(
+export async function callOpenAI(
   messages: { role: string; content: string }[],
   apiKey: string,
   model: string = 'nvidia/nemotron-3-nano-30b-a3b:free',

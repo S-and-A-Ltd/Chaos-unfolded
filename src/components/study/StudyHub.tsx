@@ -7,6 +7,7 @@ import type { StudyDocument } from '@/types';
 import dynamic from 'next/dynamic';
 import NotesPanel from './NotesPanel';
 import { getDocumentBlob } from '@/lib/storage/document-storage';
+import { cleanAIResponseText } from '@/lib/utils/clean-response';
 
 const PDFWorkspace = dynamic(() => import('./PDFWorkspace'), { ssr: false });
 
@@ -40,9 +41,20 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
     loadBlob();
   }, [activeDoc]);
 
-  // Context Menu State
+  // Context Menu & AI Modal State
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; text: string } | null>(null);
   const [notesTrigger, setNotesTrigger] = useState<number>(0);
+  const [aiModal, setAiModal] = useState<{
+    open: boolean;
+    title: string;
+    content: string;
+    isLoading: boolean;
+  }>({
+    open: false,
+    title: '',
+    content: '',
+    isLoading: false,
+  });
 
   const handleTextSelection = (e: React.MouseEvent) => {
     const selection = window.getSelection();
@@ -54,10 +66,132 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
     }
   };
 
+  const handleAIExplainText = async (text: string) => {
+    setContextMenu(null);
+    setAiModal({
+      open: true,
+      title: '💡 Dazai’s Concept Explanation',
+      content: 'Dazai is analyzing and explaining this concept...',
+      isLoading: true,
+    });
+    try {
+      const res = await fetch('/api/ai/explain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          documentName: activeDoc?.name || 'Study Material',
+        }),
+      });
+      const data = await res.json();
+      const cleanContent = cleanAIResponseText(data.text || data.reply || data.dialogue || data.error);
+      setAiModal({
+        open: true,
+        title: '💡 Dazai’s Concept Explanation',
+        content: cleanContent || 'Explanation generated.',
+        isLoading: false,
+      });
+    } catch {
+      setAiModal({
+        open: true,
+        title: 'Error',
+        content: 'Failed to generate explanation.',
+        isLoading: false,
+      });
+    }
+  };
+
+  const handleAISummarizeText = async (text: string) => {
+    setContextMenu(null);
+    setAiModal({
+      open: true,
+      title: '📑 Passage Revision Notes',
+      content: 'Generating revision notes...',
+      isLoading: true,
+    });
+    try {
+      const res = await fetch('/api/ai/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          documentName: activeDoc?.name || 'Study Material',
+        }),
+      });
+      const data = await res.json();
+      const cleanSummary = cleanAIResponseText(data.text || data.reply || data.summary || data.error);
+      setAiModal({
+        open: true,
+        title: '📑 Passage Revision Notes',
+        content: cleanSummary || 'Revision notes generated.',
+        isLoading: false,
+      });
+    } catch {
+      setAiModal({
+        open: true,
+        title: 'Error',
+        content: 'Failed to generate revision notes.',
+        isLoading: false,
+      });
+    }
+  };
+
   // 3-Column Layout Workspace
   return (
     <div className="w-full flex gap-6 h-[75vh] font-fredoka relative">
       
+      {/* AI Explanation / Summary Modal */}
+      <AnimatePresence>
+        {aiModal.open && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#2a2438] text-[#e0def4] border-2 border-[#575279] rounded-2xl shadow-2xl max-w-lg w-full p-6 flex flex-col gap-4"
+            >
+              <div className="flex items-center justify-between border-b border-[#575279]/50 pb-3">
+                <h3 className="font-bold text-sm tracking-wide text-[#eb6f92]">{aiModal.title}</h3>
+                <button
+                  onClick={() => setAiModal({ ...aiModal, open: false })}
+                  className="text-xs text-[#908caa] hover:text-white transition-colors p-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="bg-[#1f1d2e] rounded-xl p-4 text-xs leading-relaxed max-h-[50vh] overflow-y-auto custom-scrollbar font-mono whitespace-pre-wrap">
+                {aiModal.isLoading ? (
+                  <div className="flex items-center gap-3 text-[#908caa]">
+                    <span className="animate-spin text-base">⏳</span>
+                    <span>{aiModal.content}</span>
+                  </div>
+                ) : (
+                  aiModal.content
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(aiModal.content);
+                  }}
+                  className="px-4 py-1.5 rounded-lg text-xs font-bold bg-[#31748f] text-white hover:bg-[#31748f]/80 transition-colors"
+                >
+                  📋 Copy
+                </button>
+                <button
+                  onClick={() => setAiModal({ ...aiModal, open: false })}
+                  className="px-4 py-1.5 rounded-lg text-xs font-bold bg-[#eb6f92] text-white hover:bg-[#eb6f92]/80 transition-colors"
+                >
+                  Got it!
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Context Menu */}
       <AnimatePresence>
         {contextMenu && (
@@ -68,14 +202,17 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
             style={{ top: contextMenu.y, left: contextMenu.x }}
             className="fixed z-[100] flex bg-white border-2 border-[#7c6a75] rounded-xl shadow-[0_4px_0_#7c6a75] overflow-hidden -translate-x-1/2 -translate-y-full"
           >
-            <button className="px-3 py-2 text-[10px] font-black uppercase text-[#5d5770] hover:bg-[#ffd1dc] transition-colors border-r border-[#7c6a75]/10">
+            <button
+              onClick={() => handleAIExplainText(contextMenu.text)}
+              className="px-3 py-2 text-[10px] font-black uppercase text-[#5d5770] hover:bg-[#ffd1dc] transition-colors border-r border-[#7c6a75]/10"
+            >
               Explain
             </button>
-            <button className="px-3 py-2 text-[10px] font-black uppercase text-[#5d5770] hover:bg-[#ffd1dc] transition-colors border-r border-[#7c6a75]/10">
+            <button
+              onClick={() => handleAISummarizeText(contextMenu.text)}
+              className="px-3 py-2 text-[10px] font-black uppercase text-[#5d5770] hover:bg-[#ffd1dc] transition-colors border-r border-[#7c6a75]/10"
+            >
               Notes
-            </button>
-            <button className="px-3 py-2 text-[10px] font-black uppercase text-[#5d5770] hover:bg-[#ffd1dc] transition-colors">
-              Bookmark
             </button>
           </motion.div>
         )}
