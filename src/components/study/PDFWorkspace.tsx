@@ -263,6 +263,39 @@ export default function PDFWorkspace({
         return;
       }
 
+      // Quick annotation shortcuts when text is selected!
+      if (selectionMenu) {
+        if (e.key === '1' || e.key.toLowerCase() === 'y') {
+          e.preventDefault();
+          addAnnotation('highlight', '#fef08a');
+          return;
+        } else if (e.key === '2' || e.key.toLowerCase() === 'g') {
+          e.preventDefault();
+          addAnnotation('highlight', '#bbf7d0');
+          return;
+        } else if (e.key === '3' || e.key.toLowerCase() === 'p') {
+          e.preventDefault();
+          addAnnotation('highlight', '#fbcfe8');
+          return;
+        } else if (e.key === '4' || e.key.toLowerCase() === 'b') {
+          e.preventDefault();
+          addAnnotation('highlight', '#bfdbfe');
+          return;
+        } else if (e.key === '5') {
+          e.preventDefault();
+          addAnnotation('highlight', '#e9d5ff');
+          return;
+        } else if (e.key.toLowerCase() === 'u') {
+          e.preventDefault();
+          addAnnotation('underline', '#8F477B');
+          return;
+        } else if (e.key.toLowerCase() === 'c') {
+          e.preventDefault();
+          handleCopySelection();
+          return;
+        }
+      }
+
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         setShowSearch(prev => !prev);
@@ -272,6 +305,9 @@ export default function PDFWorkspace({
       } else if ((e.metaKey || e.ctrlKey) && e.key === '-') {
         e.preventDefault();
         handleZoom(-0.15);
+      } else if ((e.metaKey || e.ctrlKey) && e.key === '0') {
+        e.preventDefault();
+        handleResetZoom();
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         if (viewMode === 'single') changePage(-1);
       } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
@@ -284,7 +320,7 @@ export default function PDFWorkspace({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [changePage, selectionMenu, showSearch, viewMode]);
+  }, [changePage, selectionMenu, showSearch, viewMode, addAnnotation, handleCopySelection, handleZoom, handleResetZoom]);
 
   // --- 6. Search Match Logic ---
   useEffect(() => {
@@ -976,6 +1012,16 @@ export default function PDFWorkspace({
                 placeholder="Search words or phrases in document..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (e.shiftKey) {
+                      navigateSearchMatch('prev');
+                    } else {
+                      navigateSearchMatch('next');
+                    }
+                  }
+                }}
                 autoFocus
                 className="w-full bg-white dark:bg-[#1e1e24] border-2 border-[#7c6a75]/30 rounded-lg px-3 py-1 text-xs text-[#5d5770] dark:text-[#f4f2ee] font-bold focus:outline-none focus:border-[#8F477B]"
               />
