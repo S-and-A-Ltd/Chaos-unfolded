@@ -377,11 +377,26 @@ export default function PDFWorkspace({
     const selection = window.getSelection();
     const text = selection?.toString().trim();
     if (text && text.length > 0) {
+      let targetPageNum = pageNumber;
+      const anchorNode = selection?.anchorNode;
+      if (anchorNode) {
+        const el = anchorNode.nodeType === Node.ELEMENT_NODE ? (anchorNode as Element) : anchorNode.parentElement;
+        const pageEl = el?.closest('[id^="pdf-page-"], .react-pdf__Page');
+        if (pageEl) {
+          const idNum = pageEl.id?.replace('pdf-page-', '');
+          const dataNum = pageEl.getAttribute('data-page-number');
+          const parsed = parseInt(idNum || dataNum || '', 10);
+          if (!isNaN(parsed) && parsed > 0) {
+            targetPageNum = parsed;
+          }
+        }
+      }
+
       setSelectionMenu({
         x: e.clientX,
         y: Math.max(60, e.clientY - 60),
         text,
-        pageNumber,
+        pageNumber: targetPageNum,
       });
     } else {
       if (!(e.target as HTMLElement)?.closest('.selection-toolbar-popup')) {
@@ -412,99 +427,81 @@ export default function PDFWorkspace({
 
   const makeCustomTextRenderer = useCallback(
     (pageIdx: number) =>
-      ({ str, itemIndex }: { str: string; itemIndex: number }) => {
+      ({ str }: { str: string; itemIndex: number }) => {
         if (!str || !str.trim()) return str;
+
+        let html = str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+
+        const pageAnnotations = annotations.filter((a) => a.pageNumber === pageIdx);
+        if (pageAnnotations.length > 0) {
+          for (const annot of pageAnnotations) {
+            if (!annot.text || !annot.text.trim()) continue;
+            const annotTextLower = annot.text.trim().toLowerCase();
+            const strLower = str.toLowerCase();
+
+            if (strLower.includes(annotTextLower) || annotTextLower.includes(strLower)) {
+              let shouldHighlight = false;
+              if (strLower.includes(annotTextLower)) {
+                shouldHighlight = true;
+              } else if (annotTextLower.includes(strLower)) {
+                const cleanStr = str.trim().toLowerCase();
+                const words = annotTextLower.split(/\s+/).map(w => w.replace(/[^a-z0-9]/g, ''));
+                const matchesWord = words.some(w => w === cleanStr || w.startsWith(cleanStr) || w.endsWith(cleanStr));
+                if (matchesWord || cleanStr.length > 2) {
+                  shouldHighlight = true;
+                }
+              }
+
+              if (shouldHighlight) {
+                const isUnderline = annot.type === 'underline';
+                const style = isUnderline
+                  ? 'background-color: transparent; border-bottom: 3px solid #8F477B; color: inherit; padding: 0 2px; border-radius: 4px;'
+                  : `background-color: ${annot.color}; color: inherit; padding: 0 2px; border-radius: 4px;`;
+
+                if (strLower.includes(annotTextLower)) {
+                  const escapedAnnot = annot.text.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                  const regex = new RegExp(`(<[^>]*>)|(${escapedAnnot})`, 'gi');
+                  html = html.replace(regex, (match, tag, word) => {
+                    if (tag) return tag;
+                    if (word !== undefined) {
+                      return `<mark class="annotation-highlight" style="${style}">${word}</mark>`;
+                    }
+                    return match;
+                  });
+                } else {
+                  if (!html.startsWith('<mark')) {
+                    html = `<mark class="annotation-highlight" style="${style}">${html}</mark>`;
+                  }
+                }
+              }
+            }
+          }
+        }
 
         const query = debouncedSearchQuery.trim().toLowerCase();
         if (query && str.toLowerCase().includes(query)) {
           const isActivePage = currentMatchIndex >= 0 && searchMatches[currentMatchIndex]?.pageNumber === pageIdx;
-          const parts = str.split(new RegExp(`(${query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi'));
-          return (
-            <span key={`search_${pageIdx}_${itemIndex}`}>
-              {parts.map((part, i) =>
-                part.toLowerCase() === query ? (
-                  <mark
-                    key={i}
-                    className="search-highlight"
-                    style={{
-                      backgroundColor: isActivePage ? '#fb923c' : '#fef08a',
-                      color: '#000',
-                      padding: '0 2px',
-                      borderRadius: '3px',
-                      fontWeight: 'bold',
-                      boxShadow: isActivePage ? '0 0 6px rgba(251, 146, 60, 0.8)' : 'none',
-                    }}
-                  >
-                    {part}
-                  </mark>
-                ) : (
-                  part
-                )
-              )}
-            </span>
-          );
-        }
+          const bg = isActivePage ? '#fb923c' : '#fef08a';
+          const shadow = isActivePage ? '0 0 6px rgba(251, 146, 60, 0.8)' : 'none';
+          const style = `background-color: ${bg}; color: #000; padding: 0 2px; border-radius: 3px; font-weight: bold; box-shadow: ${shadow};`;
 
-        const pageAnnotations = annotations.filter((a) => a.pageNumber === pageIdx);
-        if (!pageAnnotations.length) return str;
-
-        for (const annot of pageAnnotations) {
-          if (!annot.text) continue;
-          const strLower = str.toLowerCase();
-          const annotLower = annot.text.toLowerCase();
-
-          if (strLower.includes(annotLower)) {
-            const isUnderline = annot.type === 'underline';
-            const parts = str.split(new RegExp(`(${annot.text.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi'));
-            return (
-              <span key={`annot_${annot.id}_${itemIndex}`}>
-                {parts.map((part, i) =>
-                  part.toLowerCase() === annotLower ? (
-                    <mark
-                      key={i}
-                      style={{
-                        backgroundColor: isUnderline ? 'transparent' : annot.color,
-                        borderBottom: isUnderline ? '3px solid #8F477B' : 'none',
-                        color: 'inherit',
-                        padding: '0 2px',
-                        borderRadius: '4px',
-                      }}
-                    >
-                      {part}
-                    </mark>
-                  ) : (
-                    part
-                  )
-                )}
-              </span>
-            );
-          }
-
-          if (annotLower.includes(strLower)) {
-            const cleanStr = str.trim().toLowerCase();
-            const words = annotLower.split(/\s+/).map(w => w.replace(/[^a-z0-9]/g, ''));
-            const matchesWord = words.some(w => w === cleanStr || w.startsWith(cleanStr) || w.endsWith(cleanStr));
-
-            if (matchesWord || cleanStr.length > 2) {
-              const isUnderline = annot.type === 'underline';
-              return (
-                <mark
-                  key={annot.id + '_' + itemIndex}
-                  style={{
-                    backgroundColor: isUnderline ? 'transparent' : annot.color,
-                    borderBottom: isUnderline ? '3px solid #8F477B' : 'none',
-                    color: 'inherit',
-                    padding: '0 2px',
-                    borderRadius: '4px',
-                  }}
-                >
-                  {str}
-                </mark>
-              );
+          const escapedQuery = query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+          const regex = new RegExp(`(<[^>]*>)|(${escapedQuery})`, 'gi');
+          html = html.replace(regex, (match, tag, word) => {
+            if (tag) return tag;
+            if (word !== undefined) {
+              return `<mark class="search-highlight" style="${style}">${word}</mark>`;
             }
-          }
+            return match;
+          });
         }
-        return str;
+
+        return html;
       },
     [annotations, debouncedSearchQuery, currentMatchIndex, searchMatches]
   );
@@ -1077,7 +1074,7 @@ export default function PDFWorkspace({
             {viewMode === 'single' ? (
               <div className="relative shadow-2xl rounded-lg overflow-hidden bg-white shrink-0">
                 <Page
-                  key={`page_${pageNumber}_${scale}_${debouncedSearchQuery}_${annotations.filter(a => a.pageNumber === pageNumber).map(a => `${a.id}-${a.color}-${a.type}`).join('_')}`}
+                  key={`page_${pageNumber}_${scale}_${debouncedSearchQuery}_${currentMatchIndex}_${annotations.filter(a => a.pageNumber === pageNumber).map(a => `${a.id}-${a.color}-${a.type}`).join('_')}`}
                   pageNumber={pageNumber}
                   scale={scale}
                   renderTextLayer={true}
@@ -1105,7 +1102,7 @@ export default function PDFWorkspace({
                   >
                     {isNearby ? (
                       <Page
-                        key={`page_${p}_${scale}_${debouncedSearchQuery}_${annotations.filter(a => a.pageNumber === p).map(a => `${a.id}-${a.color}-${a.type}`).join('_')}`}
+                        key={`page_${p}_${scale}_${debouncedSearchQuery}_${currentMatchIndex}_${annotations.filter(a => a.pageNumber === p).map(a => `${a.id}-${a.color}-${a.type}`).join('_')}`}
                         pageNumber={p}
                         scale={scale}
                         renderTextLayer={true}
