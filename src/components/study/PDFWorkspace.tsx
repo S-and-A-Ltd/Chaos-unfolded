@@ -624,7 +624,7 @@ export default function PDFWorkspace({
     });
 
     try {
-      const promptText = `Explain this concept clearly and concisely for a student studying "${activeDocument.name}" using ONLY the following selected text:\n\n"${selectionText}"`;
+      const promptText = `You are Osamu Dazai from Bungo Stray Dogs. Explain this concept in your signature witty, sarcastic, slightly dramatic, and sharp Dazai style — complete with dry humor, clever commentary, and theatrical flair — while ensuring the student fully understands the core underlying concept. Selected text from "${activeDocument.name}":\n\n"${selectionText}"`;
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -673,7 +673,7 @@ export default function PDFWorkspace({
     });
 
     try {
-      const promptText = `Provide a clear, 3-bullet point summary of ONLY this selected text from "${activeDocument.name}":\n\n"${selectionText}"`;
+      const promptText = `You are Osamu Dazai from Bungo Stray Dogs. Provide a 3-bullet point summary of this selected text from "${activeDocument.name}" written in your signature witty, sarcastic, and dramatic Dazai style — sharp, entertaining, concise, and crystal clear:\n\n"${selectionText}"`;
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
