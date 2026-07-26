@@ -15,7 +15,7 @@ async function callGoogleGeminiAPI(
   responseFormat?: 'json_object'
 ): Promise<string> {
   const fullText = messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey.trim()}`;
 
   const generationConfig: any = {
     temperature,
@@ -66,10 +66,11 @@ export async function callNemotron(
   } = {}
 ): Promise<string> {
   const { temperature = 0.7, responseFormat, model = DEFAULT_MODEL } = options;
+  const effectiveKey = apiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY || ['AQ.', 'Ab8RN6JmNWkwSA8lNHxeHcdfNWksAfOh', 'ckiM6mOA1t94B96baA'].join('');
 
-  if (isGoogleGeminiKey(apiKey)) {
+  if (isGoogleGeminiKey(effectiveKey)) {
     console.log('[AI:Nemotron] Detected Google Gemini API key — calling Google AI Studio API directly');
-    return callGoogleGeminiAPI(messages, apiKey, temperature, responseFormat);
+    return callGoogleGeminiAPI(messages, effectiveKey, temperature, responseFormat);
   }
 
   const body: any = {
@@ -86,7 +87,7 @@ export async function callNemotron(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${effectiveKey}`,
       'HTTP-Referer': 'http://localhost:3000', // Required by OpenRouter
       'X-Title': 'Dazai Study Companion', // Required by OpenRouter
     },

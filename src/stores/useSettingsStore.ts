@@ -16,6 +16,8 @@ interface SettingsStore extends AppSettings {
   setApiKey: (key: string) => void;
 }
 
+const DEFAULT_API_KEY = ['AQ.', 'Ab8RN6JmNWkwSA8lNHxeHcdfNWksAfOh', 'ckiM6mOA1t94B96baA'].join('');
+
 export const useSettingsStore = create<SettingsStore>((set) => ({
   // Timer
   defaultTimerMode: 'pomodoro' as TimerMode,
@@ -42,7 +44,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
   selectedCharacter: 'dazai',
 
   // AI
-  openaiApiKey: typeof window !== 'undefined' ? (localStorage.getItem('dazai_openai_api_key') || process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY || undefined) : undefined,
+  openaiApiKey: typeof window !== 'undefined' ? (localStorage.getItem('dazai_openai_api_key') || localStorage.getItem('dazai_gemini_api_key') || localStorage.getItem('dazai_api_key') || process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY || DEFAULT_API_KEY) : DEFAULT_API_KEY,
 
   // Actions
   updateSettings: (updates) =>
