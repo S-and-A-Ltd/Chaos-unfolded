@@ -152,28 +152,52 @@ h1, h2, h3, h4, .font-heading {
   box-shadow: 0 6px 0 #7c6a75;
 }
 
-/* Cozy Pink Card (Cinnamon Satin #D17078) */
-.glass-card-pink,
-.glass-card-cinnamon {
+/* Cozy Pink Card */
+.glass-card-pink {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  background: rgba(209, 112, 120, 0.82);
+  background: rgba(255, 209, 220, 0.7);
   border: 3px solid #7c6a75;
   border-radius: 24px;
   box-shadow: 0 6px 0 #7c6a75;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-.glass-card-pink:hover,
-.glass-card-cinnamon:hover {
-  background: rgba(209, 112, 120, 0.92);
+.glass-card-pink:hover {
+  background: rgba(255, 209, 220, 0.85);
   box-shadow: 0 8px 0 #7c6a75;
   transform: translateY(-2px);
 }
-.glass-card-pink-static,
+.glass-card-pink-static {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(255, 209, 220, 0.7);
+  border: 3px solid #7c6a75;
+  border-radius: 24px;
+  box-shadow: 0 6px 0 #7c6a75;
+}
+
+/* Classic Rose Card (#ECD0EC) */
+.glass-card-rose,
+.glass-card-cinnamon {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(236, 208, 236, 0.82);
+  border: 3px solid #7c6a75;
+  border-radius: 24px;
+  box-shadow: 0 6px 0 #7c6a75;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.glass-card-rose:hover,
+.glass-card-cinnamon:hover {
+  background: rgba(236, 208, 236, 0.92);
+  box-shadow: 0 8px 0 #7c6a75;
+  transform: translateY(-2px);
+}
+.glass-card-rose-static,
 .glass-card-cinnamon-static {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  background: rgba(209, 112, 120, 0.82);
+  background: rgba(236, 208, 236, 0.82);
   border: 3px solid #7c6a75;
   border-radius: 24px;
   box-shadow: 0 6px 0 #7c6a75;

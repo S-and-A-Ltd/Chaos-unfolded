@@ -9,7 +9,7 @@ interface CardProps {
   glowColor?: 'purple' | 'teal' | 'amber' | 'none';
   hover?: boolean;
   padding?: 'sm' | 'md' | 'lg' | 'none';
-  bgVariant?: 'blue' | 'pink' | 'lavender' | 'yellow' | 'mint' | 'white' | 'cinnamon';
+  bgVariant?: 'blue' | 'pink' | 'lavender' | 'yellow' | 'mint' | 'white' | 'cinnamon' | 'rose';
 }
 
 const glowClasses: Record<string, string> = {
@@ -29,6 +29,7 @@ const paddingClasses: Record<string, string> = {
 const bgClasses: Record<string, { hover: string; static: string }> = {
   blue: { hover: 'glass-card-blue', static: 'glass-card-blue-static' },
   pink: { hover: 'glass-card-pink', static: 'glass-card-pink-static' },
+  rose: { hover: 'glass-card-rose', static: 'glass-card-rose-static' },
   cinnamon: { hover: 'glass-card-cinnamon', static: 'glass-card-cinnamon-static' },
   lavender: { hover: 'glass-card-lavender', static: 'glass-card-lavender-static' },
   yellow: { hover: 'glass-card-yellow', static: 'glass-card-yellow-static' },
