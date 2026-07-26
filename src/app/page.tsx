@@ -670,7 +670,7 @@ export default function Home() {
           <div className="w-full max-w-[1550px] mx-auto p-8 pb-32">
             <StudyHub 
               documents={documents} 
-              onTriggerQuiz={(force) => handleTriggerQuiz(undefined, force)}
+              onTriggerQuiz={(force) => handleTriggerQuiz(undefined, undefined, force)}
               onAddYoutubeUrl={handleAddYoutubeUrl}
             />
           </div>

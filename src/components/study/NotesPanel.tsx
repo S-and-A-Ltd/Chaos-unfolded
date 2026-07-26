@@ -8,21 +8,32 @@ interface NotesPanelProps {
   document: StudyDocument;
   onUpdatePersonalNotes: (notes: string) => void;
   onTriggerQuiz?: (forceRegenerate?: boolean) => void;
+  externalNotesTrigger?: number;
 }
 
 type TabType = 'personal' | 'ai' | 'revision';
 
-export default function NotesPanel({ document, onUpdatePersonalNotes, onTriggerQuiz }: NotesPanelProps) {
+export default function NotesPanel({ document, onUpdatePersonalNotes, onTriggerQuiz, externalNotesTrigger }: NotesPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>('ai');
   const [personalNotes, setPersonalNotes] = useState('');
 
-  // We would normally load personalNotes from some document.personalNotes field, 
-  // but we can just use local state for now until the type is expanded, or just assume it's blank.
   useEffect(() => {
-    setPersonalNotes('');
+    const saved = typeof window !== 'undefined' ? localStorage.getItem(`dazai_notes_${document.id}`) || '' : '';
+    setPersonalNotes(saved);
   }, [document.id]);
 
+  useEffect(() => {
+    if (externalNotesTrigger && externalNotesTrigger > 0) {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem(`dazai_notes_${document.id}`) || '' : '';
+      setPersonalNotes(saved);
+      setActiveTab('personal');
+    }
+  }, [externalNotesTrigger, document.id]);
+
   const handleSaveNotes = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`dazai_notes_${document.id}`, personalNotes);
+    }
     onUpdatePersonalNotes(personalNotes);
   };
 
@@ -131,7 +142,12 @@ export default function NotesPanel({ document, onUpdatePersonalNotes, onTriggerQ
               className="flex-1 w-full bg-white/60 border-2 border-[#7c6a75]/20 rounded-xl p-3 text-xs text-[#5d5770] focus:outline-none focus:border-[#7c6a75]/50 resize-none custom-scrollbar"
               placeholder="Jot down your own thoughts, formulas, and to-do lists here..."
               value={personalNotes}
-              onChange={(e) => setPersonalNotes(e.target.value)}
+              onChange={(e) => {
+                setPersonalNotes(e.target.value);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem(`dazai_notes_${document.id}`, e.target.value);
+                }
+              }}
             />
             <Button variant="primary" onClick={handleSaveNotes} className="w-full text-xs py-2">
               Save Notes

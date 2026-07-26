@@ -6,11 +6,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { context, apiKey } = body;
 
-    const keyToUse = apiKey || process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    const keyToUse = apiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
 
     if (!keyToUse) {
       return NextResponse.json(
-        { error: 'OpenAI API key is missing.' },
+        { error: 'AI API key is missing.' },
         { status: 400 }
       );
     }

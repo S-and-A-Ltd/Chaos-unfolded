@@ -40,6 +40,7 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
 
   // Context Menu State
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [notesTrigger, setNotesTrigger] = useState<number>(0);
 
   const handleTextSelection = (e: React.MouseEvent) => {
     const selection = window.getSelection();
@@ -137,10 +138,25 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
               document={activeDoc}
               file={activePdfBlob}
               onAddToPersonalNotes={(text, pageNum) => {
-                console.log('Added to notes from PDF:', text, 'Page:', pageNum);
+                if (typeof window !== 'undefined' && activeDoc) {
+                  const existing = localStorage.getItem(`dazai_notes_${activeDoc.id}`) || '';
+                  const entry = `• [Page ${pageNum}] "${text}"\n\n`;
+                  const updated = existing ? existing + entry : entry;
+                  localStorage.setItem(`dazai_notes_${activeDoc.id}`, updated);
+                  setNotesTrigger(Date.now());
+                }
+              }}
+              onGenerateFlashcardFromSelection={(text) => {
+                if (typeof window !== 'undefined' && activeDoc) {
+                  const existing = localStorage.getItem(`dazai_notes_${activeDoc.id}`) || '';
+                  const entry = `[Flashcard Idea] Q: What is the significance of: "${text.slice(0, 50)}..."? A: ${text}\n\n`;
+                  const updated = existing ? existing + entry : entry;
+                  localStorage.setItem(`dazai_notes_${activeDoc.id}`, updated);
+                  setNotesTrigger(Date.now());
+                }
               }}
               onTriggerQuizFromSelection={(text) => {
-                onTriggerQuiz(false);
+                onTriggerQuiz(true);
               }}
             />
           ) : (
@@ -167,6 +183,7 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
             document={activeDoc} 
             onUpdatePersonalNotes={(notes) => console.log('Saved notes:', notes)} 
             onTriggerQuiz={onTriggerQuiz}
+            externalNotesTrigger={notesTrigger}
           />
         ) : (
           <div className="h-full flex items-center justify-center border-3 border-[#7c6a75]/20 border-dashed rounded-2xl bg-white/20">

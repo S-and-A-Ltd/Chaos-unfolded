@@ -63,6 +63,7 @@ export default function PDFWorkspace({
 
   // Annotations & AI Toolbar State
   const [annotations, setAnnotations] = useState<PDFAnnotation[]>([]);
+  const [showAnnotationsDrawer, setShowAnnotationsDrawer] = useState<boolean>(false);
   const [selectionMenu, setSelectionMenu] = useState<{
     x: number;
     y: number;
@@ -355,6 +356,41 @@ export default function PDFWorkspace({
     saveAnnotationsToStorage(updated);
   };
 
+  const makeCustomTextRenderer = useCallback(
+    (pageIdx: number) =>
+      ({ str, itemIndex }: { str: string; itemIndex: number }) => {
+        if (!str || !str.trim()) return str;
+        const pageAnnotations = annotations.filter((a) => a.pageNumber === pageIdx);
+        if (!pageAnnotations.length) return str;
+
+        for (const annot of pageAnnotations) {
+          if (
+            annot.text &&
+            (str.toLowerCase().includes(annot.text.toLowerCase()) ||
+              annot.text.toLowerCase().includes(str.toLowerCase()))
+          ) {
+            const isUnderline = annot.type === 'underline';
+            return (
+              <mark
+                key={annot.id + '_' + itemIndex}
+                style={{
+                  backgroundColor: isUnderline ? 'transparent' : annot.color,
+                  borderBottom: isUnderline ? '3px solid #8F477B' : 'none',
+                  color: 'inherit',
+                  padding: '0 2px',
+                  borderRadius: '4px',
+                }}
+              >
+                {str}
+              </mark>
+            );
+          }
+        }
+        return str;
+      },
+    [annotations]
+  );
+
   // --- 8. AI Actions on Selection ---
   const handleAIExplain = async () => {
     if (!selectionMenu) return;
@@ -368,11 +404,13 @@ export default function PDFWorkspace({
     });
 
     try {
+      const promptText = `Explain this concept clearly and concisely for a student studying "${activeDocument.name}":\n\n"${selectionText}"`;
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: `Explain this concept clearly and concisely for a student studying "${activeDocument.name}":\n\n"${selectionText}"`,
+          messages: [{ role: 'user', content: promptText }],
+          message: promptText,
           documentContext: activeDocument.extractedText?.slice(0, 3000),
           character: 'Dazai',
         }),
@@ -381,7 +419,7 @@ export default function PDFWorkspace({
       setAiModal({
         open: true,
         title: '💡 Dazai’s Concept Explanation',
-        content: data.reply || 'Here is the explanation for the concept.',
+        content: data.reply || data.dialogue || data.error || 'Here is the explanation for the concept.',
         isLoading: false,
       });
     } catch (err) {
@@ -406,11 +444,13 @@ export default function PDFWorkspace({
     });
 
     try {
+      const promptText = `Provide a clear, 3-bullet point summary of this text from "${activeDocument.name}":\n\n"${selectionText}"`;
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: `Provide a clear, 3-bullet point summary of this text from "${activeDocument.name}":\n\n"${selectionText}"`,
+          messages: [{ role: 'user', content: promptText }],
+          message: promptText,
           character: 'Dazai',
         }),
       });
@@ -418,7 +458,7 @@ export default function PDFWorkspace({
       setAiModal({
         open: true,
         title: '📑 Passage Summary',
-        content: data.reply || 'Summary generated.',
+        content: data.reply || data.dialogue || data.error || 'Summary generated.',
         isLoading: false,
       });
     } catch (err) {
@@ -715,6 +755,7 @@ export default function PDFWorkspace({
                   scale={scale}
                   renderTextLayer={true}
                   renderAnnotationLayer={true}
+                  customTextRenderer={makeCustomTextRenderer(pageNumber)}
                   className="rounded"
                 />
               </div>
@@ -740,6 +781,7 @@ export default function PDFWorkspace({
                         scale={scale}
                         renderTextLayer={true}
                         renderAnnotationLayer={true}
+                        customTextRenderer={makeCustomTextRenderer(p)}
                         className="rounded"
                       />
                     ) : (
@@ -759,23 +801,78 @@ export default function PDFWorkspace({
             )}
           </Document>
 
-          {/* Persistent Annotations Header / Badge Panel */}
+          {/* Persistent Annotations Header / Badge Panel & Drawer */}
           {annotations.length > 0 && (
-            <div className="absolute top-4 right-4 z-20 bg-white/90 dark:bg-[#2b2b34] border-2 border-[#7c6a75] rounded-xl px-3 py-1.5 shadow-md flex items-center gap-2">
-              <span className="text-xs">🖍️</span>
-              <span className="text-[10px] font-black uppercase text-[#5d5770] dark:text-[#f4f2ee]">
-                {annotations.length} Annotation{annotations.length !== 1 ? 's' : ''} saved
-              </span>
-              <button
-                onClick={() => {
-                  if (confirm('Clear all highlights and underlines in this document?')) {
-                    saveAnnotationsToStorage([]);
-                  }
-                }}
-                className="text-[10px] font-bold text-red-500 hover:underline ml-1"
-              >
-                Clear
-              </button>
+            <div className="absolute top-4 right-4 z-30 flex flex-col items-end gap-2">
+              <div className="bg-white/95 dark:bg-[#2b2b34]/95 border-2 border-[#7c6a75] rounded-xl px-3 py-1.5 shadow-md flex items-center gap-2">
+                <button
+                  onClick={() => setShowAnnotationsDrawer(!showAnnotationsDrawer)}
+                  className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                >
+                  <span className="text-xs">🖍️</span>
+                  <span className="text-[10px] font-black uppercase text-[#5d5770] dark:text-[#f4f2ee]">
+                    {annotations.length} Annotation{annotations.length !== 1 ? 's' : ''} saved
+                  </span>
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm('Clear all highlights and underlines in this document?')) {
+                      saveAnnotationsToStorage([]);
+                      setShowAnnotationsDrawer(false);
+                    }
+                  }}
+                  className="text-[10px] font-bold text-red-500 hover:underline ml-1 border-l border-gray-300 pl-2"
+                >
+                  Clear
+                </button>
+              </div>
+
+              {showAnnotationsDrawer && (
+                <div className="w-80 max-h-96 bg-white dark:bg-[#2b2b34] border-2 border-[#7c6a75] rounded-xl shadow-xl overflow-y-auto p-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-between border-b pb-2 border-gray-200 dark:border-gray-700">
+                    <span className="text-xs font-black uppercase text-[#5d5770] dark:text-[#f4f2ee]">
+                      Saved Annotations
+                    </span>
+                    <button
+                      onClick={() => setShowAnnotationsDrawer(false)}
+                      className="text-xs font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {annotations.map((annot) => (
+                    <div
+                      key={annot.id}
+                      className="flex items-start justify-between gap-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs"
+                    >
+                      <div
+                        className="flex-1 cursor-pointer"
+                        onClick={() => jumpToPage(annot.pageNumber)}
+                      >
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span
+                            className="w-3 h-3 rounded-full inline-block shrink-0 border border-gray-300"
+                            style={{ backgroundColor: annot.type === 'underline' ? '#8F477B' : annot.color }}
+                          />
+                          <span className="font-bold text-[10px] uppercase text-gray-500 dark:text-gray-400">
+                            Page {annot.pageNumber} • {annot.type}
+                          </span>
+                        </div>
+                        <p className="line-clamp-2 italic text-[#3e3835] dark:text-gray-200">
+                          "{annot.text}"
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => removeAnnotation(annot.id)}
+                        className="text-gray-400 hover:text-red-500 text-sm px-1 font-bold"
+                        title="Delete annotation"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
