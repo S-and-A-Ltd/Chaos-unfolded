@@ -31,9 +31,10 @@ export default function FlashcardGeneratorCard({
 
   // Load cached flashcards when activeDocument changes
   useEffect(() => {
-    if (activeDocument?.aiData?.flashcards && activeDocument.aiData.flashcards.length > 0) {
-      setCards(activeDocument.aiData.flashcards);
-      setShuffledCards(activeDocument.aiData.flashcards);
+    const cachedCards = Array.isArray(activeDocument?.aiData?.flashcards) ? activeDocument.aiData.flashcards : [];
+    if (cachedCards.length > 0) {
+      setCards(cachedCards);
+      setShuffledCards(cachedCards);
       setCurrentIndex(0);
       setIsFlipped(false);
       setError(null);

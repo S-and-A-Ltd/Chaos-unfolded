@@ -13,6 +13,9 @@ interface NotesPanelProps {
 
 type TabType = 'personal' | 'ai' | 'revision';
 
+const safeArray = (val: any): any[] => (Array.isArray(val) ? val : []);
+const safeStr = (val: any): string => (typeof val === 'string' ? val : typeof val === 'object' && val !== null ? JSON.stringify(val) : String(val || ''));
+
 export default function NotesPanel({ document, onUpdatePersonalNotes, onTriggerQuiz, externalNotesTrigger }: NotesPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>('ai');
   const [personalNotes, setPersonalNotes] = useState('');
@@ -79,26 +82,26 @@ export default function NotesPanel({ document, onUpdatePersonalNotes, onTriggerQ
             ) : (
               <>
                 <h3 className="font-black text-sm border-b-2 border-[#7c6a75]/10 pb-1">Chapter Summary</h3>
-                <p className="text-xs leading-relaxed">{document.aiData.aiNotes.chapterSummary || 'No chapter summary available.'}</p>
+                <p className="text-xs leading-relaxed">{safeStr(document.aiData.aiNotes.chapterSummary || 'No chapter summary available.')}</p>
                 
                 <h3 className="font-black text-sm border-b-2 border-[#7c6a75]/10 pb-1 mt-4">Key Concepts</h3>
                 <ul className="list-disc list-inside text-xs space-y-1">
-                  {(document.aiData.aiNotes.keyConcepts || []).map((kc, i) => <li key={i}>{kc}</li>)}
+                  {safeArray(document.aiData.aiNotes.keyConcepts).map((kc, i) => <li key={i}>{safeStr(kc)}</li>)}
                 </ul>
 
                 <h3 className="font-black text-sm border-b-2 border-[#7c6a75]/10 pb-1 mt-4">Important Facts</h3>
                 <ul className="list-disc list-inside text-xs space-y-1">
-                  {(document.aiData.aiNotes.importantFacts || []).map((f, i) => <li key={i}>{f}</li>)}
+                  {safeArray(document.aiData.aiNotes.importantFacts).map((f, i) => <li key={i}>{safeStr(f)}</li>)}
                 </ul>
 
-                {(document.aiData.aiNotes.frequentlyAskedQuestions || []).length > 0 && (
+                {safeArray(document.aiData.aiNotes.frequentlyAskedQuestions).length > 0 && (
                   <>
                     <h3 className="font-black text-sm border-b-2 border-[#7c6a75]/10 pb-1 mt-4">FAQs</h3>
                     <div className="space-y-3">
-                      {(document.aiData.aiNotes.frequentlyAskedQuestions || []).map((faq, i) => (
+                      {safeArray(document.aiData.aiNotes.frequentlyAskedQuestions).map((faq: any, i) => (
                         <div key={i} className="bg-white/50 p-2 rounded-lg">
-                          <p className="text-[11px] font-bold">Q: {faq.question}</p>
-                          <p className="text-[11px] mt-1 text-[#5d5770]/80">A: {faq.answer}</p>
+                          <p className="text-[11px] font-bold">Q: {safeStr(faq?.question || faq)}</p>
+                          <p className="text-[11px] mt-1 text-[#5d5770]/80">A: {safeStr(faq?.answer || '')}</p>
                         </div>
                       ))}
                     </div>
@@ -119,17 +122,17 @@ export default function NotesPanel({ document, onUpdatePersonalNotes, onTriggerQ
               <>
                 <h3 className="font-black text-sm border-b-2 border-[#7c6a75]/10 pb-1">One-Line Summaries</h3>
                 <ul className="list-disc list-inside text-xs space-y-1">
-                  {(document.aiData.revisionNotes.oneLineSummaries || []).map((s, i) => <li key={i}>{s}</li>)}
+                  {safeArray(document.aiData.revisionNotes.oneLineSummaries).map((s, i) => <li key={i}>{safeStr(s)}</li>)}
                 </ul>
 
                 <h3 className="font-black text-sm border-b-2 border-[#7c6a75]/10 pb-1 mt-4">Points to Remember</h3>
                 <ul className="list-disc list-inside text-xs space-y-1">
-                  {(document.aiData.revisionNotes.importantPoints || []).map((p, i) => <li key={i}>{p}</li>)}
+                  {safeArray(document.aiData.revisionNotes.importantPoints).map((p, i) => <li key={i}>{safeStr(p)}</li>)}
                 </ul>
 
                 <h3 className="font-black text-sm border-b-2 border-[#7c6a75]/10 pb-1 mt-4">Common Exam Questions</h3>
                 <ul className="list-disc list-inside text-xs space-y-1">
-                  {(document.aiData.revisionNotes.commonExamQuestions || []).map((q, i) => <li key={i}>{q}</li>)}
+                  {safeArray(document.aiData.revisionNotes.commonExamQuestions).map((q, i) => <li key={i}>{safeStr(q)}</li>)}
                 </ul>
               </>
             )}

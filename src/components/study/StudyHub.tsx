@@ -16,14 +16,16 @@ interface StudyHubProps {
   onAddYoutubeUrl: (url: string) => Promise<void>;
 }
 
+const safeArray = (val: any): any[] => (Array.isArray(val) ? val : []);
+
 export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: StudyHubProps) {
   const [activeSidebarTab, setActiveSidebarTab] = useState<'documents' | 'youtube'>('documents');
   const [selectedDocId, setSelectedDocId] = useState<string>('');
   const [activePdfBlob, setActivePdfBlob] = useState<File | Blob | null>(null);
 
-  const activeDoc = documents.find((d) => d.id === selectedDocId);
-  const pdfDocs = documents.filter((d) => d.type !== 'youtube');
-  const youtubeDocs = documents.filter((d) => d.type === 'youtube');
+  const activeDoc = safeArray(documents).find((d) => d.id === selectedDocId);
+  const pdfDocs = safeArray(documents).filter((d) => d.type !== 'youtube');
+  const youtubeDocs = safeArray(documents).filter((d) => d.type === 'youtube');
 
   // Load PDF Blob when selected doc changes
   useEffect(() => {
@@ -96,10 +98,10 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
           {activeSidebarTab === 'documents' && (
             <div className="flex-1 flex flex-col p-3 overflow-y-auto custom-scrollbar gap-2">
               <div className="text-[10px] font-black uppercase text-[#5d5770]/60 tracking-wider mb-1">My Study Materials</div>
-              {documents.length === 0 && (
+              {safeArray(documents).length === 0 && (
                 <div className="text-xs text-center text-[#5d5770]/50 mt-10 font-bold">No documents uploaded yet. Head to the Study Tab to upload some!</div>
               )}
-              {documents.map(doc => (
+              {safeArray(documents).map(doc => (
                 <div 
                   key={doc.id}
                   onClick={() => setSelectedDocId(doc.id)}

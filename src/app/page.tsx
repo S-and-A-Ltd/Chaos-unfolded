@@ -262,7 +262,7 @@ export default function Home() {
         type: docType,
         uploadedAt: Date.now(),
         extractedText: data.text,
-        topics: data.aiData?.quiz?.mcq?.map((q: any) => q.topic).filter(Boolean) || [],
+        topics: (Array.isArray(data.aiData?.quiz?.mcq) ? data.aiData.quiz.mcq : []).map((q: any) => q.topic).filter(Boolean),
         summary: data.aiData?.summary || 'Document successfully processed.',
         isProcessed: true,
         aiData: data.aiData,
