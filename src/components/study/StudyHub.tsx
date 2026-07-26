@@ -161,7 +161,7 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
           />
         ) : (
           <div className="h-full flex items-center justify-center border-3 border-[#7c6a75]/20 border-dashed rounded-2xl bg-white/20">
-            <p className="text-[#5d5770]/60 font-black uppercase tracking-widest text-[10px] text-center p-4">Open a document to view notes & flashcards</p>
+            <p className="text-[#5d5770]/60 font-black uppercase tracking-widest text-[10px] text-center p-4">Open a document to view study notes</p>
           </div>
         )}
       </div>

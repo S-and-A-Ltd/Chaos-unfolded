@@ -3,15 +3,14 @@
 import { useState, useEffect } from 'react';
 import { StudyDocument } from '@/types';
 import Button from '@/components/ui/Button';
-import FlashcardViewer from './FlashcardViewer';
 
 interface NotesPanelProps {
   document: StudyDocument;
   onUpdatePersonalNotes: (notes: string) => void;
-  onTriggerQuiz: (forceRegenerate?: boolean) => void;
+  onTriggerQuiz?: (forceRegenerate?: boolean) => void;
 }
 
-type TabType = 'personal' | 'ai' | 'revision' | 'flashcards' | 'quiz';
+type TabType = 'personal' | 'ai' | 'revision';
 
 export default function NotesPanel({ document, onUpdatePersonalNotes, onTriggerQuiz }: NotesPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>('ai');
@@ -47,22 +46,6 @@ export default function NotesPanel({ document, onUpdatePersonalNotes, onTriggerQ
           }`}
         >
           📌 Revision
-        </button>
-        <button
-          onClick={() => setActiveTab('flashcards')}
-          className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${
-            activeTab === 'flashcards' ? 'bg-white text-[#7c6a75] shadow-sm' : 'text-[#5d5770]/60 hover:bg-white/50'
-          }`}
-        >
-          🎴 Cards
-        </button>
-        <button
-          onClick={() => setActiveTab('quiz')}
-          className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${
-            activeTab === 'quiz' ? 'bg-white text-[#7c6a75] shadow-sm' : 'text-[#5d5770]/60 hover:bg-white/50'
-          }`}
-        >
-          🎯 Quiz
         </button>
         <button
           onClick={() => setActiveTab('personal')}
@@ -139,33 +122,6 @@ export default function NotesPanel({ document, onUpdatePersonalNotes, onTriggerQ
                 </ul>
               </>
             )}
-          </div>
-        )}
-
-        {activeTab === 'flashcards' && (
-          <div className="h-full">
-             <FlashcardViewer flashcards={document.aiData?.flashcards || []} />
-          </div>
-        )}
-
-        {activeTab === 'quiz' && (
-          <div className="flex flex-col h-full items-center justify-center gap-6 p-4 text-center">
-            <span className="text-4xl">🎯</span>
-            <div>
-              <h3 className="font-black text-[#5d5770] uppercase tracking-wider text-sm mb-2">Master your material</h3>
-              <p className="text-xs text-[#5d5770]/70 leading-relaxed font-bold">
-                Test your knowledge with a Dazai Quiz! The quiz will use questions extracted from this document.
-              </p>
-            </div>
-            
-            <div className="w-full flex flex-col gap-3 mt-4">
-              <Button variant="primary" onClick={() => onTriggerQuiz(false)} className="w-full text-xs py-3 font-black">
-                Start Quiz (Cached)
-              </Button>
-              <Button variant="secondary" onClick={() => onTriggerQuiz(true)} className="w-full text-xs py-2">
-                Regenerate Quiz Questions
-              </Button>
-            </div>
           </div>
         )}
 
