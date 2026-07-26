@@ -630,6 +630,7 @@ export default function PDFWorkspace({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: selectionText,
+          contextText: activeDocument.extractedText || '',
           documentName: activeDocument.name,
           apiKey: getApiKey(),
         }),
@@ -678,6 +679,7 @@ export default function PDFWorkspace({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: selectionText,
+          contextText: activeDocument.extractedText || '',
           documentName: activeDocument.name,
           apiKey: getApiKey(),
         }),

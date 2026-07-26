@@ -80,6 +80,7 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text,
+          contextText: activeDoc?.extractedText || '',
           documentName: activeDoc?.name || 'Study Material',
         }),
       });
@@ -115,6 +116,7 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text,
+          contextText: activeDoc?.extractedText || '',
           documentName: activeDoc?.name || 'Study Material',
         }),
       });
