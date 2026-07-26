@@ -71,6 +71,8 @@ export default function PDFWorkspace({
 
   // Annotations & AI Toolbar State
   const [annotations, setAnnotations] = useState<PDFAnnotation[]>([]);
+  const [undoStack, setUndoStack] = useState<PDFAnnotation[][]>([]);
+  const [redoStack, setRedoStack] = useState<PDFAnnotation[][]>([]);
   const [showAnnotationsDrawer, setShowAnnotationsDrawer] = useState<boolean>(false);
   const [copyToast, setCopyToast] = useState<boolean>(false);
   const [selectionMenu, setSelectionMenu] = useState<{
@@ -99,6 +101,8 @@ export default function PDFWorkspace({
         } else {
           setAnnotations([]);
         }
+        setUndoStack([]);
+        setRedoStack([]);
 
         const savedPrefs = await getPDFPreferences(activeDocument.id);
         if (savedPrefs) {
@@ -119,14 +123,34 @@ export default function PDFWorkspace({
 
   // Save annotations automatically
   const saveAnnotationsToStorage = useCallback(
-    async (updatedAnnotations: PDFAnnotation[]) => {
+    async (updatedAnnotations: PDFAnnotation[], recordHistory = true) => {
+      if (recordHistory) {
+        setUndoStack(prev => [...prev.slice(-30), annotations]);
+        setRedoStack([]);
+      }
       setAnnotations(updatedAnnotations);
       if (activeDocument?.id) {
         await savePDFAnnotations(activeDocument.id, updatedAnnotations);
       }
     },
-    [activeDocument?.id]
+    [activeDocument?.id, annotations]
   );
+
+  const handleUndo = useCallback(() => {
+    if (undoStack.length === 0) return;
+    const prevAnnotations = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
+    setRedoStack(prev => [...prev.slice(-30), annotations]);
+    saveAnnotationsToStorage(prevAnnotations, false);
+  }, [undoStack, annotations, saveAnnotationsToStorage]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStack.length === 0) return;
+    const nextAnnotations = redoStack[redoStack.length - 1];
+    setRedoStack(prev => prev.slice(0, -1));
+    setUndoStack(prev => [...prev.slice(-30), annotations]);
+    saveAnnotationsToStorage(nextAnnotations, false);
+  }, [redoStack, annotations, saveAnnotationsToStorage]);
 
   // Save preferences automatically
   useEffect(() => {
@@ -296,7 +320,17 @@ export default function PDFWorkspace({
         }
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         setShowSearch(prev => !prev);
       } else if ((e.metaKey || e.ctrlKey) && (e.key === '=' || e.key === '+')) {
@@ -320,7 +354,7 @@ export default function PDFWorkspace({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [changePage, selectionMenu, showSearch, viewMode, addAnnotation, handleCopySelection, handleZoom, handleResetZoom]);
+  }, [changePage, selectionMenu, showSearch, viewMode, addAnnotation, handleCopySelection, handleZoom, handleResetZoom, handleUndo, handleRedo]);
 
   // --- 6. Search Match Logic ---
   useEffect(() => {
@@ -916,8 +950,27 @@ export default function PDFWorkspace({
           </Button>
         </div>
 
-        {/* Center: Search & Reading Mode Toggle */}
-        <div className="flex items-center gap-2">
+        {/* Center: Search, Undo/Redo & Reading Mode Toggle */}
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={handleUndo}
+            disabled={undoStack.length === 0}
+            className="px-2 py-1 rounded-lg text-xs font-black uppercase bg-white/20 hover:bg-white/30 disabled:opacity-30 disabled:hover:bg-white/20 text-white transition-all flex items-center gap-1"
+            title="Undo last annotation (Ctrl+Z)"
+          >
+            ↩ Undo
+          </button>
+          <button
+            onClick={handleRedo}
+            disabled={redoStack.length === 0}
+            className="px-2 py-1 rounded-lg text-xs font-black uppercase bg-white/20 hover:bg-white/30 disabled:opacity-30 disabled:hover:bg-white/20 text-white transition-all flex items-center gap-1"
+            title="Redo annotation (Ctrl+Y)"
+          >
+            ↪ Redo
+          </button>
+
+          <div className="h-4 w-px bg-white/20 mx-0.5" />
+
           <button
             onClick={() => setShowSearch(prev => !prev)}
             className={`px-2.5 py-1 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1 ${
