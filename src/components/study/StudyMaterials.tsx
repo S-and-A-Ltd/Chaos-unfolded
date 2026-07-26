@@ -79,7 +79,7 @@ export default function StudyMaterials({ documents, onDelete }: StudyMaterialsPr
                       {doc.type}
                     </span>
                     <span className="text-[10px] text-[#5d5770]/60">
-                      {doc.topics.length} topics
+                      {(doc.topics || []).length} topics
                     </span>
                     <span className="text-[10px] text-[#5d5770]/50">
                       {new Date(doc.uploadedAt).toLocaleDateString()}
@@ -122,7 +122,7 @@ export default function StudyMaterials({ documents, onDelete }: StudyMaterialsPr
               </div>
 
               <AnimatePresence>
-                {expandedId === doc.id && doc.topics.length > 0 && (
+                {expandedId === doc.id && (doc.topics || []).length > 0 && (
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
@@ -133,7 +133,7 @@ export default function StudyMaterials({ documents, onDelete }: StudyMaterialsPr
                       Extracted Topics
                     </p>
                     <div className="flex flex-wrap gap-1.5">
-                      {doc.topics.map((topic, i) => (
+                      {(doc.topics || []).map((topic, i) => (
                         <span
                           key={i}
                           className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-primary/10 text-primary-dark border border-primary/20"

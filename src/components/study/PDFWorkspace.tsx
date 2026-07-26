@@ -1185,7 +1185,7 @@ export default function PDFWorkspace({
             {viewMode === 'single' ? (
               <div className="relative shadow-2xl rounded-lg overflow-hidden bg-white shrink-0">
                 <Page
-                  key={`page_${pageNumber}_${scale}_${debouncedSearchQuery}_${currentMatchIndex}_${annotations.filter(a => a.pageNumber === pageNumber).map(a => `${a.id}-${a.color}-${a.type}`).join('_')}`}
+                  key={`page_${pageNumber}_${scale}_${debouncedSearchQuery}_${currentMatchIndex}_${(annotations || []).filter(a => a.pageNumber === pageNumber).map(a => `${a.id}-${a.color}-${a.type}`).join('_')}`}
                   pageNumber={pageNumber}
                   scale={scale}
                   renderTextLayer={true}
@@ -1213,7 +1213,7 @@ export default function PDFWorkspace({
                   >
                     {isNearby ? (
                       <Page
-                        key={`page_${p}_${scale}_${debouncedSearchQuery}_${currentMatchIndex}_${annotations.filter(a => a.pageNumber === p).map(a => `${a.id}-${a.color}-${a.type}`).join('_')}`}
+                        key={`page_${p}_${scale}_${debouncedSearchQuery}_${currentMatchIndex}_${(annotations || []).filter(a => a.pageNumber === p).map(a => `${a.id}-${a.color}-${a.type}`).join('_')}`}
                         pageNumber={p}
                         scale={scale}
                         renderTextLayer={true}
@@ -1278,7 +1278,7 @@ export default function PDFWorkspace({
                       ✕
                     </button>
                   </div>
-                  {annotations.map((annot) => (
+                  {(annotations || []).map((annot) => (
                     <div
                       key={annot.id}
                       className="flex items-start justify-between gap-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs"
