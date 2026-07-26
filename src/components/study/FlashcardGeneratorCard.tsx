@@ -156,7 +156,7 @@ export default function FlashcardGeneratorCard({
   const hasCards = shuffledCards.length > 0;
 
   return (
-    <Card padding="md" bgVariant="pink" className="w-full shadow-[0_6px_0_#7c6a75] font-fredoka">
+    <Card padding="md" bgVariant="cinnamon" className="w-full shadow-[0_6px_0_#7c6a75] font-fredoka">
       {/* Header */}
       <div className="flex items-center justify-between border-b-2 border-[#7c6a75]/15 pb-3 mb-4">
         <div className="flex items-center gap-2">
