@@ -7,6 +7,7 @@ import Button from '@/components/ui/Button';
 import type { StudyDocument, Flashcard } from '@/types';
 import { useUserStore } from '@/stores/useUserStore';
 import { useCharacterStore } from '@/stores/useCharacterStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 
 interface FlashcardGeneratorCardProps {
   activeDocument: StudyDocument | null;
@@ -63,7 +64,7 @@ export default function FlashcardGeneratorCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           context: activeDocument.extractedText,
-          apiKey: useUserStore.getState().apiKey,
+          apiKey: useSettingsStore.getState().openaiApiKey || (typeof window !== 'undefined' ? localStorage.getItem('dazai_openai_api_key') : '') || '',
         }),
       });
 
