@@ -222,61 +222,70 @@ export default function FlashcardGeneratorCard({
             </span>
           </div>
 
-          {/* 3D Interactive Flashcard */}
+          {/* Interactive Flip Card (AnimatePresence mode="wait" prevents mirror images) */}
           <div
-            className="relative w-full aspect-[4/3] perspective-1000 cursor-pointer select-none"
+            className="relative w-full aspect-[4/3] cursor-pointer select-none"
             onClick={() => setIsFlipped(!isFlipped)}
           >
-            <motion.div
-              className="w-full h-full preserve-3d"
-              animate={{ rotateY: isFlipped ? 180 : 0 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-            >
-              {/* FRONT (Question / Concept / Term) */}
-              <Card
-                padding="lg"
-                bgVariant="white"
-                className="absolute inset-0 backface-hidden flex flex-col items-center justify-between text-center shadow-md border-3 border-[#7c6a75] !rounded-2xl"
-              >
-                <div className="w-full flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-[#5d5770]/50 border-b border-[#7c6a75]/10 pb-1.5">
-                  <span>Question / Term</span>
-                  <span>Flip ↻</span>
-                </div>
-                <div className="flex-1 flex items-center justify-center px-2 py-3 overflow-y-auto">
-                  <p className="text-sm font-bold text-[#5d5770] leading-relaxed">
-                    {currentCard.front}
-                  </p>
-                </div>
-                <div className="w-full text-[9px] font-black uppercase tracking-widest text-[#8F477B]/70 pt-1 border-t border-[#7c6a75]/10">
-                  Click card to reveal answer
-                </div>
-              </Card>
-
-              {/* BACK (Answer / Definition / Explanation) */}
-              <div
-                className="absolute inset-0 backface-hidden"
-                style={{ transform: 'rotateY(180deg)' }}
-              >
-                <Card
-                  padding="lg"
-                  bgVariant="yellow"
-                  className="w-full h-full flex flex-col items-center justify-between text-center shadow-md border-3 border-[#7c6a75] !rounded-2xl"
+            <AnimatePresence mode="wait" initial={false}>
+              {!isFlipped ? (
+                <motion.div
+                  key="front"
+                  initial={{ rotateY: -90, opacity: 0 }}
+                  animate={{ rotateY: 0, opacity: 1 }}
+                  exit={{ rotateY: 90, opacity: 0 }}
+                  transition={{ duration: 0.18, ease: 'easeInOut' }}
+                  className="w-full h-full"
                 >
-                  <div className="w-full flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-[#5d5770]/50 border-b border-[#7c6a75]/10 pb-1.5">
-                    <span>Answer / Definition</span>
-                    <span>Flip ↻</span>
-                  </div>
-                  <div className="flex-1 flex items-center justify-center px-2 py-3 overflow-y-auto max-h-full">
-                    <p className="text-sm font-bold text-[#5d5770] leading-relaxed">
-                      {currentCard.back}
-                    </p>
-                  </div>
-                  <div className="w-full text-[9px] font-black uppercase tracking-widest text-[#5d5770]/60 pt-1 border-t border-[#7c6a75]/10">
-                    Click card to return to question
-                  </div>
-                </Card>
-              </div>
-            </motion.div>
+                  <Card
+                    padding="lg"
+                    bgVariant="white"
+                    className="w-full h-full flex flex-col items-center justify-between text-center shadow-md border-3 border-[#7c6a75] !rounded-2xl"
+                  >
+                    <div className="w-full flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-[#5d5770]/60 border-b-2 border-[#7c6a75]/15 pb-2">
+                      <span className="flex items-center gap-1">❓ Question / Term</span>
+                      <span className="text-[#8F477B]">Click to Flip ↻</span>
+                    </div>
+                    <div className="flex-1 flex items-center justify-center px-4 py-4 overflow-y-auto">
+                      <p className="text-sm font-bold text-[#5d5770] leading-relaxed">
+                        {currentCard.front}
+                      </p>
+                    </div>
+                    <div className="w-full text-[9px] font-black uppercase tracking-widest text-[#8F477B] pt-2 border-t-2 border-[#7c6a75]/15">
+                      ✨ Click card to reveal answer
+                    </div>
+                  </Card>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="back"
+                  initial={{ rotateY: -90, opacity: 0 }}
+                  animate={{ rotateY: 0, opacity: 1 }}
+                  exit={{ rotateY: 90, opacity: 0 }}
+                  transition={{ duration: 0.18, ease: 'easeInOut' }}
+                  className="w-full h-full"
+                >
+                  <Card
+                    padding="lg"
+                    bgVariant="yellow"
+                    className="w-full h-full flex flex-col items-center justify-between text-center shadow-md border-3 border-[#8F477B] !rounded-2xl"
+                  >
+                    <div className="w-full flex justify-between items-center text-[9px] font-black uppercase tracking-widest text-[#5d5770]/70 border-b-2 border-[#8F477B]/20 pb-2">
+                      <span className="flex items-center gap-1 text-[#8F477B]">💡 Answer / Definition</span>
+                      <span className="text-[#8F477B]">Click to Flip ↻</span>
+                    </div>
+                    <div className="flex-1 flex items-center justify-center px-4 py-4 overflow-y-auto">
+                      <p className="text-sm font-bold text-[#5d5770] leading-relaxed">
+                        {currentCard.back}
+                      </p>
+                    </div>
+                    <div className="w-full text-[9px] font-black uppercase tracking-widest text-[#5d5770]/80 pt-2 border-t-2 border-[#8F477B]/20">
+                      ✨ Click card to return to question
+                    </div>
+                  </Card>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Controls: Prev | Shuffle | Restart | Next */}
