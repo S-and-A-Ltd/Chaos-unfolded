@@ -177,6 +177,30 @@ export default function PDFWorkspace({
     }
   };
 
+  const handleScroll = useCallback(() => {
+    if (viewMode !== 'continuous' || !containerRef.current) return;
+    const container = containerRef.current;
+    const containerCenter = container.scrollTop + container.clientHeight / 3;
+    let closestPage = pageNumber;
+    let minDistance = Infinity;
+
+    for (let p = 1; p <= (numPages || 1); p++) {
+      const el = document.getElementById(`pdf-page-${p}`);
+      if (el) {
+        const offsetTop = el.offsetTop - container.offsetTop;
+        const distance = Math.abs(offsetTop - containerCenter);
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestPage = p;
+        }
+      }
+    }
+    if (closestPage !== pageNumber) {
+      setPageNumber(closestPage);
+      setInputPage(String(closestPage));
+    }
+  }, [viewMode, numPages, pageNumber]);
+
   // --- 3. Zoom Controls ---
   const handleZoom = (amount: number) => {
     setScale(prev => Math.min(Math.max(0.4, prev + amount), 3.0));
@@ -661,7 +685,8 @@ export default function PDFWorkspace({
         {/* PDF Document Render Container */}
         <div
           ref={containerRef}
-          className={`flex-1 overflow-auto flex justify-center p-4 relative custom-scrollbar ${
+          onScroll={handleScroll}
+          className={`flex-1 overflow-auto p-6 relative custom-scrollbar ${
             readingMode === 'dark' ? 'bg-[#121217]' : 'bg-black/10'
           }`}
         >
@@ -681,10 +706,10 @@ export default function PDFWorkspace({
                 Failed to load PDF file.
               </div>
             }
-            className="flex flex-col items-center gap-6"
+            className="flex flex-col items-center gap-8 w-full min-h-max"
           >
             {viewMode === 'single' ? (
-              <div className="relative shadow-2xl rounded-lg overflow-hidden bg-white">
+              <div className="relative shadow-2xl rounded-lg overflow-hidden bg-white shrink-0">
                 <Page
                   pageNumber={pageNumber}
                   scale={scale}
@@ -705,7 +730,7 @@ export default function PDFWorkspace({
                       setPageNumber(p);
                       setInputPage(String(p));
                     }}
-                    className={`relative shadow-2xl rounded-lg overflow-hidden bg-white transition-all ${
+                    className={`relative shadow-2xl rounded-lg overflow-hidden bg-white transition-all shrink-0 ${
                       pageNumber === p ? 'ring-4 ring-[#8F477B]/50' : ''
                     }`}
                   >
@@ -720,9 +745,12 @@ export default function PDFWorkspace({
                     ) : (
                       <div
                         style={{ width: 600 * scale, height: 800 * scale }}
-                        className="flex items-center justify-center bg-white text-[#7c6a75] text-xs font-black uppercase"
+                        className="flex flex-col items-center justify-center bg-white text-[#7c6a75] gap-3 p-8 border border-[#7c6a75]/20 rounded-lg"
                       >
-                        Page {p} (Scroll to render)
+                        <div className="w-6 h-6 border-2 border-[#7c6a75] border-t-transparent rounded-full animate-spin" />
+                        <span className="text-xs font-black uppercase tracking-wider">
+                          Page {p} (Scroll to render)
+                        </span>
                       </div>
                     )}
                   </div>
