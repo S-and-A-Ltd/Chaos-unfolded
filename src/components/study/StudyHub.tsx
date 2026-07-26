@@ -72,12 +72,6 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
             <button className="px-3 py-2 text-[10px] font-black uppercase text-[#5d5770] hover:bg-[#ffd1dc] transition-colors border-r border-[#7c6a75]/10">
               Notes
             </button>
-            <button className="px-3 py-2 text-[10px] font-black uppercase text-[#5d5770] hover:bg-[#ffd1dc] transition-colors border-r border-[#7c6a75]/10">
-              Flashcard
-            </button>
-            <button className="px-3 py-2 text-[10px] font-black uppercase text-[#5d5770] hover:bg-[#ffd1dc] transition-colors border-r border-[#7c6a75]/10">
-              Quiz
-            </button>
             <button className="px-3 py-2 text-[10px] font-black uppercase text-[#5d5770] hover:bg-[#ffd1dc] transition-colors">
               Bookmark
             </button>

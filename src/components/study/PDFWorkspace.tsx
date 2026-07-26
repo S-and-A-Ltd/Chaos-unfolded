@@ -64,6 +64,7 @@ export default function PDFWorkspace({
   // Annotations & AI Toolbar State
   const [annotations, setAnnotations] = useState<PDFAnnotation[]>([]);
   const [showAnnotationsDrawer, setShowAnnotationsDrawer] = useState<boolean>(false);
+  const [copyToast, setCopyToast] = useState<boolean>(false);
   const [selectionMenu, setSelectionMenu] = useState<{
     x: number;
     y: number;
@@ -360,6 +361,26 @@ export default function PDFWorkspace({
     (pageIdx: number) =>
       ({ str, itemIndex }: { str: string; itemIndex: number }) => {
         if (!str || !str.trim()) return str;
+
+        const query = searchQuery.trim().toLowerCase();
+        if (query && str.toLowerCase().includes(query)) {
+          return (
+            <mark
+              key={`search_${pageIdx}_${itemIndex}`}
+              style={{
+                backgroundColor: '#ffde59',
+                color: '#000',
+                padding: '0 2px',
+                borderRadius: '3px',
+                fontWeight: 'bold',
+                boxShadow: '0 0 4px rgba(255, 222, 89, 0.8)',
+              }}
+            >
+              {str}
+            </mark>
+          );
+        }
+
         const pageAnnotations = annotations.filter((a) => a.pageNumber === pageIdx);
         if (!pageAnnotations.length) return str;
 
@@ -388,10 +409,21 @@ export default function PDFWorkspace({
         }
         return str;
       },
-    [annotations]
+    [annotations, searchQuery]
   );
 
-  // --- 8. AI Actions on Selection ---
+  // --- 8. Helper & AI Actions on Selection ---
+  const getApiKey = () => {
+    if (typeof window === 'undefined') return process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+    return (
+      localStorage.getItem('dazai_openai_api_key') ||
+      localStorage.getItem('dazai_gemini_api_key') ||
+      localStorage.getItem('dazai_api_key') ||
+      process.env.NEXT_PUBLIC_GEMINI_API_KEY ||
+      ''
+    );
+  };
+
   const handleAIExplain = async () => {
     if (!selectionMenu) return;
     const selectionText = selectionMenu.text;
@@ -404,18 +436,27 @@ export default function PDFWorkspace({
     });
 
     try {
-      const promptText = `Explain this concept clearly and concisely for a student studying "${activeDocument.name}":\n\n"${selectionText}"`;
+      const promptText = `Explain this concept clearly and concisely for a student studying "${activeDocument.name}" using ONLY the following selected text:\n\n"${selectionText}"`;
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [{ role: 'user', content: promptText }],
           message: promptText,
-          documentContext: activeDocument.extractedText?.slice(0, 3000),
           character: 'Dazai',
+          apiKey: getApiKey(),
         }),
       });
       const data = await res.json();
+      if (!res.ok || data.error?.includes('API key is missing')) {
+        setAiModal({
+          open: true,
+          title: '⚠️ AI API Key is Missing',
+          content: 'Please open Settings (the gear icon in the top right of Dazai OS) and enter your OpenAI or Google Gemini API key under AI Settings, or configure it in your environment variables (.env.local).\n\nOnce configured, Dazai will be ready to explain, summarize, create notes, flashcards, and quizzes from your study materials!',
+          isLoading: false,
+        });
+        return;
+      }
       setAiModal({
         open: true,
         title: '💡 Dazai’s Concept Explanation',
@@ -444,7 +485,7 @@ export default function PDFWorkspace({
     });
 
     try {
-      const promptText = `Provide a clear, 3-bullet point summary of this text from "${activeDocument.name}":\n\n"${selectionText}"`;
+      const promptText = `Provide a clear, 3-bullet point summary of ONLY this selected text from "${activeDocument.name}":\n\n"${selectionText}"`;
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -452,9 +493,19 @@ export default function PDFWorkspace({
           messages: [{ role: 'user', content: promptText }],
           message: promptText,
           character: 'Dazai',
+          apiKey: getApiKey(),
         }),
       });
       const data = await res.json();
+      if (!res.ok || data.error?.includes('API key is missing')) {
+        setAiModal({
+          open: true,
+          title: '⚠️ AI API Key is Missing',
+          content: 'Please open Settings (the gear icon in the top right of Dazai OS) and enter your OpenAI or Google Gemini API key under AI Settings, or configure it in your environment variables (.env.local).\n\nOnce configured, Dazai will be ready to explain, summarize, create notes, flashcards, and quizzes from your study materials!',
+          isLoading: false,
+        });
+        return;
+      }
       setAiModal({
         open: true,
         title: '📑 Passage Summary',
@@ -471,10 +522,188 @@ export default function PDFWorkspace({
     }
   };
 
+  const handleAIGenerateNotes = async () => {
+    if (!selectionMenu) return;
+    const selectionText = selectionMenu.text;
+    const pageNum = selectionMenu.pageNumber;
+    setSelectionMenu(null);
+    setAiModal({
+      open: true,
+      title: 'Generating AI Study Notes',
+      content: 'Dazai is extracting key takeaways from this passage for your AI Notes panel...',
+      isLoading: true,
+    });
+
+    try {
+      const promptText = `Generate concise, high-yield bullet point study notes from ONLY this selected passage from "${activeDocument.name}" (do not invent information outside this passage):\n\n"${selectionText}"`;
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: promptText }],
+          message: promptText,
+          character: 'Dazai',
+          apiKey: getApiKey(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error?.includes('API key is missing')) {
+        setAiModal({
+          open: true,
+          title: '⚠️ AI API Key is Missing',
+          content: 'Please open Settings (the gear icon in the top right of Dazai OS) and enter your OpenAI or Google Gemini API key under AI Settings, or configure it in your environment variables (.env.local).\n\nOnce configured, Dazai will be ready to explain, summarize, create notes, flashcards, and quizzes from your study materials!',
+          isLoading: false,
+        });
+        return;
+      }
+
+      const generatedNote = data.reply || data.dialogue || data.error || 'Note generated.';
+      if (onAddToPersonalNotes) {
+        onAddToPersonalNotes(`[AI Note - Page ${pageNum}]\n${generatedNote}`, pageNum);
+      }
+      setAiModal({
+        open: true,
+        title: '📝 AI Study Note Saved!',
+        content: `${generatedNote}\n\n✅ Added to your Notes Panel!`,
+        isLoading: false,
+      });
+    } catch (err) {
+      setAiModal({
+        open: true,
+        title: 'Error',
+        content: 'Failed to generate AI study note.',
+        isLoading: false,
+      });
+    }
+  };
+
+  const handleAIGenerateCard = async () => {
+    if (!selectionMenu) return;
+    const selectionText = selectionMenu.text;
+    setSelectionMenu(null);
+    setAiModal({
+      open: true,
+      title: 'Generating Flashcards',
+      content: 'Dazai is creating flashcards from this passage...',
+      isLoading: true,
+    });
+
+    try {
+      const res = await fetch('/api/ai/flashcards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context: selectionText,
+          apiKey: getApiKey(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error?.includes('API key is missing')) {
+        setAiModal({
+          open: true,
+          title: '⚠️ AI API Key is Missing',
+          content: 'Please open Settings (the gear icon in the top right of Dazai OS) and enter your OpenAI or Google Gemini API key under AI Settings, or configure it in your environment variables (.env.local).\n\nOnce configured, Dazai will be ready to explain, summarize, create notes, flashcards, and quizzes from your study materials!',
+          isLoading: false,
+        });
+        return;
+      }
+
+      const cards = data.flashcards || [];
+      if (cards.length > 0) {
+        const formatted = cards
+          .map((c: any, i: number) => `**Card ${i + 1}**\nQ: ${c.front}\nA: ${c.back}`)
+          .join('\n\n---\n\n');
+        setAiModal({
+          open: true,
+          title: `🎴 Generated ${cards.length} Flashcard(s)`,
+          content: formatted,
+          isLoading: false,
+        });
+      } else {
+        setAiModal({
+          open: true,
+          title: '🎴 Flashcards',
+          content: 'No flashcards could be generated from this brief passage.',
+          isLoading: false,
+        });
+      }
+    } catch (err) {
+      setAiModal({
+        open: true,
+        title: 'Error',
+        content: 'Failed to generate flashcard.',
+        isLoading: false,
+      });
+    }
+  };
+
+  const handleAIGenerateQuiz = async () => {
+    if (!selectionMenu) return;
+    const selectionText = selectionMenu.text;
+    setSelectionMenu(null);
+    setAiModal({
+      open: true,
+      title: 'Generating Passage Quiz',
+      content: 'Dazai is crafting a quiz question from this selection...',
+      isLoading: true,
+    });
+
+    try {
+      const res = await fetch('/api/ai/quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentContext: selectionText,
+          topic: activeDocument.name,
+          apiKey: getApiKey(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error?.includes('API key is missing')) {
+        setAiModal({
+          open: true,
+          title: '⚠️ AI API Key is Missing',
+          content: 'Please open Settings (the gear icon in the top right of Dazai OS) and enter your OpenAI or Google Gemini API key under AI Settings, or configure it in your environment variables (.env.local).\n\nOnce configured, Dazai will be ready to explain, summarize, create notes, flashcards, and quizzes from your study materials!',
+          isLoading: false,
+        });
+        return;
+      }
+
+      const q = data.question;
+      if (q) {
+        const formatted = `**Question:** ${q.questionText}\n\n**Options:**\n${(q.options || [])
+          .map((opt: string, idx: number) => `${idx + 1}. ${opt}`)
+          .join('\n')}\n\n**Correct Answer:** ${q.correctAnswer}\n\n*${q.explanation || ''}*`;
+        setAiModal({
+          open: true,
+          title: '🎯 Passage Quiz Question',
+          content: formatted,
+          isLoading: false,
+        });
+      } else {
+        setAiModal({
+          open: true,
+          title: '🎯 Quiz',
+          content: 'No quiz question could be generated from this selection.',
+          isLoading: false,
+        });
+      }
+    } catch (err) {
+      setAiModal({
+        open: true,
+        title: 'Error',
+        content: 'Failed to generate quiz question.',
+        isLoading: false,
+      });
+    }
+  };
+
   const handleCopySelection = () => {
     if (selectionMenu?.text) {
       navigator.clipboard.writeText(selectionMenu.text);
       setSelectionMenu(null);
+      setCopyToast(true);
+      setTimeout(() => setCopyToast(false), 2000);
     }
   };
 
@@ -649,7 +878,7 @@ export default function PDFWorkspace({
             <div className="flex items-center gap-2">
               {searchMatches.length > 0 ? (
                 <span className="text-xs font-black text-[#5d5770] dark:text-[#f4f2ee]">
-                  Match {currentMatchIndex + 1} of {searchMatches.length} (Page {searchMatches[currentMatchIndex]?.pageNumber})
+                  {currentMatchIndex + 1} of {searchMatches.length} (Page {searchMatches[currentMatchIndex]?.pageNumber})
                 </span>
               ) : searchQuery ? (
                 <span className="text-xs font-bold text-red-500">No matches found</span>
@@ -941,40 +1170,11 @@ export default function PDFWorkspace({
                 <span>📑</span> Summarize
               </button>
               <button
-                onClick={() => {
-                  if (onAddToPersonalNotes && selectionMenu) {
-                    onAddToPersonalNotes(selectionMenu.text, selectionMenu.pageNumber);
-                    setSelectionMenu(null);
-                  }
-                }}
+                onClick={handleAIGenerateNotes}
                 className="flex-1 bg-white hover:bg-gray-50 dark:bg-black/20 text-[#8F477B] border border-[#8F477B]/30 font-black text-[10px] uppercase py-1.5 px-2 rounded-lg transition-colors flex items-center justify-center gap-1"
-                title="Add to your personal notes in right sidebar"
+                title="Add AI-generated study note to your notes panel"
               >
                 <span>📝</span> +Notes
-              </button>
-              <button
-                onClick={() => {
-                  if (onGenerateFlashcardFromSelection && selectionMenu) {
-                    onGenerateFlashcardFromSelection(selectionMenu.text);
-                    setSelectionMenu(null);
-                  }
-                }}
-                className="flex-1 bg-[#8F477B] hover:bg-[#7a3b68] text-white font-black text-[10px] uppercase py-1.5 px-2 rounded-lg transition-colors flex items-center justify-center gap-1"
-                title="Create a Flashcard from selection"
-              >
-                <span>🎴</span> Card
-              </button>
-              <button
-                onClick={() => {
-                  if (onTriggerQuizFromSelection && selectionMenu) {
-                    onTriggerQuizFromSelection(selectionMenu.text);
-                    setSelectionMenu(null);
-                  }
-                }}
-                className="flex-1 bg-[#8F477B] hover:bg-[#7a3b68] text-white font-black text-[10px] uppercase py-1.5 px-2 rounded-lg transition-colors flex items-center justify-center gap-1"
-                title="Generate Quiz Questions from selection"
-              >
-                <span>🎯</span> Quiz
               </button>
             </div>
           </motion.div>
@@ -1041,6 +1241,13 @@ export default function PDFWorkspace({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Copy Confirmation Toast */}
+      {copyToast && (
+        <div className="absolute bottom-6 right-6 z-50 bg-[#7c6a75] text-[#f4f2ee] font-black text-xs px-3.5 py-2 rounded-xl shadow-2xl border-2 border-white/20 flex items-center gap-1.5 animate-fade-in">
+          <span>✓</span> Copied to clipboard!
+        </div>
+      )}
     </div>
   );
 }
