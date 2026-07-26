@@ -58,8 +58,16 @@ export default function PDFWorkspace({
   // Search State
   const [showSearch, setShowSearch] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
   const [searchMatches, setSearchMatches] = useState<{ pageNumber: number; text: string }[]>([]);
   const [currentMatchIndex, setCurrentMatchIndex] = useState<number>(-1);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Annotations & AI Toolbar State
   const [annotations, setAnnotations] = useState<PDFAnnotation[]>([]);
@@ -280,23 +288,37 @@ export default function PDFWorkspace({
 
   // --- 6. Search Match Logic ---
   useEffect(() => {
-    if (!searchQuery.trim() || !activeDocument?.extractedText) {
+    if (!debouncedSearchQuery.trim() || !activeDocument?.extractedText) {
       setSearchMatches([]);
       setCurrentMatchIndex(-1);
       return;
     }
 
-    const query = searchQuery.trim().toLowerCase();
-    const lines = activeDocument.extractedText.split('\n');
+    const query = debouncedSearchQuery.trim().toLowerCase();
+    const pages = activeDocument.extractedText.split('\n\n');
     const matches: { pageNumber: number; text: string }[] = [];
 
-    const linesPerPage = Math.max(1, Math.ceil(lines.length / (numPages || 1)));
-    lines.forEach((line, idx) => {
-      if (line.toLowerCase().includes(query)) {
-        const approxPage = Math.min(numPages || 1, Math.floor(idx / linesPerPage) + 1);
-        matches.push({ pageNumber: approxPage, text: line.trim() });
-      }
-    });
+    if (pages.length > 1 || (numPages || 1) === 1) {
+      pages.forEach((pageText, pageIdx) => {
+        const pageNum = Math.min(numPages || 1, pageIdx + 1);
+        const lines = pageText.split('\n');
+        lines.forEach((line) => {
+          if (line.toLowerCase().includes(query)) {
+            matches.push({ pageNumber: pageNum, text: line.trim() });
+          }
+        });
+      });
+    } else {
+      // Fallback for documents extracted without \n\n page delimiters
+      const lines = activeDocument.extractedText.split('\n');
+      const linesPerPage = Math.max(1, Math.ceil(lines.length / (numPages || 1)));
+      lines.forEach((line, idx) => {
+        if (line.toLowerCase().includes(query)) {
+          const approxPage = Math.min(numPages || 1, Math.floor(idx / linesPerPage) + 1);
+          matches.push({ pageNumber: approxPage, text: line.trim() });
+        }
+      });
+    }
 
     setSearchMatches(matches);
     if (matches.length > 0) {
@@ -305,7 +327,7 @@ export default function PDFWorkspace({
     } else {
       setCurrentMatchIndex(-1);
     }
-  }, [searchQuery, activeDocument?.extractedText, numPages]);
+  }, [debouncedSearchQuery, activeDocument?.extractedText, numPages]);
 
   const navigateSearchMatch = (direction: 'next' | 'prev') => {
     if (searchMatches.length === 0) return;
@@ -318,6 +340,37 @@ export default function PDFWorkspace({
     setCurrentMatchIndex(nextIdx);
     jumpToPage(searchMatches[nextIdx].pageNumber);
   };
+
+  const scrollToActiveMatch = useCallback(() => {
+    if (showSearch && searchMatches.length > 0 && currentMatchIndex >= 0) {
+      const activeMatch = searchMatches[currentMatchIndex];
+      if (!activeMatch) return;
+
+      const pageEl = document.getElementById(`pdf-page-${activeMatch.pageNumber}`);
+      const matchEl = pageEl?.querySelector('.search-highlight') || containerRef.current?.querySelector('.search-highlight');
+      if (matchEl) {
+        matchEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [showSearch, searchMatches, currentMatchIndex]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      scrollToActiveMatch();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [currentMatchIndex, scrollToActiveMatch]);
+
+  const handlePageRenderSuccess = useCallback((pageNum: number) => {
+    if (showSearch && searchMatches.length > 0 && currentMatchIndex >= 0) {
+      const activeMatch = searchMatches[currentMatchIndex];
+      if (activeMatch && activeMatch.pageNumber === pageNum) {
+        setTimeout(() => {
+          scrollToActiveMatch();
+        }, 100);
+      }
+    }
+  }, [showSearch, searchMatches, currentMatchIndex, scrollToActiveMatch]);
 
   // --- 7. Text Selection & Annotation Creation ---
   const handleMouseUp = (e: React.MouseEvent) => {
@@ -362,22 +415,33 @@ export default function PDFWorkspace({
       ({ str, itemIndex }: { str: string; itemIndex: number }) => {
         if (!str || !str.trim()) return str;
 
-        const query = searchQuery.trim().toLowerCase();
+        const query = debouncedSearchQuery.trim().toLowerCase();
         if (query && str.toLowerCase().includes(query)) {
+          const isActivePage = currentMatchIndex >= 0 && searchMatches[currentMatchIndex]?.pageNumber === pageIdx;
+          const parts = str.split(new RegExp(`(${query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi'));
           return (
-            <mark
-              key={`search_${pageIdx}_${itemIndex}`}
-              style={{
-                backgroundColor: '#ffde59',
-                color: '#000',
-                padding: '0 2px',
-                borderRadius: '3px',
-                fontWeight: 'bold',
-                boxShadow: '0 0 4px rgba(255, 222, 89, 0.8)',
-              }}
-            >
-              {str}
-            </mark>
+            <span key={`search_${pageIdx}_${itemIndex}`}>
+              {parts.map((part, i) =>
+                part.toLowerCase() === query ? (
+                  <mark
+                    key={i}
+                    className="search-highlight"
+                    style={{
+                      backgroundColor: isActivePage ? '#fb923c' : '#fef08a',
+                      color: '#000',
+                      padding: '0 2px',
+                      borderRadius: '3px',
+                      fontWeight: 'bold',
+                      boxShadow: isActivePage ? '0 0 6px rgba(251, 146, 60, 0.8)' : 'none',
+                    }}
+                  >
+                    {part}
+                  </mark>
+                ) : (
+                  part
+                )
+              )}
+            </span>
           );
         }
 
@@ -385,31 +449,64 @@ export default function PDFWorkspace({
         if (!pageAnnotations.length) return str;
 
         for (const annot of pageAnnotations) {
-          if (
-            annot.text &&
-            (str.toLowerCase().includes(annot.text.toLowerCase()) ||
-              annot.text.toLowerCase().includes(str.toLowerCase()))
-          ) {
+          if (!annot.text) continue;
+          const strLower = str.toLowerCase();
+          const annotLower = annot.text.toLowerCase();
+
+          if (strLower.includes(annotLower)) {
             const isUnderline = annot.type === 'underline';
+            const parts = str.split(new RegExp(`(${annot.text.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi'));
             return (
-              <mark
-                key={annot.id + '_' + itemIndex}
-                style={{
-                  backgroundColor: isUnderline ? 'transparent' : annot.color,
-                  borderBottom: isUnderline ? '3px solid #8F477B' : 'none',
-                  color: 'inherit',
-                  padding: '0 2px',
-                  borderRadius: '4px',
-                }}
-              >
-                {str}
-              </mark>
+              <span key={`annot_${annot.id}_${itemIndex}`}>
+                {parts.map((part, i) =>
+                  part.toLowerCase() === annotLower ? (
+                    <mark
+                      key={i}
+                      style={{
+                        backgroundColor: isUnderline ? 'transparent' : annot.color,
+                        borderBottom: isUnderline ? '3px solid #8F477B' : 'none',
+                        color: 'inherit',
+                        padding: '0 2px',
+                        borderRadius: '4px',
+                      }}
+                    >
+                      {part}
+                    </mark>
+                  ) : (
+                    part
+                  )
+                )}
+              </span>
             );
+          }
+
+          if (annotLower.includes(strLower)) {
+            const cleanStr = str.trim().toLowerCase();
+            const words = annotLower.split(/\s+/).map(w => w.replace(/[^a-z0-9]/g, ''));
+            const matchesWord = words.some(w => w === cleanStr || w.startsWith(cleanStr) || w.endsWith(cleanStr));
+
+            if (matchesWord || cleanStr.length > 2) {
+              const isUnderline = annot.type === 'underline';
+              return (
+                <mark
+                  key={annot.id + '_' + itemIndex}
+                  style={{
+                    backgroundColor: isUnderline ? 'transparent' : annot.color,
+                    borderBottom: isUnderline ? '3px solid #8F477B' : 'none',
+                    color: 'inherit',
+                    padding: '0 2px',
+                    borderRadius: '4px',
+                  }}
+                >
+                  {str}
+                </mark>
+              );
+            }
           }
         }
         return str;
       },
-    [annotations, searchQuery]
+    [annotations, debouncedSearchQuery, currentMatchIndex, searchMatches]
   );
 
   // --- 8. Helper & AI Actions on Selection ---
@@ -980,11 +1077,13 @@ export default function PDFWorkspace({
             {viewMode === 'single' ? (
               <div className="relative shadow-2xl rounded-lg overflow-hidden bg-white shrink-0">
                 <Page
+                  key={`page_${pageNumber}_${scale}_${debouncedSearchQuery}_${annotations.filter(a => a.pageNumber === pageNumber).map(a => `${a.id}-${a.color}-${a.type}`).join('_')}`}
                   pageNumber={pageNumber}
                   scale={scale}
                   renderTextLayer={true}
                   renderAnnotationLayer={true}
                   customTextRenderer={makeCustomTextRenderer(pageNumber)}
+                  onRenderSuccess={() => handlePageRenderSuccess(pageNumber)}
                   className="rounded"
                 />
               </div>
@@ -1006,11 +1105,13 @@ export default function PDFWorkspace({
                   >
                     {isNearby ? (
                       <Page
+                        key={`page_${p}_${scale}_${debouncedSearchQuery}_${annotations.filter(a => a.pageNumber === p).map(a => `${a.id}-${a.color}-${a.type}`).join('_')}`}
                         pageNumber={p}
                         scale={scale}
                         renderTextLayer={true}
                         renderAnnotationLayer={true}
                         customTextRenderer={makeCustomTextRenderer(p)}
+                        onRenderSuccess={() => handlePageRenderSuccess(p)}
                         className="rounded"
                       />
                     ) : (
