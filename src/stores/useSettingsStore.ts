@@ -42,7 +42,7 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
   selectedCharacter: 'dazai',
 
   // AI
-  openaiApiKey: typeof window !== 'undefined' ? (localStorage.getItem('dazai_openai_api_key') || undefined) : undefined,
+  openaiApiKey: typeof window !== 'undefined' ? (localStorage.getItem('dazai_openai_api_key') || process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY || undefined) : undefined,
 
   // Actions
   updateSettings: (updates) =>

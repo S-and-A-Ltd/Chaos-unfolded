@@ -38,6 +38,67 @@ function getModelForTask(task: 'chat' | 'quiz_hard' | 'quiz_easy' | 'evaluation'
   }
 }
 
+// --- Google Gemini API Helper ---
+
+function isGoogleGeminiKey(apiKey: string): boolean {
+  if (!apiKey) return false;
+  const k = apiKey.trim();
+  if (k.startsWith('AIza') || k.startsWith('AQ.')) return true;
+  if (!k.startsWith('sk-')) return true;
+  return false;
+}
+
+async function callGoogleGeminiAPI(
+  messages: { role: string; content: string }[],
+  apiKey: string,
+  temperature: number = 0.7,
+  maxTokens: number = 2048,
+  retries: number = 2
+): Promise<string | null> {
+  const fullText = messages.map((m) => m.content).join('\n\n');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: fullText }],
+            },
+          ],
+          generationConfig: {
+            temperature,
+            maxOutputTokens: maxTokens,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error(`[AI:Gemini] API error (${response.status}) attempt ${attempt + 1}/${retries + 1}:`, error);
+        if (attempt < retries) continue;
+        return null;
+      }
+
+      const data = await response.json();
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? null;
+      if (content) return content;
+
+      console.error(`[AI:Gemini] Empty response on attempt ${attempt + 1}/${retries + 1}`);
+      if (attempt < retries) continue;
+      return null;
+    } catch (error) {
+      console.error(`[AI:Gemini] Call failed attempt ${attempt + 1}/${retries + 1}:`, error);
+      if (attempt < retries) continue;
+      return null;
+    }
+  }
+  return null;
+}
+
 // --- Internal fetch helper ---
 
 async function callOpenAI(
@@ -48,6 +109,12 @@ async function callOpenAI(
   maxTokens: number = 1024,
   retries: number = 2
 ): Promise<string | null> {
+  const effectiveKey = apiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY || '';
+  if (isGoogleGeminiKey(effectiveKey)) {
+    console.log('[AI] Detected Google Gemini API key — calling Google AI Studio API directly');
+    return callGoogleGeminiAPI(messages, effectiveKey, temperature, maxTokens, retries);
+  }
+
   // Map OpenAI models to OpenRouter format if they lack a provider prefix
   let actualModel = model;
   if (!actualModel.includes('/') && actualModel.startsWith('gpt')) {
