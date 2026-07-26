@@ -125,7 +125,7 @@ export default function PDFWorkspace({
 
   // Save annotations automatically
   const saveAnnotationsToStorage = useCallback(
-    async (updatedAnnotations: PDFAnnotation[], recordHistory = true) => {
+    async function saveAnnotationsToStorage(updatedAnnotations: PDFAnnotation[], recordHistory = true) {
       if (recordHistory) {
         setUndoStack(prev => [...prev.slice(-30), annotations]);
         setRedoStack([]);
@@ -138,7 +138,7 @@ export default function PDFWorkspace({
     [activeDocument?.id, annotations]
   );
 
-  const handleUndo = useCallback(() => {
+  const handleUndo = useCallback(function handleUndo() {
     if (undoStack.length === 0) return;
     const prevAnnotations = undoStack[undoStack.length - 1];
     setUndoStack(prev => prev.slice(0, -1));
@@ -146,13 +146,42 @@ export default function PDFWorkspace({
     saveAnnotationsToStorage(prevAnnotations, false);
   }, [undoStack, annotations, saveAnnotationsToStorage]);
 
-  const handleRedo = useCallback(() => {
+  const handleRedo = useCallback(function handleRedo() {
     if (redoStack.length === 0) return;
     const nextAnnotations = redoStack[redoStack.length - 1];
     setRedoStack(prev => prev.slice(0, -1));
     setUndoStack(prev => [...prev.slice(-30), annotations]);
     saveAnnotationsToStorage(nextAnnotations, false);
   }, [redoStack, annotations, saveAnnotationsToStorage]);
+
+  const addAnnotation = useCallback(function addAnnotation(type: 'highlight' | 'underline', colorHex: string) {
+    if (!selectionMenu) return;
+    const newAnnot: PDFAnnotation = {
+      id: `annot_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      pageNumber: selectionMenu.pageNumber,
+      type,
+      color: colorHex,
+      text: selectionMenu.text,
+      createdAt: Date.now(),
+    };
+    saveAnnotationsToStorage([...annotations, newAnnot]);
+    setSelectionMenu(null);
+    window.getSelection()?.removeAllRanges();
+  }, [selectionMenu, annotations, saveAnnotationsToStorage]);
+
+  const removeAnnotation = useCallback(function removeAnnotation(id: string) {
+    const updated = annotations.filter(a => a.id !== id);
+    saveAnnotationsToStorage(updated);
+  }, [annotations, saveAnnotationsToStorage]);
+
+  const handleCopySelection = useCallback(function handleCopySelection() {
+    if (selectionMenu?.text) {
+      navigator.clipboard.writeText(selectionMenu.text);
+      setSelectionMenu(null);
+      setCopyToast(true);
+      setTimeout(() => setCopyToast(false), 2000);
+    }
+  }, [selectionMenu]);
 
   // Save preferences automatically
   useEffect(() => {
@@ -475,26 +504,6 @@ export default function PDFWorkspace({
         setSelectionMenu(null);
       }
     }
-  };
-
-  const addAnnotation = (type: 'highlight' | 'underline', colorHex: string) => {
-    if (!selectionMenu) return;
-    const newAnnot: PDFAnnotation = {
-      id: `annot_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      pageNumber: selectionMenu.pageNumber,
-      type,
-      color: colorHex,
-      text: selectionMenu.text,
-      createdAt: Date.now(),
-    };
-    saveAnnotationsToStorage([...annotations, newAnnot]);
-    setSelectionMenu(null);
-    window.getSelection()?.removeAllRanges();
-  };
-
-  const removeAnnotation = (id: string) => {
-    const updated = annotations.filter(a => a.id !== id);
-    saveAnnotationsToStorage(updated);
   };
 
   const hexToRgba = (hex: string, alpha = 0.55) => {
@@ -873,15 +882,6 @@ export default function PDFWorkspace({
         content: 'Failed to generate quiz question.',
         isLoading: false,
       });
-    }
-  };
-
-  const handleCopySelection = () => {
-    if (selectionMenu?.text) {
-      navigator.clipboard.writeText(selectionMenu.text);
-      setSelectionMenu(null);
-      setCopyToast(true);
-      setTimeout(() => setCopyToast(false), 2000);
     }
   };
 
