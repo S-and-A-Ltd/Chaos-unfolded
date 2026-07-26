@@ -247,3 +247,30 @@ ${text.slice(0, 8000)}
 Return a JSON array of strings. Example: ["Photosynthesis", "Cell Division", "DNA Replication"]
 Return ONLY the JSON array, no markdown fences, no explanation.`;
 }
+
+export function generateFlashcardsPrompt(context: string): string {
+  return `You are Dazai, an elite AI study companion. Your task is to generate 12 to 15 high-quality, comprehensive flashcards from the provided study material.
+
+## STUDY MATERIAL
+${context.slice(0, 8000)}
+
+## REQUIRED FLASHCARD TYPES
+You MUST generate flashcards covering ALL of the following categories:
+1. **Key Concepts** — Main ideas and overarching principles
+2. **Definitions** — Precise definitions of essential terms
+3. **Important Formulas** — Key mathematical, scientific, or logical formulas and equations (if none exist, include fundamental rules)
+4. **Algorithms** — Step-by-step processes, procedures, or methods
+5. **Terminology** — Special vocabulary used in the domain
+6. **Question → Answer pairs** — Classic exam-style question and answer cards
+
+## OUTPUT FORMAT
+Respond ONLY with a valid JSON array of flashcard objects. Do NOT include markdown fences like \`\`\`json. Each element must have:
+{
+  "id": "fc-1",
+  "front": "The question, term, formula name, algorithm name, or concept prompt",
+  "back": "The answer, clear definition, formula with explanation, algorithm steps, or key concept details",
+  "topic": "One of: 'Key Concept', 'Definition', 'Important Formula', 'Algorithm', 'Terminology', or 'Q&A'"
+}
+`;
+}
+

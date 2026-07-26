@@ -28,13 +28,14 @@ import ProfileCard from '@/components/gamification/ProfileCard';
 import DashboardView from '@/components/dashboard/DashboardView';
 import StudyHub from '@/components/study/StudyHub';
 import YoutubeHub from '@/components/study/YoutubeHub';
+import FlashcardGeneratorCard from '@/components/study/FlashcardGeneratorCard';
 
 // Focus monitor
 import { FocusMonitor } from '@/lib/focus/focus-monitor';
 import { QuizEngine } from '@/lib/quiz/quiz-engine';
 
 // Types
-import { StudyDocument, DocumentType, QuizQuestion, CharacterState, TimerMode, MoodCategory, QuizResult, QuizConfig } from '@/types';
+import { StudyDocument, DocumentType, QuizQuestion, CharacterState, TimerMode, MoodCategory, QuizResult, QuizConfig, Flashcard } from '@/types';
 import { AILearningEngine } from '@/lib/ai/learning-engine';
 import { saveDocumentBlob, deleteDocumentBlob } from '@/lib/storage/document-storage';
 
@@ -543,6 +544,24 @@ export default function Home() {
     setEmotion('happy');
   };
 
+  const handleUpdateFlashcards = (docId: string, flashcards: Flashcard[]) => {
+    const updated = documents.map((d) => {
+      if (d.id === docId) {
+        return {
+          ...d,
+          aiData: {
+            ...d.aiData,
+            flashcards,
+          } as any,
+        };
+      }
+      return d;
+    });
+    saveDocuments(updated);
+  };
+
+  const activeDoc = documents.find((d) => d.id === selectedDocId) || (documents.length > 0 ? documents[documents.length - 1] : null);
+
   return (
     <div className="relative min-h-screen flex flex-col text-foreground bg-transparent font-fredoka">
       {/* Achievement & Focus Overlays */}
@@ -590,6 +609,12 @@ export default function Home() {
                   </div>
                 </div>
               </Card>
+
+              {/* AI Flashcard Generator Card */}
+              <FlashcardGeneratorCard
+                activeDocument={activeDoc}
+                onUpdateFlashcards={handleUpdateFlashcards}
+              />
             </div>
 
             {/* Center Column */}

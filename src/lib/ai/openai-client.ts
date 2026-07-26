@@ -3,7 +3,7 @@
 // gpt-4o for personality, gpt-4o-mini for utility tasks
 // ============================================================
 
-import type { AIMessage, AIResponse, QuizQuestion, QuizConfig } from '@/types';
+import type { AIMessage, AIResponse, QuizQuestion, QuizConfig, Flashcard } from '@/types';
 import {
   generateMCQPrompt,
   generateShortAnswerPrompt,
@@ -13,6 +13,7 @@ import {
   answerEvaluationPrompt,
   summaryPrompt,
   topicExtractionPrompt,
+  generateFlashcardsPrompt,
 } from './prompts';
 
 const OPENAI_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -504,4 +505,60 @@ export async function extractTopics(
     256
   );
   return parseJSON<string[]>(raw);
+}
+
+/**
+ * Generate Flashcards from study material using the same AI pipeline and model as quiz generation.
+ */
+export async function generateFlashcardsFromMaterial(
+  context: string,
+  apiKey: string
+): Promise<Flashcard[] | null> {
+  const prompt = generateFlashcardsPrompt(context);
+  const maxRetries = 2;
+  const modelToUse = getModelForTask('quiz_easy');
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const raw = await callOpenAI(
+      [{ role: 'user', content: prompt }],
+      apiKey,
+      modelToUse,
+      0.5,
+      2048
+    );
+
+    const maybeParsed = parseJSON<Flashcard[]>(raw);
+    if (Array.isArray(maybeParsed) && maybeParsed.length > 0) {
+      const cleaned: Flashcard[] = maybeParsed.map((card, idx) => ({
+        id: card.id || `fc-${idx + 1}`,
+        front: card.front || 'Concept',
+        back: card.back || 'Definition',
+        topic: card.topic || 'Key Concept',
+      }));
+      return cleaned;
+    }
+  }
+
+  // Offline fallback if OpenRouter is unreachable or fails
+  console.warn('OpenAI flashcard generation failed after retries. Crafting offline fallback flashcards...');
+  const sentences = context
+    .split(/[.!?]\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 25 && s.length < 200);
+
+  const fallbackCards: Flashcard[] = [];
+  const topicsList = ['Key Concept', 'Definition', 'Important Formula', 'Algorithm', 'Terminology', 'Q&A'];
+  for (let i = 0; i < Math.min(12, Math.max(6, sentences.length)); i++) {
+    const s = sentences[i] || 'Study concept and understanding.';
+    const words = s.split(' ');
+    const frontTerm = words.slice(0, Math.min(5, words.length)).join(' ') + '...';
+    fallbackCards.push({
+      id: `fc-fallback-${i + 1}`,
+      front: `What is the significance of: "${frontTerm}"?`,
+      back: s,
+      topic: topicsList[i % topicsList.length],
+    });
+  }
+
+  return fallbackCards.length > 0 ? fallbackCards : null;
 }
