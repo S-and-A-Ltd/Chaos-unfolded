@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Button from '@/components/ui/Button';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { StudyDocument } from '@/types';
+import { STICKY_TEMPLATES, getStickyTemplate } from '@/components/study/stickyTemplates';
 
 interface StudyCanvasProps {
   document: StudyDocument;
@@ -20,9 +21,15 @@ export interface CanvasItem {
   width: number;
   height: number;
   color?: string; // bg hex or rgba
+  textColor?: string;
   bgAsset?: string; // Transparent PNG/JPEG background template for asset-based sticky notes
   shapeType?: 'rectangle' | 'circle' | 'line' | 'arrow';
   fontSize?: number;
+  fontFamily?: string;
+  isBold?: boolean;
+  isItalic?: boolean;
+  isUnderline?: boolean;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
   isAiCard?: boolean;
   // Connector arrow enhancements
   fromId?: string;
@@ -32,10 +39,6 @@ export interface CanvasItem {
   endX?: number;
   endY?: number;
 }
-
-// Asset-based sticky note templates in /public/assets/sticky-notes/
-// Generating asset paths dynamically so adding new themes only requires dropping PNGs in the folder
-const STICKY_NOTE_ASSETS = Array.from({ length: 28 }, (_, i) => `/assets/sticky-notes/note-${i + 1}.jpeg`);
 
 // Fallback pastel themes for non-asset AI cards
 const FALLBACK_THEMES = [
@@ -91,12 +94,11 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
   const [showThemePicker, setShowThemePicker] = useState<boolean>(false);
   const [lastSaved, setLastSaved] = useState<string>('Just now');
 
-  // 1. Preload sticky note assets & load canvas items from localStorage on mount
+  // 1. Preload sticky note templates & load canvas items from localStorage on mount
   useEffect(() => {
-    // Preload PNG/JPEG templates into browser cache when Study Canvas opens
-    STICKY_NOTE_ASSETS.forEach(src => {
+    STICKY_TEMPLATES.forEach(t => {
       const img = new Image();
-      img.src = src;
+      img.src = t.assetUrl;
     });
 
     if (typeof window !== 'undefined') {
@@ -122,12 +124,16 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
         {
           id: 'welcome_1',
           type: 'sticky',
-          content: '📌 Welcome to your Study Canvas!\n\n• Asset-based transparent PNG notes\n• Text auto-wraps & resizes with card\n• Click 🖼️ Sticky Themes to browse all 24+ memo pads\n• Connect ideas with snapping arrows!',
+          content: 'Welcome to Study Canvas!\nDouble click to edit me.\n• Drag me around\n• Resize any side\n• Connect ideas with arrows\n• Make it your own',
           x: 100,
           y: 80,
           width: 300,
           height: 300,
-          bgAsset: '/assets/sticky-notes/note-1.jpeg',
+          bgAsset: STICKY_TEMPLATES[0].assetUrl,
+          fontSize: 15,
+          fontFamily: "'Quicksand', 'Nunito', sans-serif",
+          isBold: true,
+          textColor: '#3A3A3A',
         },
         {
           id: 'welcome_2',
@@ -213,7 +219,7 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
     };
   }, []);
 
-  // 4. Keyboard Shortcuts: Delete Item and Duplicate (Ctrl+D)
+  // 4. Keyboard Shortcuts: Delete Item and Duplicate (Ctrl+D / Cmd+D)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -337,7 +343,6 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
       let finalX = gridSnap ? Math.round(rawX / GRID_SIZE) * GRID_SIZE : Math.round(rawX);
       let finalY = gridSnap ? Math.round(rawY / GRID_SIZE) * GRID_SIZE : Math.round(rawY);
 
-      // Smart Alignment Guides calculation
       const activeItem = items.find(i => i.id === draggingId);
       const newGuides: { x?: number; y?: number } = {};
       if (activeItem) {
@@ -349,12 +354,10 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
           const otherCenter = other.x + other.width / 2;
           const otherMiddle = other.y + other.height / 2;
 
-          // Align X (Left, Center, Right)
           if (Math.abs(finalX - other.x) < 8) { finalX = other.x; newGuides.x = other.x; }
           else if (Math.abs(center - otherCenter) < 8) { finalX = otherCenter - activeItem.width / 2; newGuides.x = otherCenter; }
           else if (Math.abs(finalX + activeItem.width - (other.x + other.width)) < 8) { finalX = other.x + other.width - activeItem.width; newGuides.x = other.x + other.width; }
 
-          // Align Y (Top, Middle, Bottom)
           if (Math.abs(finalY - other.y) < 8) { finalY = other.y; newGuides.y = other.y; }
           else if (Math.abs(middle - otherMiddle) < 8) { finalY = otherMiddle - activeItem.height / 2; newGuides.y = otherMiddle; }
           else if (Math.abs(finalY + activeItem.height - (other.y + other.height)) < 8) { finalY = other.y + other.height - activeItem.height; newGuides.y = other.y + other.height; }
@@ -425,7 +428,7 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
       width: type === 'sticky' ? 280 : type === 'text' ? 240 : type === 'shape' && shapeType === 'circle' ? 160 : 200,
       height: type === 'sticky' ? 280 : type === 'text' ? 120 : type === 'shape' && shapeType === 'circle' ? 160 : 120,
       color: type === 'shape' ? '#e0f2fe' : '#ffffff',
-      bgAsset: type === 'sticky' ? STICKY_NOTE_ASSETS[0] : undefined,
+      bgAsset: type === 'sticky' ? STICKY_TEMPLATES[0].assetUrl : undefined,
       shapeType,
     };
 
@@ -468,6 +471,10 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
       width: 280,
       height: 280,
       bgAsset: assetUrl,
+      fontSize: 15,
+      fontFamily: "'Quicksand', 'Nunito', sans-serif",
+      isBold: true,
+      textColor: '#3A3A3A',
     };
 
     const next = [...items, newItem];
@@ -475,7 +482,7 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
     setSelectedId(id);
   };
 
-  // 7. Insert AI Content Helper (Readable formatting with larger contrast font)
+  // 7. Insert AI Content Helper
   const insertAiCard = (title: string, text: string, themeBg = '#f8f5ff') => {
     setActiveDropdown(null);
     const id = `ai_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -500,16 +507,36 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
     setSelectedId(id);
   };
 
-  // 8. Delete & Update Item Content
+  // 8. Delete, Duplicate & Update Item Fields
   const deleteItem = (id: string) => {
     const next = items.filter(i => i.id !== id);
     saveItems(next, true);
     if (selectedId === id) setSelectedId(null);
   };
 
+  const duplicateItem = (id: string) => {
+    const original = items.find(i => i.id === id);
+    if (original) {
+      const newId = `item_${Date.now()}`;
+      const duplicate: CanvasItem = {
+        ...original,
+        id: newId,
+        x: original.x + 30,
+        y: original.y + 30,
+      };
+      saveItems([...items, duplicate], true);
+      setSelectedId(newId);
+    }
+  };
+
   const updateItemContent = (id: string, newContent: string) => {
     const next = items.map(i => i.id === id ? { ...i, content: newContent } : i);
     saveItems(next, false);
+  };
+
+  const updateItemField = (id: string, field: keyof CanvasItem, value: any) => {
+    const next = items.map(i => i.id === id ? { ...i, [field]: value } : i);
+    saveItems(next, true);
   };
 
   const updateItemBgAsset = (id: string, bgAsset: string) => {
@@ -554,7 +581,7 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
               onClick={() => setShowThemePicker(true)}
               className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-black px-3 py-1.5 rounded-xl text-xs shadow-md flex items-center gap-1.5 transition-transform hover:scale-105"
             >
-              <span>🖼️ Sticky Themes (24+)</span>
+              <span>🖼️ Sticky Themes (28+)</span>
             </button>
 
             {/* Add Items Dropdown */}
@@ -577,7 +604,7 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
               )}
             </div>
 
-            {/* ✨ INSERT AI BUTTON (Enhanced contrast, size & spacing) */}
+            {/* ✨ INSERT AI BUTTON */}
             <div className="relative">
               <button
                 onClick={() => setActiveDropdown(activeDropdown === 'ai' ? null : 'ai')}
@@ -593,7 +620,6 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
                     ✨ Cached Document Insights
                   </div>
                   
-                  {/* Chapter Summary Card Option */}
                   {document.aiData?.aiNotes?.chapterSummary && (
                     <button
                       onClick={() => insertAiCard('Chapter Summary', document.aiData!.aiNotes!.chapterSummary!, '#fff5f7')}
@@ -609,7 +635,6 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
                     </button>
                   )}
 
-                  {/* Key Concepts Options */}
                   {document.aiData?.aiNotes?.keyConcepts && document.aiData.aiNotes.keyConcepts.length > 0 && (
                     <div className="mb-3">
                       <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mt-2 mb-1.5 px-1">Key Concepts</div>
@@ -627,7 +652,6 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
                     </div>
                   )}
 
-                  {/* Revision Summaries Options */}
                   {document.aiData?.revisionNotes?.oneLineSummaries && document.aiData.revisionNotes.oneLineSummaries.length > 0 && (
                     <div className="mb-3">
                       <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mt-2 mb-1.5 px-1">Revision One-Liners</div>
@@ -645,7 +669,6 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
                     </div>
                   )}
 
-                  {/* Important Facts Options */}
                   {document.aiData?.aiNotes?.importantFacts && document.aiData.aiNotes.importantFacts.length > 0 && (
                     <div className="mb-2">
                       <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mt-2 mb-1.5 px-1">Important Facts</div>
@@ -780,9 +803,7 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
 
                 return (
                   <g key={arrow.id} className="pointer-events-auto cursor-pointer" onClick={(e) => { e.stopPropagation(); setSelectedId(arrow.id); }}>
-                    {/* Invisible wide hit target */}
                     <path d={pathD} stroke="transparent" strokeWidth="20" fill="none" />
-                    {/* Visible arrow path */}
                     <path
                       d={pathD}
                       stroke={color}
@@ -791,7 +812,6 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
                       fill="none"
                       markerEnd={isSelected ? 'url(#arrowhead-selected)' : 'url(#arrowhead)'}
                     />
-                    {/* Arrow text label */}
                     {arrow.content && (
                       <foreignObject x={(sx + ex) / 2 - 75} y={(sy + ey) / 2 - 16} width="150" height="32" className="pointer-events-none overflow-visible">
                         <div className="bg-white/95 dark:bg-[#232130]/95 px-2.5 py-0.5 rounded-lg border-2 border-purple-400 text-xs font-bold text-center text-purple-700 dark:text-purple-300 shadow-md truncate">
@@ -799,7 +819,6 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
                         </div>
                       </foreignObject>
                     )}
-                    {/* Snapping endpoints when selected */}
                     {isSelected && (
                       <>
                         <circle
@@ -840,7 +859,7 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
               const isShape = item.type === 'shape';
               const isCircle = isShape && item.shapeType === 'circle';
 
-              // Fallback theme for AI cards without bg asset
+              const template = isSticky ? getStickyTemplate(item.bgAsset) : null;
               const theme = FALLBACK_THEMES.find(t => t.bg === item.color) || FALLBACK_THEMES[0];
 
               return (
@@ -864,11 +883,11 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
                     border: isText && !isSelected ? undefined : isSticky ? 'none' : isSelected ? '2px solid #8b5cf6' : '2px solid rgba(124, 106, 117, 0.25)',
                   }}
                 >
-                  {/* --- ASSET-BASED STICKY NOTE BACKGROUND --- */}
-                  {item.bgAsset ? (
+                  {/* --- 1. DECORATIVE PNG LAYER (For Sticky Notes) --- */}
+                  {isSticky && template ? (
                     <img
-                      src={item.bgAsset}
-                      alt="Sticky Note Template"
+                      src={template.assetUrl}
+                      alt={template.name}
                       className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none rounded-2xl"
                       style={{ zIndex: 0 }}
                     />
@@ -891,61 +910,164 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
                     <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-black/20 dark:bg-white/30 hover:bg-purple-600 rounded-full cursor-move z-30 opacity-60 group-hover:opacity-100 transition-opacity" title="Drag card" />
                   )}
 
-                  {/* --- FLOATING ACTION PILL WHEN SELECTED --- */}
+                  {/* --- 2. FLOATING RICH TEXT FORMATTING TOOLBAR WHEN SELECTED --- */}
                   {isSelected && (
-                    <div className="absolute -top-10 right-0 flex items-center gap-1 bg-white dark:bg-[#2b2b36] border-2 border-purple-500 rounded-xl px-2 py-0.5 shadow-xl z-50 animate-fadeIn">
-                      {isSticky && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setShowThemePicker(true); }}
-                          className="text-purple-600 dark:text-purple-300 hover:text-purple-800 font-black px-1.5 py-0.5 text-xs rounded hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center gap-1 border-r border-gray-300 dark:border-gray-600 pr-2"
-                          title="Change Note Theme"
-                        >
-                          <span>🎨</span><span>Change Theme</span>
-                        </button>
-                      )}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
-                        className="text-red-500 hover:text-red-700 font-black px-1.5 py-0.5 text-xs rounded hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-1"
-                        title="Delete (Del)"
+                    <div
+                      className="absolute -top-12 left-1/2 -translate-x-1/2 bg-[#232130] text-white border-2 border-purple-500 rounded-2xl px-3 py-1.5 shadow-2xl z-50 flex items-center gap-2 animate-fadeIn whitespace-nowrap pointer-events-auto text-xs font-bold"
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
+                      <select
+                        value={item.fontFamily || "'Quicksand', 'Nunito', sans-serif"}
+                        onChange={(e) => updateItemField(item.id, 'fontFamily', e.target.value)}
+                        className="bg-white/10 hover:bg-white/20 px-2 py-0.5 rounded text-xs border border-white/20 focus:outline-none text-white"
                       >
-                        <span>✕</span><span>Delete</span>
+                        <option value="'Quicksand', 'Nunito', sans-serif" className="text-black">Quicksand</option>
+                        <option value="'Nunito', sans-serif" className="text-black">Nunito</option>
+                        <option value="'Fredoka', sans-serif" className="text-black">Fredoka</option>
+                        <option value="sans-serif" className="text-black">Sans-serif</option>
+                        <option value="serif" className="text-black">Serif</option>
+                        <option value="monospace" className="text-black">Monospace</option>
+                      </select>
+
+                      <select
+                        value={item.fontSize || Math.max(13, Math.round(item.width / 18))}
+                        onChange={(e) => updateItemField(item.id, 'fontSize', Number(e.target.value))}
+                        className="bg-white/10 hover:bg-white/20 px-2 py-0.5 rounded text-xs border border-white/20 focus:outline-none w-14 text-white"
+                      >
+                        {[12, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48].map(sz => (
+                          <option key={sz} value={sz} className="text-black">{sz}px</option>
+                        ))}
+                      </select>
+
+                      <label className="cursor-pointer bg-white/10 hover:bg-white/20 p-1 rounded border border-white/20 flex items-center justify-center w-6 h-6" title="Text Color">
+                        <input
+                          type="color"
+                          value={item.textColor || '#3A3A3A'}
+                          onChange={(e) => updateItemField(item.id, 'textColor', e.target.value)}
+                          className="opacity-0 absolute w-0 h-0"
+                        />
+                        <span className="w-3.5 h-3.5 rounded-full border border-white/40" style={{ backgroundColor: item.textColor || '#3A3A3A' }} />
+                      </label>
+
+                      <div className="w-px h-4 bg-white/20 my-auto" />
+
+                      <button
+                        onClick={() => updateItemField(item.id, 'isBold', item.isBold !== undefined ? !item.isBold : false)}
+                        className={`px-2 py-0.5 rounded font-black ${item.isBold === false ? 'bg-white/10 text-white/60' : 'bg-purple-600 text-white'}`}
+                        title="Bold"
+                      >
+                        B
                       </button>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const newId = `item_${Date.now()}`;
-                          saveItems([...items, { ...item, id: newId, x: item.x + 30, y: item.y + 30 }], true);
-                          setSelectedId(newId);
-                        }}
-                        className="text-purple-600 dark:text-purple-300 hover:text-purple-800 font-black px-1.5 py-0.5 text-xs rounded hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center gap-1"
-                        title="Duplicate (Ctrl+D)"
+                        onClick={() => updateItemField(item.id, 'isItalic', !item.isItalic)}
+                        className={`px-2 py-0.5 rounded font-serif italic ${item.isItalic ? 'bg-purple-600 text-white' : 'bg-white/10 text-white/60'}`}
+                        title="Italic"
                       >
-                        <span>📑</span><span>Duplicate</span>
+                        I
+                      </button>
+                      <button
+                        onClick={() => updateItemField(item.id, 'isUnderline', !item.isUnderline)}
+                        className={`px-2 py-0.5 rounded underline ${item.isUnderline ? 'bg-purple-600 text-white' : 'bg-white/10 text-white/60'}`}
+                        title="Underline"
+                      >
+                        U
+                      </button>
+
+                      <div className="w-px h-4 bg-white/20 my-auto" />
+
+                      <button
+                        onClick={() => {
+                          const nextAlign = item.textAlign === 'center' ? 'right' : item.textAlign === 'right' ? 'left' : 'center';
+                          updateItemField(item.id, 'textAlign', nextAlign);
+                        }}
+                        className="bg-white/10 hover:bg-white/20 px-2 py-0.5 rounded text-xs"
+                        title={`Align: ${item.textAlign || 'left'}`}
+                      >
+                        {item.textAlign === 'center' ? '☰ Center' : item.textAlign === 'right' ? '☷ Right' : '≡ Left'}
+                      </button>
+
+                      {isSticky && (
+                        <button
+                          onClick={() => setShowThemePicker(true)}
+                          className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-2 py-0.5 rounded flex items-center gap-1 shadow-sm ml-1"
+                          title="Change Note Theme"
+                        >
+                          <span>🎨</span><span>Theme</span>
+                        </button>
+                      )}
+
+                      <div className="w-px h-4 bg-white/20 my-auto" />
+
+                      <button
+                        onClick={() => deleteItem(item.id)}
+                        className="bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-white px-2 py-0.5 rounded transition-colors"
+                        title="Delete Card (Del)"
+                      >
+                        🗑️
+                      </button>
+                      <button
+                        onClick={() => duplicateItem(item.id)}
+                        className="bg-purple-500/20 hover:bg-purple-500 text-purple-300 hover:text-white px-2 py-0.5 rounded transition-colors"
+                        title="Duplicate Card (Ctrl+D)"
+                      >
+                        📑
                       </button>
                     </div>
                   )}
 
-                  {/* --- ITEM BODY / TEXTAREA (Safe Margins & Responsive Text) --- */}
-                  <div className={`flex-1 flex flex-col justify-center relative z-10 ${
-                    isSticky ? 'pt-[18%] pb-[18%] pl-[14%] pr-[14%]' : 'p-3.5'
-                  }`}>
-                    <textarea
-                      value={item.content}
-                      onChange={(e) => updateItemContent(item.id, e.target.value)}
-                      placeholder={isText ? "Double click or start typing here..." : "Write your note here..."}
-                      className={`w-full h-full bg-transparent border-none focus:outline-none resize-none font-sans custom-scrollbar leading-relaxed whitespace-pre-wrap break-words ${
-                        isCircle ? 'text-center font-bold text-gray-800 dark:text-gray-200' : isText ? 'text-base font-medium text-gray-800 dark:text-gray-200' : 'font-bold'
-                      }`}
+                  {/* --- 3. SAFE WRITING REGION & RICH TEXT LAYER --- */}
+                  {isSticky && template ? (
+                    <div
+                      className="absolute z-10 flex flex-col overflow-hidden"
                       style={{
-                        fontFamily: isSticky ? "'Quicksand', 'Nunito', sans-serif" : undefined,
-                        fontSize: isSticky ? `${item.fontSize || Math.max(13, Math.round(item.width / 18))}px` : undefined,
-                        color: isSticky ? '#3A3A3A' : undefined,
-                        textShadow: isSticky ? '0 0 12px rgba(255,255,255,0.9), 0 0 4px rgba(255,255,255,1)' : undefined,
-                        minHeight: `${item.height - (isSticky ? 80 : 35)}px`,
+                        left: `${template.safeRegion.x}%`,
+                        top: `${template.safeRegion.y}%`,
+                        width: `${template.safeRegion.width}%`,
+                        height: `${template.safeRegion.height}%`,
                       }}
-                      onMouseDown={(e) => e.stopPropagation()}
-                    />
-                  </div>
+                    >
+                      <textarea
+                        value={item.content}
+                        onChange={(e) => updateItemContent(item.id, e.target.value)}
+                        placeholder="Write study notes here..."
+                        className="w-full h-full bg-transparent border-none focus:outline-none resize-none font-sans custom-scrollbar leading-relaxed whitespace-pre-wrap break-words"
+                        style={{
+                          fontFamily: item.fontFamily || "'Quicksand', 'Nunito', sans-serif",
+                          fontSize: `${item.fontSize || Math.max(13, Math.round(item.width / 18))}px`,
+                          color: item.textColor || template.defaultTextColor || '#3A3A3A',
+                          fontWeight: item.isBold !== undefined ? (item.isBold ? 'bold' : 'normal') : 'bold',
+                          fontStyle: item.isItalic ? 'italic' : 'normal',
+                          textDecoration: item.isUnderline ? 'underline' : 'none',
+                          textAlign: item.textAlign || 'left',
+                          textShadow: '0 0 12px rgba(255,255,255,0.9), 0 0 4px rgba(255,255,255,1)',
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col justify-center relative z-10 p-3.5">
+                      <textarea
+                        value={item.content}
+                        onChange={(e) => updateItemContent(item.id, e.target.value)}
+                        placeholder={isText ? "Double click or start typing here..." : "Write note or idea here..."}
+                        className={`w-full h-full bg-transparent border-none focus:outline-none resize-none font-sans custom-scrollbar leading-relaxed whitespace-pre-wrap break-words ${
+                          isCircle ? 'text-center font-bold text-gray-800 dark:text-gray-200' : isText ? 'text-base font-medium text-gray-800 dark:text-gray-200' : 'font-bold'
+                        }`}
+                        style={{
+                          fontFamily: item.fontFamily || undefined,
+                          fontSize: item.fontSize ? `${item.fontSize}px` : undefined,
+                          color: item.textColor || undefined,
+                          fontWeight: item.isBold !== undefined ? (item.isBold ? 'bold' : 'normal') : undefined,
+                          fontStyle: item.isItalic ? 'italic' : undefined,
+                          textDecoration: item.isUnderline ? 'underline' : undefined,
+                          textAlign: item.textAlign || undefined,
+                          minHeight: `${item.height - 35}px`,
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  )}
 
                   {/* --- 4 CORNER RESIZE HANDLES WHEN SELECTED --- */}
                   {isSelected && (
@@ -999,7 +1121,7 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
           </div>
         </div>
 
-        {/* --- STICKY NOTE THEME PICKER MODAL (6x4 Grid of Image Previews) --- */}
+        {/* --- STICKY NOTE THEME PICKER MODAL --- */}
         {showThemePicker && (
           <div className="fixed inset-0 z-[9999999] bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn select-none">
             <div className="bg-white dark:bg-[#232130] border-4 border-purple-500 rounded-3xl p-6 shadow-2xl max-w-4xl w-full max-h-[88vh] flex flex-col">
@@ -1008,7 +1130,7 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
                   <h3 className="font-black text-lg text-purple-700 dark:text-purple-300 flex items-center gap-2">
                     <span>🖼️ Choose a Sticky Note Theme</span>
                     <span className="bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 text-xs px-2.5 py-0.5 rounded-full font-bold">
-                      {STICKY_NOTE_ASSETS.length} Templates
+                      {STICKY_TEMPLATES.length} Templates
                     </span>
                   </h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Click any aesthetic memo template to drop it onto your whiteboard or update selected note!</p>
@@ -1023,20 +1145,20 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
               </div>
 
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 overflow-y-auto custom-scrollbar p-2 flex-1 max-h-[65vh]">
-                {STICKY_NOTE_ASSETS.map((src, i) => (
+                {STICKY_TEMPLATES.map((t, i) => (
                   <div
-                    key={src}
+                    key={t.id}
                     onClick={() => {
                       if (selectedId && items.find(it => it.id === selectedId && (it.type === 'sticky' || it.bgAsset))) {
-                        updateItemBgAsset(selectedId, src);
+                        updateItemBgAsset(selectedId, t.assetUrl);
                       } else {
-                        addStickyNoteAsset(src);
+                        addStickyNoteAsset(t.assetUrl);
                       }
                       setShowThemePicker(false);
                     }}
                     className="group relative aspect-square rounded-2xl overflow-hidden border-2 border-gray-200 dark:border-purple-500/30 hover:border-purple-600 dark:hover:border-pink-400 cursor-pointer shadow-sm hover:shadow-xl hover:scale-105 transition-all bg-[#faf8fc] dark:bg-[#181622] flex items-center justify-center p-1.5"
                   >
-                    <img src={src} alt={`Template ${i + 1}`} className="w-full h-full object-contain pointer-events-none" />
+                    <img src={t.assetUrl} alt={t.name} className="w-full h-full object-contain pointer-events-none" />
                     <div className="absolute inset-0 bg-purple-600/0 group-hover:bg-purple-600/15 transition-colors flex items-end justify-center pb-2">
                       <span className="opacity-0 group-hover:opacity-100 bg-purple-600 text-white font-black text-[10px] px-2.5 py-1 rounded-full shadow-lg transition-opacity flex items-center gap-1">
                         <span>{selectedId && items.find(it => it.id === selectedId && it.bgAsset) ? '🎨 Apply' : '➕ Insert'}</span>
