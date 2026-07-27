@@ -224,6 +224,20 @@ export default function PersonalNotesEditor({
         }
         return false;
       },
+      handleKeyDown: (view, event) => {
+        if (event.key === 'Tab') {
+          if (editor && (editor.isActive('bulletList') || editor.isActive('orderedList'))) {
+            event.preventDefault();
+            if (event.shiftKey) {
+              editor.chain().focus().liftListItem('listItem').run();
+            } else {
+              editor.chain().focus().sinkListItem('listItem').run();
+            }
+            return true;
+          }
+        }
+        return false;
+      },
     },
   });
 
@@ -284,7 +298,54 @@ export default function PersonalNotesEditor({
     onUpdateNotes(html);
   }, [documentId, editor, onUpdateNotes]);
 
-  // 5. Image Insertion (via TipTap API)
+  // 5. Link Insertion / Editing (via TipTap API)
+  const handleInsertLink = () => {
+    if (!editor) return;
+
+    if (editor.isActive('link')) {
+      const url = window.prompt('Edit link URL or clear to remove:', editor.getAttributes('link').href || 'https://');
+      if (url === null) return;
+      if (url === '') {
+        editor.chain().focus().unsetLink().run();
+      } else {
+        editor.chain().focus().setLink({ href: url }).run();
+      }
+      saveCurrentState();
+      return;
+    }
+
+    const { from, to } = editor.state.selection;
+    const hasSelection = from !== to;
+
+    if (hasSelection) {
+      const url = window.prompt('Enter link URL for selected text:', 'https://');
+      if (url) {
+        editor.chain().focus().setLink({ href: url }).run();
+        saveCurrentState();
+      }
+    } else {
+      const text = window.prompt('Enter display text for link:', 'My Link');
+      if (!text) return;
+      const url = window.prompt('Enter link URL:', 'https://');
+      if (!url) return;
+
+      editor.chain().focus().insertContent({
+        type: 'text',
+        text: text,
+        marks: [
+          {
+            type: 'link',
+            attrs: {
+              href: url,
+            },
+          },
+        ],
+      }).run();
+      saveCurrentState();
+    }
+  };
+
+  // 6. Image Insertion (via TipTap API)
   const insertImageFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -585,11 +646,8 @@ export default function PersonalNotesEditor({
           <div className="flex items-center gap-0.5 flex-wrap">
             <ToolBtn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Horizontal Divider">—</ToolBtn>
             <ToolBtn
-              onClick={() => {
-                const url = window.prompt('Enter link URL:', 'https://');
-                if (url) editor.chain().focus().setLink({ href: url }).run();
-              }}
-              title="Insert Hyperlink"
+              onClick={handleInsertLink}
+              title="Insert or Edit Hyperlink"
               active={editor.isActive('link')}
             >
               🔗

@@ -648,3 +648,41 @@ h1, h2, h3, h4, .font-heading {
   transform: scale(1.01);
 }
 
+/* Standard Rich-Text Bullet Lists & Numbered Lists */
+.ProseMirror ul:not([data-type="taskList"]) {
+  list-style-type: disc !important;
+  padding-left: 1.5rem !important;
+  margin: 0.5rem 0 !important;
+}
+.ProseMirror ul:not([data-type="taskList"]) ul {
+  list-style-type: circle !important;
+}
+.ProseMirror ul:not([data-type="taskList"]) ul ul {
+  list-style-type: square !important;
+}
+.ProseMirror ol {
+  list-style-type: decimal !important;
+  padding-left: 1.5rem !important;
+  margin: 0.5rem 0 !important;
+}
+.ProseMirror ol ol {
+  list-style-type: lower-alpha !important;
+}
+.ProseMirror ol ol ol {
+  list-style-type: lower-roman !important;
+}
+.ProseMirror li {
+  margin-bottom: 0.25rem;
+}
+
+/* Standard Hyperlink Styling */
+.ProseMirror a {
+  color: #3b82f6 !important;
+  text-decoration: underline !important;
+  cursor: pointer !important;
+  font-weight: 500;
+}
+.ProseMirror a:hover {
+  color: #1d4ed8 !important;
+}
+
