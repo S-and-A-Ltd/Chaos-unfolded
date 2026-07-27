@@ -463,7 +463,209 @@ export default function PDFWorkspace({
     return () => clearTimeout(timer);
   }, [currentMatchIndex, scrollToActiveMatch]);
 
+  const hexToRgba = useCallback((hex: string, alpha = 0.55) => {
+    if (!hex || !hex.startsWith('#')) return hex;
+    let c = hex.substring(1);
+    if (c.length === 3) c = c.split('').map(char => char + char).join('');
+    const num = parseInt(c, 16);
+    if (isNaN(num)) return hex;
+    const r = (num >> 16) & 255;
+    const g = (num >> 8) & 255;
+    const b = num & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }, []);
+
+  type HighlightInterval = {
+    start: number;
+    end: number;
+    style: string;
+    className: string;
+    priority: number;
+  };
+
+  const getMergedHighlightIntervals = useCallback(
+    (str: string, pageIdx: number): HighlightInterval[] => {
+      if (!str || !str.trim()) return [];
+      const strLower = str.toLowerCase();
+      const intervals: HighlightInterval[] = [];
+
+      // 1. Manual Annotations (Highlights & Underlines)
+      const pageAnnotations = safeArray(annotations).filter((a) => a?.pageNumber === pageIdx);
+      for (const annot of pageAnnotations) {
+        if (!annot.text || !annot.text.trim()) continue;
+        const annotTextLower = annot.text.trim().toLowerCase();
+
+        const isUnderline = annot.type === 'underline';
+        const style = isUnderline
+          ? 'background-color: transparent; border-bottom: 3px solid #8F477B; color: transparent !important; padding: 0 2px; border-radius: 4px;'
+          : `background-color: ${hexToRgba(annot.color, 0.5)}; color: transparent !important; mix-blend-mode: multiply; padding: 0 2px; border-radius: 3px;`;
+        const className = isUnderline ? 'annotation-underline' : 'annotation-highlight';
+
+        if (strLower.includes(annotTextLower)) {
+          let pos = strLower.indexOf(annotTextLower);
+          while (pos !== -1) {
+            intervals.push({
+              start: pos,
+              end: pos + annotTextLower.length,
+              style,
+              className,
+              priority: isUnderline ? 2 : 1,
+            });
+            pos = strLower.indexOf(annotTextLower, pos + 1);
+          }
+        } else if (annotTextLower.includes(strLower)) {
+          const cleanStr = str.trim().toLowerCase();
+          const words = annotTextLower.split(/\s+/).map(w => w.replace(/[^a-z0-9]/g, ''));
+          const matchesWord = words.some(w => w === cleanStr || w.startsWith(cleanStr) || w.endsWith(cleanStr));
+          if (matchesWord || cleanStr.length > 2) {
+            intervals.push({
+              start: 0,
+              end: str.length,
+              style,
+              className,
+              priority: isUnderline ? 2 : 1,
+            });
+          }
+        }
+      }
+
+      // 2. Search Highlights
+      const query = debouncedSearchQuery.trim().toLowerCase();
+      if (query && strLower.includes(query)) {
+        const isActivePage = currentMatchIndex >= 0 && searchMatches[currentMatchIndex]?.pageNumber === pageIdx;
+        const bg = isActivePage ? '#fb923c' : '#fef08a';
+        const shadow = isActivePage ? '0 0 6px rgba(251, 146, 60, 0.8)' : 'none';
+        const style = `background-color: ${hexToRgba(bg, 0.55)}; color: transparent !important; mix-blend-mode: multiply; padding: 0 2px; border-radius: 3px; box-shadow: ${shadow};`;
+
+        let pos = strLower.indexOf(query);
+        while (pos !== -1) {
+          intervals.push({
+            start: pos,
+            end: pos + query.length,
+            style,
+            className: 'search-highlight',
+            priority: isActivePage ? 4 : 3,
+          });
+          pos = strLower.indexOf(query, pos + 1);
+        }
+      }
+
+      if (intervals.length === 0) return [];
+
+      intervals.sort((a, b) => {
+        if (a.start !== b.start) return a.start - b.start;
+        return b.priority - a.priority;
+      });
+
+      const merged: HighlightInterval[] = [];
+      for (const curr of intervals) {
+        if (merged.length === 0) {
+          merged.push({ ...curr });
+        } else {
+          const prev = merged[merged.length - 1];
+          if (curr.start < prev.end) {
+            if (curr.priority > prev.priority) {
+              prev.style = curr.style;
+              prev.className = curr.className;
+              prev.priority = curr.priority;
+            }
+            prev.end = Math.max(prev.end, curr.end);
+          } else {
+            merged.push({ ...curr });
+          }
+        }
+      }
+
+      return merged;
+    },
+    [annotations, debouncedSearchQuery, currentMatchIndex, searchMatches, hexToRgba]
+  );
+
+  const applyHighlightsToDOM = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // 1. Before rendering: Remove previously rendered highlight elements & underline elements
+    const existingMarks = container.querySelectorAll(
+      'mark.annotation-highlight, mark.annotation-underline, mark.search-highlight, .annotation-highlight, .annotation-underline, .search-highlight'
+    );
+    existingMarks.forEach((markEl) => {
+      const parent = markEl.parentNode;
+      if (parent) {
+        while (markEl.firstChild) {
+          parent.insertBefore(markEl.firstChild, markEl);
+        }
+        parent.removeChild(markEl);
+        parent.normalize();
+      }
+    });
+
+    // 2. Render only the current annotation state without repeatedly injecting new DOM elements
+    const textLayers = container.querySelectorAll('.react-pdf__Page__textContent');
+    textLayers.forEach((layerEl) => {
+      const pageEl = layerEl.closest('[id^="pdf-page-"], .react-pdf__Page');
+      let pageIdx = pageNumber;
+      if (pageEl) {
+        const idNum = pageEl.id?.replace('pdf-page-', '');
+        const dataNum = pageEl.getAttribute('data-page-number');
+        const parsed = parseInt(idNum || dataNum || '', 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          pageIdx = parsed;
+        }
+      }
+
+      const spans = layerEl.querySelectorAll('span');
+      spans.forEach((spanEl) => {
+        const text = spanEl.textContent;
+        if (!text || !text.trim()) return;
+
+        const merged = getMergedHighlightIntervals(text, pageIdx);
+        if (merged.length > 0) {
+          let newHtml = '';
+          let lastIndex = 0;
+          for (const interval of merged) {
+            if (interval.start > lastIndex) {
+              newHtml += text
+                .slice(lastIndex, interval.start)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+            }
+            const sliceText = text
+              .slice(interval.start, interval.end)
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#039;');
+            newHtml += `<mark class="${interval.className}" style="${interval.style}">${sliceText}</mark>`;
+            lastIndex = interval.end;
+          }
+          if (lastIndex < text.length) {
+            newHtml += text
+              .slice(lastIndex)
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#039;');
+          }
+          spanEl.innerHTML = newHtml;
+        }
+      });
+    });
+  }, [getMergedHighlightIntervals, pageNumber]);
+
+  useEffect(() => {
+    applyHighlightsToDOM();
+  }, [annotations, debouncedSearchQuery, currentMatchIndex, pageNumber, scale, viewMode, applyHighlightsToDOM]);
+
   const handlePageRenderSuccess = useCallback((pageNum: number) => {
+    setTimeout(() => {
+      applyHighlightsToDOM();
+    }, 50);
     if (showSearch && searchMatches.length > 0 && currentMatchIndex >= 0) {
       const activeMatch = searchMatches[currentMatchIndex];
       if (activeMatch && activeMatch.pageNumber === pageNum) {
@@ -472,7 +674,7 @@ export default function PDFWorkspace({
         }, 100);
       }
     }
-  }, [showSearch, searchMatches, currentMatchIndex, scrollToActiveMatch]);
+  }, [showSearch, searchMatches, currentMatchIndex, scrollToActiveMatch, applyHighlightsToDOM]);
 
   // --- 7. Text Selection & Annotation Creation ---
   const handleMouseUp = (e: React.MouseEvent) => {
@@ -507,97 +709,55 @@ export default function PDFWorkspace({
     }
   };
 
-  const hexToRgba = (hex: string, alpha = 0.55) => {
-    if (!hex || !hex.startsWith('#')) return hex;
-    let c = hex.substring(1);
-    if (c.length === 3) c = c.split('').map(char => char + char).join('');
-    const num = parseInt(c, 16);
-    if (isNaN(num)) return hex;
-    const r = (num >> 16) & 255;
-    const g = (num >> 8) & 255;
-    const b = num & 255;
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  };
-
   const makeCustomTextRenderer = useCallback(
     (pageIdx: number) =>
       ({ str }: { str: string; itemIndex: number }) => {
         if (!str || !str.trim()) return str;
 
-        let html = str
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&#039;');
+        const merged = getMergedHighlightIntervals(str, pageIdx);
+        if (merged.length === 0) {
+          return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+        }
 
-        const pageAnnotations = safeArray(annotations).filter((a) => a?.pageNumber === pageIdx);
-        if (pageAnnotations.length > 0) {
-          for (const annot of pageAnnotations) {
-            if (!annot.text || !annot.text.trim()) continue;
-            const annotTextLower = annot.text.trim().toLowerCase();
-            const strLower = str.toLowerCase();
-
-            if (strLower.includes(annotTextLower) || annotTextLower.includes(strLower)) {
-              let shouldHighlight = false;
-              if (strLower.includes(annotTextLower)) {
-                shouldHighlight = true;
-              } else if (annotTextLower.includes(strLower)) {
-                const cleanStr = str.trim().toLowerCase();
-                const words = annotTextLower.split(/\s+/).map(w => w.replace(/[^a-z0-9]/g, ''));
-                const matchesWord = words.some(w => w === cleanStr || w.startsWith(cleanStr) || w.endsWith(cleanStr));
-                if (matchesWord || cleanStr.length > 2) {
-                  shouldHighlight = true;
-                }
-              }
-
-              if (shouldHighlight) {
-                const isUnderline = annot.type === 'underline';
-                const style = isUnderline
-                  ? 'background-color: transparent; border-bottom: 3px solid #8F477B; color: transparent !important; padding: 0 2px; border-radius: 4px;'
-                  : `background-color: ${hexToRgba(annot.color, 0.5)}; color: transparent !important; mix-blend-mode: multiply; padding: 0 2px; border-radius: 3px;`;
-
-                if (strLower.includes(annotTextLower)) {
-                  const escapedAnnot = annot.text.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-                  const regex = new RegExp(`(<[^>]*>)|(${escapedAnnot})`, 'gi');
-                  html = html.replace(regex, (match, tag, word) => {
-                    if (tag) return tag;
-                    if (word !== undefined) {
-                      return `<mark class="annotation-highlight" style="${style}">${word}</mark>`;
-                    }
-                    return match;
-                  });
-                } else {
-                  if (!html.startsWith('<mark')) {
-                    html = `<mark class="annotation-highlight" style="${style}">${html}</mark>`;
-                  }
-                }
-              }
-            }
+        let html = '';
+        let lastIndex = 0;
+        for (const interval of merged) {
+          if (interval.start > lastIndex) {
+            html += str
+              .slice(lastIndex, interval.start)
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#039;');
           }
+          const sliceText = str
+            .slice(interval.start, interval.end)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+          html += `<mark class="${interval.className}" style="${interval.style}">${sliceText}</mark>`;
+          lastIndex = interval.end;
         }
-
-        const query = debouncedSearchQuery.trim().toLowerCase();
-        if (query && str.toLowerCase().includes(query)) {
-          const isActivePage = currentMatchIndex >= 0 && searchMatches[currentMatchIndex]?.pageNumber === pageIdx;
-          const bg = isActivePage ? '#fb923c' : '#fef08a';
-          const shadow = isActivePage ? '0 0 6px rgba(251, 146, 60, 0.8)' : 'none';
-          const style = `background-color: ${hexToRgba(bg, 0.55)}; color: transparent !important; mix-blend-mode: multiply; padding: 0 2px; border-radius: 3px; box-shadow: ${shadow};`;
-
-          const escapedQuery = query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-          const regex = new RegExp(`(<[^>]*>)|(${escapedQuery})`, 'gi');
-          html = html.replace(regex, (match, tag, word) => {
-            if (tag) return tag;
-            if (word !== undefined) {
-              return `<mark class="search-highlight" style="${style}">${word}</mark>`;
-            }
-            return match;
-          });
+        if (lastIndex < str.length) {
+          html += str
+            .slice(lastIndex)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
         }
-
         return html;
       },
-    [annotations, debouncedSearchQuery, currentMatchIndex, searchMatches]
+    [getMergedHighlightIntervals]
   );
 
   // --- 8. Helper & AI Actions on Selection ---
@@ -1189,7 +1349,7 @@ export default function PDFWorkspace({
             {viewMode === 'single' ? (
               <div className="relative shadow-2xl rounded-lg overflow-hidden bg-white shrink-0">
                 <Page
-                  key={`page_${pageNumber}_${scale}_${debouncedSearchQuery}_${currentMatchIndex}_${safeArray(annotations).filter(a => a?.pageNumber === pageNumber).map(a => `${a?.id}-${a?.color}-${a?.type}`).join('_')}`}
+                  key={`page_${pageNumber}_${scale}`}
                   pageNumber={pageNumber}
                   scale={scale}
                   renderTextLayer={true}
@@ -1217,7 +1377,7 @@ export default function PDFWorkspace({
                   >
                     {isNearby ? (
                       <Page
-                        key={`page_${p}_${scale}_${debouncedSearchQuery}_${currentMatchIndex}_${safeArray(annotations).filter(a => a?.pageNumber === p).map(a => `${a?.id}-${a?.color}-${a?.type}`).join('_')}`}
+                        key={`page_${p}_${scale}`}
                         pageNumber={p}
                         scale={scale}
                         renderTextLayer={true}
