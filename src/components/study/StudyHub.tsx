@@ -150,7 +150,7 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#2a2438] text-[#e0def4] border-2 border-[#575279] rounded-2xl shadow-2xl max-w-lg w-full p-6 flex flex-col gap-4"
+              className="bg-[#2a2438] text-[#e0def4] border-2 border-[#575279] rounded-2xl shadow-2xl max-w-2xl w-full p-6 flex flex-col gap-4"
             >
               <div className="flex items-center justify-between border-b border-[#575279]/50 pb-3">
                 <h3 className="font-bold text-sm tracking-wide text-[#eb6f92]">{aiModal.title}</h3>
@@ -162,11 +162,11 @@ export default function StudyHub({ documents, onTriggerQuiz, onAddYoutubeUrl }: 
                 </button>
               </div>
 
-              <div className="bg-[#1f1d2e] rounded-xl p-4 text-xs leading-relaxed max-h-[50vh] overflow-y-auto custom-scrollbar font-mono whitespace-pre-wrap">
+              <div className="bg-[#1f1d2e] rounded-xl p-5 text-[18px] leading-[1.8] max-h-[60vh] overflow-y-auto custom-scrollbar font-sans whitespace-pre-wrap space-y-3">
                 {aiModal.isLoading ? (
                   <div className="flex items-center gap-3 text-[#908caa]">
                     <span className="animate-spin text-base">⏳</span>
-                    <span>{aiModal.content}</span>
+                    <span className="text-base">{aiModal.content}</span>
                   </div>
                 ) : (
                   aiModal.content

@@ -1407,7 +1407,7 @@ export default function PDFWorkspace({
               initial={{ scale: 0.95, y: 10 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 10 }}
-              className="bg-white dark:bg-[#2b2b34] border-3 border-[#7c6a75] rounded-3xl shadow-[0_12px_0_#7c6a75] p-6 max-w-lg w-full flex flex-col gap-4"
+              className="bg-white dark:bg-[#2b2b34] border-3 border-[#7c6a75] rounded-3xl shadow-[0_12px_0_#7c6a75] p-6 max-w-2xl w-full flex flex-col gap-4"
             >
               <div className="flex items-center justify-between border-b-2 border-[#7c6a75]/20 pb-3">
                 <h3 className="text-sm font-black text-[#8F477B] uppercase tracking-wider flex items-center gap-2">
@@ -1424,10 +1424,10 @@ export default function PDFWorkspace({
               {aiModal.isLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-3">
                   <div className="w-8 h-8 border-4 border-[#8F477B] border-t-transparent rounded-full animate-spin" />
-                  <p className="text-xs font-bold text-[#5d5770] dark:text-white">{aiModal.content}</p>
+                  <p className="text-base font-bold text-[#5d5770] dark:text-white">{aiModal.content}</p>
                 </div>
               ) : (
-                <div className="text-xs text-[#5d5770] dark:text-[#f4f2ee] font-bold leading-relaxed whitespace-pre-wrap max-h-80 overflow-y-auto custom-scrollbar p-2 bg-[#f4f2ee] dark:bg-black/20 rounded-xl border border-[#7c6a75]/20">
+                <div className="text-[18px] text-[#5d5770] dark:text-[#f4f2ee] font-medium leading-[1.8] whitespace-pre-wrap max-h-[60vh] overflow-y-auto custom-scrollbar p-5 bg-[#f4f2ee] dark:bg-black/20 rounded-2xl border border-[#7c6a75]/20 space-y-3">
                   {aiModal.content}
                 </div>
               )}
