@@ -343,6 +343,41 @@ h1, h2, h3, h4, .font-heading {
   color: var(--primary-dark);
 }
 
+/* ---- PDF.js Text Layer Selection Customization ---- */
+/* Keep canvas text 100% crisp and prevent DOM text layer double-vision/blur while dragging selection */
+.react-pdf__Page__textContent ::selection,
+.react-pdf__Page__textContent span::selection,
+.react-pdf__Page__textContent mark::selection,
+.react-pdf__Page__textContent *::selection {
+  background: rgba(147, 197, 253, 0.45) !important; /* Pastel/light blue high-contrast selection */
+  color: transparent !important; /* Keep DOM text transparent so only razor-sharp canvas text shows */
+  text-shadow: none !important;
+}
+
+/* Ensure Mozilla Firefox supports ::selection cleanly without blur */
+.react-pdf__Page__textContent *::-moz-selection {
+  background: rgba(147, 197, 253, 0.45) !important;
+  color: transparent !important;
+  text-shadow: none !important;
+}
+
+/* Prevent opacity reduction, blurring, or filter effects during selection */
+.react-pdf__Page__textContent span,
+.react-pdf__Page__textContent mark {
+  opacity: 1 !important;
+  filter: none !important;
+  text-shadow: none !important;
+}
+
+/* Ensure existing highlights override cleanly during drag selection without muddy stacking */
+.react-pdf__Page__textContent mark.annotation-highlight::selection,
+.react-pdf__Page__textContent mark.search-highlight::selection,
+.react-pdf__Page__textContent mark.annotation-underline::selection {
+  background: rgba(147, 197, 253, 0.55) !important;
+  color: transparent !important;
+}
+
+
 /* ---- Cute Text Bubble Pointer & Bubble styling ---- */
 
 .cute-speech-bubble {
