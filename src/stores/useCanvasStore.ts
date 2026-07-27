@@ -79,6 +79,7 @@ interface CanvasStoreState {
   deleteItem: (id: string) => void;
   duplicateItem: (id: string) => void;
   updateItemField: (id: string, field: keyof CanvasItem, value: any) => void;
+  updateItemFields: (id: string, fields: Partial<CanvasItem>) => void;
   updateItemBgAsset: (id: string, bgAsset: string) => void;
   setSelectedId: (id: string | null) => void;
   startEditing: (item: CanvasItem) => void;
@@ -347,6 +348,12 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
   updateItemField: (id, field, value) => {
     const { items, saveItems } = get();
     const next = items.map(i => i.id === id ? { ...i, [field]: value } : i);
+    saveItems(next, true);
+  },
+
+  updateItemFields: (id, fields) => {
+    const { items, saveItems } = get();
+    const next = items.map(i => i.id === id ? { ...i, ...fields } : i);
     saveItems(next, true);
   },
 

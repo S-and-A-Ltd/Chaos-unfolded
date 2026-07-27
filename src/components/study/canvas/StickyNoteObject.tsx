@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Group, Image as KonvaImage, Text as KonvaText, Circle as KonvaCircle } from 'react-konva';
 import { Html } from 'react-konva-utils';
 import useImage from 'use-image';
 import { CanvasItem, AnchorPosition, getAnchorCoords, useCanvasStore } from '@/stores/useCanvasStore';
-import { getStickyTemplate, autoAlphaCropImage } from '@/components/study/stickyTemplates';
+import { getStickyTemplate } from '@/components/study/stickyTemplates';
 
 interface StickyNoteObjectProps {
   item: CanvasItem;
@@ -15,7 +15,8 @@ interface StickyNoteObjectProps {
   GRID_SIZE: number;
 }
 
-// Splits text across multiple writable rectangular regions in a template
+// Splits text across multiple writable rectangular regions in a template.
+// Returns one string per region.
 const splitTextAcrossRegions = (
   text: string,
   regions: { x: number; y: number; width: number; height: number }[],
@@ -33,57 +34,59 @@ const splitTextAcrossRegions = (
   if (!ctx) return [text, ...Array(regions.length - 1).fill('')];
   ctx.font = `${fontSize}px ${fontFamily}`;
 
-  const words = text.split(/(\s+)/);
+  const lines = text.split('\n');
   const regionTexts: string[] = [];
-  let wordIdx = 0;
+  let lineIdx = 0;
 
   for (let r = 0; r < regions.length; r++) {
-    if (wordIdx >= words.length) {
+    if (lineIdx >= lines.length) {
       regionTexts.push('');
       continue;
     }
     if (r === regions.length - 1) {
-      regionTexts.push(words.slice(wordIdx).join(''));
+      // Last region gets all remaining text
+      regionTexts.push(lines.slice(lineIdx).join('\n'));
       break;
     }
 
     const regW = (regions[r].width / 100) * itemWidth;
     const regH = (regions[r].height / 100) * itemHeight;
-    const maxLines = Math.max(1, Math.floor(regH / (fontSize * lineHeight)));
+    const maxVisualLines = Math.max(1, Math.floor(regH / (fontSize * lineHeight)));
 
-    let currentRegionWords: string[] = [];
-    let currentLine = '';
-    let lineCount = 1;
+    const regionLines: string[] = [];
+    let visualLineCount = 0;
 
-    while (wordIdx < words.length && lineCount <= maxLines) {
-      const word = words[wordIdx];
-      if (word.includes('\n')) {
-        const parts = word.split('\n');
-        const testLine = currentLine + parts[0];
-        if (ctx.measureText(testLine).width > regW && currentLine !== '') {
-          lineCount++;
-          if (lineCount > maxLines) break;
-        }
-        currentRegionWords.push(parts[0] + '\n');
-        currentLine = parts.slice(1).join('\n');
-        lineCount += parts.length - 1;
-        if (lineCount > maxLines) break;
-        wordIdx++;
+    while (lineIdx < lines.length && visualLineCount < maxVisualLines) {
+      const line = lines[lineIdx];
+      // Count how many visual lines this text line occupies (word wrap)
+      if (line === '') {
+        regionLines.push('');
+        visualLineCount++;
+        lineIdx++;
         continue;
       }
-
-      const testLine = currentLine + word;
-      if (ctx.measureText(testLine).width > regW && currentLine !== '') {
-        lineCount++;
-        if (lineCount > maxLines) break;
-        currentLine = word;
-      } else {
-        currentLine = testLine;
+      const words = line.split(' ');
+      let currentLine = '';
+      let wrappedCount = 0;
+      for (const word of words) {
+        const test = currentLine ? currentLine + ' ' + word : word;
+        if (ctx.measureText(test).width > regW && currentLine) {
+          wrappedCount++;
+          currentLine = word;
+        } else {
+          currentLine = test;
+        }
       }
-      currentRegionWords.push(word);
-      wordIdx++;
+      wrappedCount++; // Last line
+      if (visualLineCount + wrappedCount > maxVisualLines) {
+        // This line doesn't fit; stop here, don't consume it
+        break;
+      }
+      regionLines.push(line);
+      visualLineCount += wrappedCount;
+      lineIdx++;
     }
-    regionTexts.push(currentRegionWords.join(''));
+    regionTexts.push(regionLines.join('\n'));
   }
   return regionTexts;
 };
@@ -122,10 +125,17 @@ const InlineTextEditor = React.memo(({
   }, [commitEditing, localText]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape' || ((e.ctrlKey || e.metaKey) && e.key === 'Enter')) {
+    if (e.key === 'Escape') {
       e.preventDefault();
       commitEditing(localText);
     }
+    // Allow Enter for newlines, Ctrl+Enter to commit
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      commitEditing(localText);
+    }
+    // Stop propagation so Delete/Backspace don't trigger canvas shortcuts
+    e.stopPropagation();
   }, [commitEditing, localText]);
 
   return (
@@ -134,8 +144,9 @@ const InlineTextEditor = React.memo(({
       onChange={(e) => setLocalText(e.target.value)}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
       autoFocus
-      className="bg-transparent border-0 outline-none shadow-none p-0 focus:ring-0 resize-none font-sans custom-scrollbar whitespace-pre-wrap break-words overflow-hidden"
       style={{
         width: `${tw}px`,
         height: `${th}px`,
@@ -144,20 +155,26 @@ const InlineTextEditor = React.memo(({
         lineHeight: lineHeight,
         color: textColor,
         fontWeight: isBold !== undefined ? (isBold ? 'bold' : 'normal') : 'bold',
-        textAlign: textAlign || 'left',
+        textAlign: (textAlign || 'left') as any,
         padding: padding || '4px',
         background: 'transparent',
         border: 'none',
         outline: 'none',
         boxShadow: 'none',
         caretColor: textColor,
+        resize: 'none',
+        overflow: 'auto',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        display: 'block',
+        margin: 0,
       }}
     />
   );
 });
 
 function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: StickyNoteObjectProps) {
-  const updateItemField = useCanvasStore(state => state.updateItemField);
+  const updateItemFields = useCanvasStore(state => state.updateItemFields);
   const setSelectedId = useCanvasStore(state => state.setSelectedId);
   const startEditing = useCanvasStore(state => state.startEditing);
   const commitEditing = useCanvasStore(state => state.commitEditing);
@@ -165,30 +182,23 @@ function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: 
 
   const template = useMemo(() => getStickyTemplate(item.bgAsset), [item.bgAsset]);
   const [image] = useImage(template.image);
-  const [crop, setCrop] = useState<{ x: number; y: number; width: number; height: number } | undefined>(undefined);
 
-  // Auto-crop transparent borders on import (stable dependencies without object reference looping)
-  useEffect(() => {
-    if (image) {
-      const iw = image.naturalWidth || image.width;
-      const ih = image.naturalHeight || image.height;
-      if (template.croppedBounds) {
-        setCrop({
-          x: (template.croppedBounds.left / 100) * iw,
-          y: (template.croppedBounds.top / 100) * ih,
-          width: (template.croppedBounds.width / 100) * iw,
-          height: (template.croppedBounds.height / 100) * ih,
-        });
-      } else {
-        const auto = autoAlphaCropImage(image);
-        setCrop({
-          x: (auto.left / 100) * iw,
-          y: (auto.top / 100) * ih,
-          width: (auto.width / 100) * iw,
-          height: (auto.height / 100) * ih,
-        });
-      }
-    }
+  // Bug 4 fix: Skip crop for JPEG templates where croppedBounds covers ≥95% of image.
+  // All 28 templates are JPEGs with no alpha channel, so autoAlphaCrop is useless.
+  // croppedBounds of {1,1,98,98} causes subtle distortion — skip it.
+  const crop = useMemo(() => {
+    if (!image || !template.croppedBounds) return undefined;
+    const cb = template.croppedBounds;
+    // Skip crop if it covers nearly the full image (no meaningful crop)
+    if (cb.width >= 95 && cb.height >= 95) return undefined;
+    const iw = image.naturalWidth || image.width;
+    const ih = image.naturalHeight || image.height;
+    return {
+      x: (cb.left / 100) * iw,
+      y: (cb.top / 100) * ih,
+      width: (cb.width / 100) * iw,
+      height: (cb.height / 100) * ih,
+    };
   }, [image, template.croppedBounds]);
 
   const regions = useMemo(() => {
@@ -197,7 +207,9 @@ function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: 
       : [template.writingArea || { x: 12, y: 22, width: 76, height: 58 }];
   }, [template]);
 
-  const fontSize = item.fontSize || template.defaultFontSize || 15;
+  // Scale font proportionally to note size (base size at width=280)
+  const baseFontSize = item.fontSize || template.defaultFontSize || 15;
+  const scaledFontSize = Math.max(8, Math.round(baseFontSize * (item.width / 280)));
   const fontFamily = item.fontFamily || template.defaultFont || "'Quicksand', 'Nunito', sans-serif";
   const lineHeight = template.lineHeight || 1.5;
   const textColor = item.textColor || template.defaultTextColor || '#3A3A3A';
@@ -208,11 +220,11 @@ function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: 
       regions,
       item.width,
       item.height,
-      fontSize,
+      scaledFontSize,
       lineHeight,
       fontFamily
     );
-  }, [item.content, regions, item.width, item.height, fontSize, lineHeight, fontFamily]);
+  }, [item.content, regions, item.width, item.height, scaledFontSize, lineHeight, fontFamily]);
 
   const primaryReg = regions[0];
   const tx = (primaryReg.x / 100) * item.width;
@@ -230,6 +242,7 @@ function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: 
     startEditing(item);
   }, [startEditing, item]);
 
+  // BATCH position update — single store call for x + y
   const handleDragEnd = useCallback((e: any) => {
     let fx = e.target.x();
     let fy = e.target.y();
@@ -239,23 +252,21 @@ function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: 
       e.target.x(fx);
       e.target.y(fy);
     }
-    updateItemField(item.id, 'x', fx);
-    updateItemField(item.id, 'y', fy);
-  }, [gridSnap, GRID_SIZE, updateItemField, item.id]);
+    updateItemFields(item.id, { x: fx, y: fy });
+  }, [gridSnap, GRID_SIZE, updateItemFields, item.id]);
 
+  // BATCH size update — single store call for width + height
   const handleTransformEnd = useCallback((e: any) => {
     const node = e.target;
     const scaleX = node.scaleX();
-    const scaleY = node.scaleY();
     node.scaleX(1);
     node.scaleY(1);
 
-    let newW = Math.round(node.width() * scaleX);
-    let newH = Math.round(newW / (template.aspectRatio || 1.0));
+    const newW = Math.max(80, Math.round(node.width() * scaleX));
+    const newH = Math.max(80, Math.round(newW / (template.aspectRatio || 1.0)));
 
-    updateItemField(item.id, 'width', Math.max(80, newW));
-    updateItemField(item.id, 'height', Math.max(80, newH));
-  }, [updateItemField, item.id, template.aspectRatio]);
+    updateItemFields(item.id, { width: newW, height: newH });
+  }, [updateItemFields, item.id, template.aspectRatio]);
 
   return (
     <Group
@@ -270,7 +281,7 @@ function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: 
       onDragEnd={handleDragEnd}
       onTransformEnd={handleTransformEnd}
     >
-      {/* Decorative background PNG only */}
+      {/* Decorative background PNG */}
       {image && (
         <KonvaImage
           image={image}
@@ -281,7 +292,7 @@ function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: 
         />
       )}
 
-      {/* Konva Text flow across writing regions when not editing */}
+      {/* Konva Text flow across writing regions when NOT editing */}
       {!isEditing && regions.map((reg, rIdx) => {
         const rtx = (reg.x / 100) * item.width;
         const rty = (reg.y / 100) * item.height;
@@ -296,7 +307,7 @@ function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: 
             width={rtw}
             height={rth}
             text={flowedTexts[rIdx] || ''}
-            fontSize={fontSize}
+            fontSize={scaledFontSize}
             fontFamily={fontFamily}
             fontStyle={item.isBold !== undefined ? (item.isBold ? 'bold' : 'normal') : 'bold'}
             fill={textColor}
@@ -308,7 +319,7 @@ function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: 
         );
       })}
 
-      {/* Temporary transparent HTML textarea integrated into Konva coordinates via react-konva-utils <Html> */}
+      {/* Transparent HTML textarea for editing — only active while isEditing */}
       {isEditing && (
         <Html groupProps={{ x: tx, y: ty }} divProps={{ style: { opacity: 1 } }}>
           <InlineTextEditor
@@ -316,7 +327,7 @@ function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: 
             tw={tw}
             th={th}
             fontFamily={fontFamily}
-            fontSize={fontSize}
+            fontSize={scaledFontSize}
             lineHeight={lineHeight}
             textColor={textColor}
             isBold={item.isBold}

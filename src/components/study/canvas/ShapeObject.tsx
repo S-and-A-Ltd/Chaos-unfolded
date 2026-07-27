@@ -52,10 +52,15 @@ const InlineShapeEditor = React.memo(({
   }, [commitEditing, localText]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape' || ((e.ctrlKey || e.metaKey) && e.key === 'Enter')) {
+    if (e.key === 'Escape') {
       e.preventDefault();
       commitEditing(localText);
     }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      commitEditing(localText);
+    }
+    e.stopPropagation();
   }, [commitEditing, localText]);
 
   return (
@@ -64,8 +69,9 @@ const InlineShapeEditor = React.memo(({
       onChange={(e) => setLocalText(e.target.value)}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
       autoFocus
-      className="bg-transparent border-0 outline-none shadow-none p-0 focus:ring-0 resize-none font-sans custom-scrollbar whitespace-pre-wrap break-words overflow-hidden"
       style={{
         width: `${tw}px`,
         height: `${th}px`,
@@ -74,19 +80,26 @@ const InlineShapeEditor = React.memo(({
         lineHeight: 1.4,
         color: textColor,
         fontWeight: isBold !== undefined ? (isBold ? 'bold' : 'normal') : 'bold',
-        textAlign: textAlign || 'left',
+        textAlign: (textAlign || 'left') as any,
         background: 'transparent',
         border: 'none',
         outline: 'none',
         boxShadow: 'none',
         caretColor: textColor,
+        resize: 'none',
+        overflow: 'auto',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        display: 'block',
+        margin: 0,
+        padding: '4px',
       }}
     />
   );
 });
 
 function ShapeObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: ShapeObjectProps) {
-  const updateItemField = useCanvasStore(state => state.updateItemField);
+  const updateItemFields = useCanvasStore(state => state.updateItemFields);
   const setSelectedId = useCanvasStore(state => state.setSelectedId);
   const startEditing = useCanvasStore(state => state.startEditing);
   const commitEditing = useCanvasStore(state => state.commitEditing);
@@ -111,6 +124,7 @@ function ShapeObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: Shape
     startEditing(item);
   }, [startEditing, item]);
 
+  // BATCH position update
   const handleDragEnd = useCallback((e: any) => {
     let fx = e.target.x();
     let fy = e.target.y();
@@ -120,10 +134,10 @@ function ShapeObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: Shape
       e.target.x(fx);
       e.target.y(fy);
     }
-    updateItemField(item.id, 'x', fx);
-    updateItemField(item.id, 'y', fy);
-  }, [gridSnap, GRID_SIZE, updateItemField, item.id]);
+    updateItemFields(item.id, { x: fx, y: fy });
+  }, [gridSnap, GRID_SIZE, updateItemFields, item.id]);
 
+  // BATCH size update
   const handleTransformEnd = useCallback((e: any) => {
     const node = e.target;
     const scaleX = node.scaleX();
@@ -131,12 +145,11 @@ function ShapeObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: Shape
     node.scaleX(1);
     node.scaleY(1);
 
-    const newW = Math.round(node.width() * scaleX);
-    const newH = Math.round(node.height() * scaleY);
+    const newW = Math.max(60, Math.round(node.width() * scaleX));
+    const newH = Math.max(60, Math.round(node.height() * scaleY));
 
-    updateItemField(item.id, 'width', Math.max(60, newW));
-    updateItemField(item.id, 'height', Math.max(60, newH));
-  }, [updateItemField, item.id]);
+    updateItemFields(item.id, { width: newW, height: newH });
+  }, [updateItemFields, item.id]);
 
   return (
     <Group
