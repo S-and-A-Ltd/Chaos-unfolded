@@ -11,11 +11,15 @@
     "electron": "electron ."
   },
   "dependencies": {
+    "@memfoldai/tiptap-search-and-replace": "^0.2.0",
+    "@tiptap/extension-bullet-list": "^3.29.1",
     "@tiptap/extension-color": "^3.29.1",
     "@tiptap/extension-font-family": "^3.29.1",
     "@tiptap/extension-highlight": "^3.29.1",
     "@tiptap/extension-image": "^3.29.1",
     "@tiptap/extension-link": "^3.29.1",
+    "@tiptap/extension-list-item": "^3.29.1",
+    "@tiptap/extension-ordered-list": "^3.29.1",
     "@tiptap/extension-task-item": "^3.29.1",
     "@tiptap/extension-task-list": "^3.29.1",
     "@tiptap/extension-text-align": "^3.29.1",

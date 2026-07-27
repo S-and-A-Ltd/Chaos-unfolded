@@ -17,6 +17,10 @@ import { TextAlign } from '@tiptap/extension-text-align';
 import { TaskList } from '@tiptap/extension-task-list';
 import { TaskItem } from '@tiptap/extension-task-item';
 import { Link } from '@tiptap/extension-link';
+import { BulletList } from '@tiptap/extension-bullet-list';
+import { OrderedList } from '@tiptap/extension-ordered-list';
+import { ListItem } from '@tiptap/extension-list-item';
+import { SearchAndReplace } from '@memfoldai/tiptap-search-and-replace';
 import { Image } from '@tiptap/extension-image';
 import { FontFamily } from '@tiptap/extension-font-family';
 import { Extension } from '@tiptap/core';
@@ -142,9 +146,13 @@ export default function PersonalNotesEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        bulletList: { keepMarks: true },
-        orderedList: { keepMarks: true },
+        bulletList: false,
+        orderedList: false,
+        listItem: false,
       }),
+      BulletList.configure({ keepMarks: true }),
+      OrderedList.configure({ keepMarks: true }),
+      ListItem,
       Underline,
       TextStyle,
       FontSize,
@@ -161,6 +169,9 @@ export default function PersonalNotesEditor({
       Link.configure({
         openOnClick: true,
         autolink: true,
+      }),
+      SearchAndReplace.configure({
+        searchResultClass: 'bg-yellow-300 dark:bg-yellow-600/60 rounded px-0.5',
       }),
       Image.configure({
         inline: false,
@@ -331,33 +342,37 @@ export default function PersonalNotesEditor({
     }
   };
 
-  // 7. Find & Replace Handlers (Ctrl+H)
+  // Update TipTap SearchAndReplace extension when queries change
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) {
+      (editor.commands as any).setSearchTerm(findQuery);
+    }
+  }, [findQuery, editor]);
+
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) {
+      (editor.commands as any).setReplaceTerm(replaceQuery);
+    }
+  }, [replaceQuery, editor]);
+
+  // 7. Find & Replace Handlers (Ctrl+H) via TipTap extension commands
   const handleFindNext = () => {
-    if (findQuery) {
-      window.find(findQuery, false, false, true);
+    if (editor) {
+      (editor.commands as any).nextSearchResult();
     }
   };
 
   const handleReplace = () => {
-    if (findQuery && window.getSelection()?.toString().toLowerCase() === findQuery.toLowerCase() && editor) {
-      editor.commands.insertContent(replaceQuery);
-    } else if (findQuery) {
-      if (window.find(findQuery, false, false, true) && editor) {
-        editor.commands.insertContent(replaceQuery);
-      }
+    if (editor) {
+      (editor.commands as any).replace();
+      saveCurrentState();
     }
   };
 
   const handleReplaceAll = () => {
-    if (findQuery && editor) {
-      let count = 0;
-      const sel = window.getSelection();
-      sel?.removeAllRanges();
-      while (window.find(findQuery, false, false, true)) {
-        editor.commands.insertContent(replaceQuery);
-        count++;
-        if (count > 500) break;
-      }
+    if (editor) {
+      (editor.commands as any).replaceAll();
+      saveCurrentState();
     }
   };
 
