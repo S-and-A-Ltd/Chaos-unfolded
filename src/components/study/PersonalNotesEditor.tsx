@@ -52,6 +52,8 @@ const FONT_SIZES = [
   { name: 'Huge (24pt)', value: '6' },
 ];
 
+type DropdownType = 'font' | 'size' | 'heading' | 'textColor' | 'highlight' | 'align' | null;
+
 export default function PersonalNotesEditor({
   documentId,
   documentName,
@@ -60,7 +62,9 @@ export default function PersonalNotesEditor({
   isLarge = false,
 }: PersonalNotesEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const savedRangeRef = useRef<Range | null>(null);
 
   // Editor Stats & Status
   const [wordCount, setWordCount] = useState(0);
@@ -69,13 +73,8 @@ export default function PersonalNotesEditor({
   const [isEditorFullscreen, setIsEditorFullscreen] = useState(false);
   const [showCanvas, setShowCanvas] = useState(false);
 
-  // Compact Toolbar Dropdowns
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const [showTextColorPicker, setShowTextColorPicker] = useState(false);
-  const [showHeadingPicker, setShowHeadingPicker] = useState(false);
-  const [showFontPicker, setShowFontPicker] = useState(false);
-  const [showSizePicker, setShowSizePicker] = useState(false);
-  const [showAlignPicker, setShowAlignPicker] = useState(false);
+  // Unified Dropdown State (Only one dropdown open at a time)
+  const [activeDropdown, setActiveDropdown] = useState<DropdownType>(null);
 
   // Find & Replace State (Ctrl+H)
   const [showFindReplace, setShowFindReplace] = useState(false);
@@ -104,6 +103,26 @@ export default function PersonalNotesEditor({
     }
   }, [documentId]);
 
+  // 2. Dropdown Outside Click and Esc Key Listener
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
+        setActiveDropdown(null);
+      }
+    };
+    const handleEscKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveDropdown(null);
+      }
+    };
+    window.addEventListener('mousedown', handleOutsideClick);
+    window.addEventListener('keydown', handleEscKey);
+    return () => {
+      window.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('keydown', handleEscKey);
+    };
+  }, []);
+
   const updateStatsOnly = () => {
     if (!editorRef.current) return;
     const text = editorRef.current.innerText || '';
@@ -113,7 +132,25 @@ export default function PersonalNotesEditor({
     setWordCount(words);
   };
 
-  // 2. Save and notify parent
+  // 3. Selection Save & Restore (Crucial for preventing toolbar clicks from stealing selection range)
+  const saveSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.anchorNode)) {
+      savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+    }
+  };
+
+  const restoreSelection = () => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    const sel = window.getSelection();
+    if (sel && savedRangeRef.current) {
+      sel.removeAllRanges();
+      sel.addRange(savedRangeRef.current);
+    }
+  };
+
+  // 4. Save and notify parent
   const updateStatsAndSave = useCallback(() => {
     if (!editorRef.current) return;
     const html = editorRef.current.innerHTML;
@@ -133,69 +170,79 @@ export default function PersonalNotesEditor({
     onUpdateNotes(html);
   }, [documentId, onUpdateNotes]);
 
-  // 3. Formatting Command Executors
+  // 5. Formatting Command Executors (Guaranteed to execute on saved selection)
   const execCmd = (command: string, value: string | undefined = undefined) => {
-    editorRef.current?.focus();
+    restoreSelection();
     document.execCommand(command, false, value);
+    saveSelection();
     updateStatsAndSave();
   };
 
   const applyHighlight = (rgbaColor: string | null) => {
-    editorRef.current?.focus();
+    restoreSelection();
     if (!rgbaColor) {
       document.execCommand('removeFormat', false, undefined);
     } else {
       document.execCommand('hiliteColor', false, rgbaColor);
       document.execCommand('backColor', false, rgbaColor);
     }
-    setShowColorPicker(false);
+    setActiveDropdown(null);
+    saveSelection();
     updateStatsAndSave();
   };
 
   const applyTextColor = (hexColor: string) => {
-    editorRef.current?.focus();
+    restoreSelection();
     document.execCommand('foreColor', false, hexColor);
-    setShowTextColorPicker(false);
+    setActiveDropdown(null);
+    saveSelection();
     updateStatsAndSave();
   };
 
   const applyFontFamily = (fontName: string) => {
-    editorRef.current?.focus();
+    restoreSelection();
     document.execCommand('fontName', false, fontName);
-    setShowFontPicker(false);
+    setActiveDropdown(null);
+    saveSelection();
     updateStatsAndSave();
   };
 
   const applyFontSize = (sizeVal: string) => {
-    editorRef.current?.focus();
+    restoreSelection();
     document.execCommand('fontSize', false, sizeVal);
-    setShowSizePicker(false);
+    setActiveDropdown(null);
+    saveSelection();
     updateStatsAndSave();
   };
 
   const insertHeading = (tag: 'h1' | 'h2' | 'h3' | 'p') => {
-    editorRef.current?.focus();
+    restoreSelection();
     document.execCommand('formatBlock', false, `<${tag}>`);
-    setShowHeadingPicker(false);
+    setActiveDropdown(null);
+    saveSelection();
     updateStatsAndSave();
   };
 
   const insertChecklist = () => {
-    editorRef.current?.focus();
+    restoreSelection();
     const id = `chk_${Date.now()}`;
     const html = `<div class="dazai-checklist-item my-1.5 flex items-center gap-2.5" style="display: flex; align-items: center; gap: 10px;"><input type="checkbox" id="${id}" style="width: 16px; height: 16px; accent-color: #8b5cf6; cursor: pointer;" onchange="this.setAttribute('checked', this.checked ? 'true' : 'false');" /><span style="flex: 1; outline: none; border-bottom: 1px dashed rgba(124, 106, 117, 0.3);">New checklist task...</span></div><p><br/></p>`;
     document.execCommand('insertHTML', false, html);
+    saveSelection();
     updateStatsAndSave();
   };
 
   const insertLink = () => {
+    restoreSelection();
     const url = window.prompt('Enter link URL:', 'https://');
     if (url) {
-      execCmd('createLink', url);
+      document.execCommand('createLink', false, url);
+      saveSelection();
+      updateStatsAndSave();
     }
   };
 
-  // 4. Find & Replace Handlers (Ctrl+H)
+  // 6. Find & Replace Handlers (Ctrl+H)
   const handleFindNext = () => {
     if (findQuery) {
       window.find(findQuery, false, false, true);
@@ -217,27 +264,27 @@ export default function PersonalNotesEditor({
   const handleReplaceAll = () => {
     if (findQuery && editorRef.current) {
       let count = 0;
-      // Start from top of document
       const sel = window.getSelection();
       sel?.removeAllRanges();
       while (window.find(findQuery, false, false, true)) {
         document.execCommand('insertText', false, replaceQuery);
         count++;
-        if (count > 500) break; // prevent infinite loop
+        if (count > 500) break;
       }
       updateStatsAndSave();
     }
   };
 
-  // 5. Image Insertion (Draggable, repositionable, resize support, aspect ratio, alignment, captions)
+  // 7. Image Insertion
   const insertImageFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string;
       if (dataUrl) {
-        editorRef.current?.focus();
+        restoreSelection();
         const imgHtml = `<div class="dazai-img-wrapper my-3 p-2.5 bg-white/85 dark:bg-black/30 border-2 border-[#7c6a75]/30 rounded-2xl max-w-fit mx-auto shadow-md transition-all cursor-move" contenteditable="false" draggable="true" style="margin: 14px auto; padding: 12px; border: 2px solid rgba(124, 106, 117, 0.25); border-radius: 16px; background: rgba(255,255,255,0.9); display: block; float: none;"><img src="${dataUrl}" style="width: 350px; max-width: 100%; height: auto; border-radius: 10px; cursor: pointer; display: block; margin: 0 auto;" class="dazai-note-img block mx-auto" /><div contenteditable="true" class="text-center text-xs text-[#5d5770] dark:text-gray-300 mt-2 p-1 border-b border-dashed border-[#7c6a75]/30 focus:border-[#7c6a75] outline-none min-w-[180px] italic" style="text-align: center; font-size: 12px; margin-top: 8px; font-style: italic;">Caption: Add image description here...</div></div><p><br/></p>`;
         document.execCommand('insertHTML', false, imgHtml);
+        saveSelection();
         updateStatsAndSave();
       }
     };
@@ -272,8 +319,9 @@ export default function PersonalNotesEditor({
     }
   };
 
-  // 6. Click handler for image resizing/alignment and checklist strikethroughs
+  // 8. Click handler for image resizing/alignment and checklist strikethroughs
   const handleEditorClick = (e: React.MouseEvent) => {
+    saveSelection();
     const target = e.target as HTMLElement;
     if (target instanceof HTMLInputElement && target.type === 'checkbox') {
       if (target.checked) {
@@ -295,7 +343,7 @@ export default function PersonalNotesEditor({
   const resizeSelectedImage = (newWidth: string) => {
     if (selectedImg) {
       selectedImg.style.width = newWidth;
-      selectedImg.style.height = 'auto'; // keep aspect ratio
+      selectedImg.style.height = 'auto';
       updateStatsAndSave();
     }
   };
@@ -333,7 +381,7 @@ export default function PersonalNotesEditor({
     }
   };
 
-  // 7. Keyboard Shortcuts & List Fixes (Tab / Shift+Tab for nesting, Enter on empty item exits list)
+  // 9. Keyboard Shortcuts & List Fixes (Tab / Shift+Tab for nesting, Enter on empty item exits list)
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const isCtrl = e.ctrlKey || e.metaKey;
     if (isCtrl && e.key.toLowerCase() === 'b') {
@@ -359,7 +407,6 @@ export default function PersonalNotesEditor({
       e.preventDefault();
       setShowFindReplace(!showFindReplace);
     } else if (e.key === 'Tab') {
-      // Nested list support: Tab indents, Shift+Tab outdents inside li
       const sel = window.getSelection();
       let node = sel?.anchorNode;
       while (node && node !== editorRef.current) {
@@ -375,7 +422,6 @@ export default function PersonalNotesEditor({
         node = node.parentNode;
       }
     } else if (e.key === 'Enter') {
-      // Exit list on double Enter / empty item
       const sel = window.getSelection();
       let node = sel?.anchorNode;
       if (node && (node.nodeName.toLowerCase() === 'li' || node.parentElement?.nodeName.toLowerCase() === 'li')) {
@@ -388,6 +434,7 @@ export default function PersonalNotesEditor({
     }
   };
 
+  // CRITICAL: onMouseDown={e => e.preventDefault()} prevents button clicks from stealing selection focus!
   const ToolBtn = ({
     onClick,
     title,
@@ -401,7 +448,13 @@ export default function PersonalNotesEditor({
   }) => (
     <button
       type="button"
-      onClick={onClick}
+      onMouseDown={(e) => {
+        e.preventDefault(); // Prevents focus theft from contentEditable
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        onClick();
+      }}
       title={title}
       className={`px-2 py-1 rounded text-xs font-bold transition-all border ${
         active
@@ -413,6 +466,10 @@ export default function PersonalNotesEditor({
     </button>
   );
 
+  const toggleDropdown = (type: DropdownType) => {
+    setActiveDropdown(prev => (prev === type ? null : type));
+  };
+
   const renderEditorUI = (fullscreen: boolean) => {
     const editorSize = fullscreen || isLarge ? 'text-sm md:text-base leading-relaxed p-6' : 'text-xs leading-relaxed p-4';
 
@@ -420,7 +477,7 @@ export default function PersonalNotesEditor({
       <div className="flex flex-col h-full bg-white/50 dark:bg-[#1a1823]/60 border-2 border-[#7c6a75]/20 rounded-xl overflow-hidden shadow-sm relative">
         
         {/* --- EDITING TOOLBAR --- */}
-        <div className="bg-[#7c6a75]/10 dark:bg-black/30 border-b border-[#7c6a75]/20 p-1.5 flex flex-wrap items-center gap-1">
+        <div ref={toolbarRef} className="bg-[#7c6a75]/10 dark:bg-black/30 border-b border-[#7c6a75]/20 p-1.5 flex flex-wrap items-center gap-1 select-none">
           
           {/* Undo / Redo */}
           <div className="flex items-center gap-0.5 border-r border-[#7c6a75]/20 pr-1">
@@ -430,26 +487,39 @@ export default function PersonalNotesEditor({
 
           {/* Font Family & Size */}
           <div className="relative border-r border-[#7c6a75]/20 pr-1 flex items-center gap-0.5">
-            <ToolBtn onClick={() => setShowFontPicker(!showFontPicker)} title="Font Family">
+            <ToolBtn onClick={() => toggleDropdown('font')} title="Font Family" active={activeDropdown === 'font'}>
               <span>Font ▾</span>
             </ToolBtn>
-            {showFontPicker && (
+            {activeDropdown === 'font' && (
               <div className="absolute left-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/30 rounded-xl shadow-2xl p-1 z-[60] flex flex-col min-w-[140px] text-xs">
                 {FONT_FAMILIES.map((f) => (
-                  <button key={f.name} onClick={() => applyFontFamily(f.value)} className="text-left px-2.5 py-1.5 hover:bg-[#7c6a75]/10 rounded font-medium truncate" style={{ fontFamily: f.value }}>
+                  <button
+                    key={f.name}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => applyFontFamily(f.value)}
+                    className="text-left px-2.5 py-1.5 hover:bg-[#7c6a75]/10 rounded font-medium truncate"
+                    style={{ fontFamily: f.value }}
+                  >
                     {f.name}
                   </button>
                 ))}
               </div>
             )}
 
-            <ToolBtn onClick={() => setShowSizePicker(!showSizePicker)} title="Font Size">
+            <ToolBtn onClick={() => toggleDropdown('size')} title="Font Size" active={activeDropdown === 'size'}>
               <span>Size ▾</span>
             </ToolBtn>
-            {showSizePicker && (
+            {activeDropdown === 'size' && (
               <div className="absolute left-10 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/30 rounded-xl shadow-2xl p-1 z-[60] flex flex-col min-w-[120px] text-xs">
                 {FONT_SIZES.map((s) => (
-                  <button key={s.name} onClick={() => applyFontSize(s.value)} className="text-left px-2.5 py-1.5 hover:bg-[#7c6a75]/10 rounded font-bold">
+                  <button
+                    key={s.name}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => applyFontSize(s.value)}
+                    className="text-left px-2.5 py-1.5 hover:bg-[#7c6a75]/10 rounded font-bold"
+                  >
                     {s.name}
                   </button>
                 ))}
@@ -466,43 +536,65 @@ export default function PersonalNotesEditor({
 
           {/* Headings Picker */}
           <div className="relative border-r border-[#7c6a75]/20 pr-1">
-            <ToolBtn onClick={() => setShowHeadingPicker(!showHeadingPicker)} title="Headings & Typography">
+            <ToolBtn onClick={() => toggleDropdown('heading')} title="Headings & Typography" active={activeDropdown === 'heading'}>
               <span>H▾</span>
             </ToolBtn>
-            {showHeadingPicker && (
+            {activeDropdown === 'heading' && (
               <div className="absolute left-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/30 rounded-lg shadow-xl p-1 z-[60] flex flex-col min-w-[110px]">
-                <button onClick={() => insertHeading('h1')} className="text-left font-black text-sm px-2 py-1 hover:bg-[#7c6a75]/10 rounded">H1 Title</button>
-                <button onClick={() => insertHeading('h2')} className="text-left font-bold text-xs px-2 py-1 hover:bg-[#7c6a75]/10 rounded">H2 Section</button>
-                <button onClick={() => insertHeading('h3')} className="text-left font-semibold text-[11px] px-2 py-1 hover:bg-[#7c6a75]/10 rounded">H3 Subtitle</button>
-                <button onClick={() => insertHeading('p')} className="text-left text-xs px-2 py-1 hover:bg-[#7c6a75]/10 rounded">Paragraph</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertHeading('h1')} className="text-left font-black text-sm px-2 py-1 hover:bg-[#7c6a75]/10 rounded">H1 Title</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertHeading('h2')} className="text-left font-bold text-xs px-2 py-1 hover:bg-[#7c6a75]/10 rounded">H2 Section</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertHeading('h3')} className="text-left font-semibold text-[11px] px-2 py-1 hover:bg-[#7c6a75]/10 rounded">H3 Subtitle</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertHeading('p')} className="text-left text-xs px-2 py-1 hover:bg-[#7c6a75]/10 rounded">Paragraph</button>
               </div>
             )}
           </div>
 
           {/* Text Color & Highlight Palette (35-45% Opacity) */}
           <div className="relative border-r border-[#7c6a75]/20 pr-1 flex items-center gap-0.5">
-            <ToolBtn onClick={() => setShowTextColorPicker(!showTextColorPicker)} title="Text Color">
+            <ToolBtn onClick={() => toggleDropdown('textColor')} title="Text Color" active={activeDropdown === 'textColor'}>
               <span>A▾</span>
             </ToolBtn>
-            {showTextColorPicker && (
+            {activeDropdown === 'textColor' && (
               <div className="absolute left-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/30 rounded-lg shadow-xl p-1.5 z-[60] grid grid-cols-4 gap-1 w-[130px]">
                 {TEXT_COLORS.map((col) => (
-                  <button key={col.name} onClick={() => applyTextColor(col.color)} title={`Text: ${col.name}`} className="w-6 h-6 rounded-md border border-gray-300 flex items-center justify-center text-xs shadow-sm hover:scale-110" style={{ backgroundColor: col.color }} />
+                  <button
+                    key={col.name}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => applyTextColor(col.color)}
+                    title={`Text: ${col.name}`}
+                    className="w-6 h-6 rounded-md border border-gray-300 flex items-center justify-center text-xs shadow-sm hover:scale-110"
+                    style={{ backgroundColor: col.color }}
+                  />
                 ))}
               </div>
             )}
 
-            <ToolBtn onClick={() => setShowColorPicker(!showColorPicker)} title="Highlight text color (35-45% opacity)">
+            <ToolBtn onClick={() => toggleDropdown('highlight')} title="Highlight text color (35-45% opacity)" active={activeDropdown === 'highlight'}>
               <span>🖍️▾</span>
             </ToolBtn>
-            {showColorPicker && (
+            {activeDropdown === 'highlight' && (
               <div className="absolute left-6 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/30 rounded-lg shadow-xl p-1.5 z-[60] grid grid-cols-3 gap-1 w-[120px]">
                 {HIGHLIGHT_COLORS.map((col) => (
-                  <button key={col.name} onClick={() => applyHighlight(col.color)} title={`Highlight ${col.name}`} className="w-8 h-8 rounded-md flex items-center justify-center text-sm shadow-sm hover:scale-110 transition-transform" style={{ backgroundColor: col.color }}>
+                  <button
+                    key={col.name}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => applyHighlight(col.color)}
+                    title={`Highlight ${col.name}`}
+                    className="w-8 h-8 rounded-md flex items-center justify-center text-sm shadow-sm hover:scale-110 transition-transform"
+                    style={{ backgroundColor: col.color }}
+                  >
                     {col.label}
                   </button>
                 ))}
-                <button onClick={() => applyHighlight(null)} title="Remove Highlight" className="col-span-3 text-[10px] bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 py-1 rounded font-bold text-center mt-1">
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyHighlight(null)}
+                  title="Remove Highlight"
+                  className="col-span-3 text-[10px] bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 py-1 rounded font-bold text-center mt-1"
+                >
                   ✕ Clear Color
                 </button>
               </div>
@@ -511,20 +603,20 @@ export default function PersonalNotesEditor({
 
           {/* Text Alignment (Left, Center, Right, Justify) */}
           <div className="relative border-r border-[#7c6a75]/20 pr-1">
-            <ToolBtn onClick={() => setShowAlignPicker(!showAlignPicker)} title="Text Alignment">
+            <ToolBtn onClick={() => toggleDropdown('align')} title="Text Alignment" active={activeDropdown === 'align'}>
               <span>Align ▾</span>
             </ToolBtn>
-            {showAlignPicker && (
+            {activeDropdown === 'align' && (
               <div className="absolute left-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/30 rounded-xl shadow-xl p-1 z-[60] flex flex-col min-w-[110px] text-xs">
-                <button onClick={() => { execCmd('justifyLeft'); setShowAlignPicker(false); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">⬅️ Left</button>
-                <button onClick={() => { execCmd('justifyCenter'); setShowAlignPicker(false); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">↔️ Center</button>
-                <button onClick={() => { execCmd('justifyRight'); setShowAlignPicker(false); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">➡️ Right</button>
-                <button onClick={() => { execCmd('justifyFull'); setShowAlignPicker(false); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">≣ Justify</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { execCmd('justifyLeft'); setActiveDropdown(null); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">⬅️ Left</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { execCmd('justifyCenter'); setActiveDropdown(null); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">↔️ Center</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { execCmd('justifyRight'); setActiveDropdown(null); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">➡️ Right</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { execCmd('justifyFull'); setActiveDropdown(null); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">≣ Justify</button>
               </div>
             )}
           </div>
 
-          {/* Lists & Checklists (Standard behavior with nested tab support) */}
+          {/* Lists & Checklists */}
           <div className="flex items-center gap-0.5 border-r border-[#7c6a75]/20 pr-1">
             <ToolBtn onClick={() => execCmd('insertUnorderedList')} title="Bullet List">• List</ToolBtn>
             <ToolBtn onClick={() => execCmd('insertOrderedList')} title="Numbered List">1. List</ToolBtn>
@@ -551,6 +643,8 @@ export default function PersonalNotesEditor({
 
             {/* OPEN STUDY CANVAS BUTTON */}
             <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => setShowCanvas(true)}
               className="bg-gradient-to-r from-purple-500 to-teal-400 hover:from-purple-600 hover:to-teal-500 text-white font-black px-2.5 py-1 rounded-md shadow-sm text-xs transition-transform hover:scale-105 flex items-center gap-1 ml-1"
               title="Open Digital Study Whiteboard Canvas"
@@ -562,6 +656,8 @@ export default function PersonalNotesEditor({
           {/* Maximize / Minimize Fullscreen Button */}
           <div className="ml-auto">
             <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => setIsEditorFullscreen(!isEditorFullscreen)}
               title={isEditorFullscreen ? 'Exit Editor Fullscreen' : 'Maximize Editor Workspace'}
               className="bg-[#7c6a75] hover:bg-[#6b5b65] text-white p-1 px-2 rounded-md shadow-sm text-xs font-bold transition-transform hover:scale-105 flex items-center gap-1"
@@ -594,10 +690,10 @@ export default function PersonalNotesEditor({
               />
             </div>
             <div className="flex items-center gap-1">
-              <button onClick={handleFindNext} className="bg-white dark:bg-black/40 hover:bg-purple-200 px-2 py-0.5 rounded border border-purple-300">Find Next</button>
-              <button onClick={handleReplace} className="bg-white dark:bg-black/40 hover:bg-purple-200 px-2 py-0.5 rounded border border-purple-300">Replace</button>
-              <button onClick={handleReplaceAll} className="bg-purple-600 text-white hover:bg-purple-700 px-2.5 py-0.5 rounded shadow-sm">Replace All</button>
-              <button onClick={() => setShowFindReplace(false)} className="text-gray-500 hover:text-gray-800 font-bold px-1.5 ml-1">✕</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={handleFindNext} className="bg-white dark:bg-black/40 hover:bg-purple-200 px-2 py-0.5 rounded border border-purple-300">Find Next</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={handleReplace} className="bg-white dark:bg-black/40 hover:bg-purple-200 px-2 py-0.5 rounded border border-purple-300">Replace</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={handleReplaceAll} className="bg-purple-600 text-white hover:bg-purple-700 px-2.5 py-0.5 rounded shadow-sm">Replace All</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setShowFindReplace(false)} className="text-gray-500 hover:text-gray-800 font-bold px-1.5 ml-1">✕</button>
             </div>
           </div>
         )}
@@ -607,29 +703,31 @@ export default function PersonalNotesEditor({
           <div className="bg-amber-100 dark:bg-amber-950/80 border-b-2 border-amber-400 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-amber-900 dark:text-amber-200 animate-fadeIn z-20">
             <div className="flex items-center gap-2 flex-wrap">
               <span>🖼️ Align:</span>
-              <button onClick={() => alignSelectedImage('left')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">⬅️ Left</button>
-              <button onClick={() => alignSelectedImage('center')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">↔️ Center</button>
-              <button onClick={() => alignSelectedImage('right')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">➡️ Right</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => alignSelectedImage('left')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">⬅️ Left</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => alignSelectedImage('center')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">↔️ Center</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => alignSelectedImage('right')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">➡️ Right</button>
               <span className="ml-2">Size:</span>
-              <button onClick={() => resizeSelectedImage('200px')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">Small</button>
-              <button onClick={() => resizeSelectedImage('400px')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">Medium</button>
-              <button onClick={() => resizeSelectedImage('650px')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">Large</button>
-              <button onClick={() => resizeSelectedImage('100%')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">Full</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => resizeSelectedImage('200px')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">Small</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => resizeSelectedImage('400px')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">Medium</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => resizeSelectedImage('650px')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">Large</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => resizeSelectedImage('100%')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">Full</button>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={deleteSelectedImage} className="bg-red-500 hover:bg-red-600 text-white px-2.5 py-0.5 rounded shadow-sm">🗑️ Delete Image</button>
-              <button onClick={() => setSelectedImg(null)} className="text-gray-500 hover:text-gray-800 font-bold px-1">✕</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={deleteSelectedImage} className="bg-red-500 hover:bg-red-600 text-white px-2.5 py-0.5 rounded shadow-sm">🗑️ Delete Image</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setSelectedImg(null)} className="text-gray-500 hover:text-gray-800 font-bold px-1">✕</button>
             </div>
           </div>
         )}
 
-        {/* --- EDITABLE AREA --- */}
+        {/* --- EDITABLE AREA (Continually saves range selection on any mouse or keyboard interaction) --- */}
         <div
           ref={editorRef}
           contentEditable
           suppressContentEditableWarning
-          onInput={updateStatsAndSave}
-          onKeyUp={updateStatsAndSave}
+          onInput={() => { saveSelection(); updateStatsAndSave(); }}
+          onKeyUp={() => { saveSelection(); updateStatsAndSave(); }}
+          onMouseUp={saveSelection}
+          onBlur={saveSelection}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           onDrop={handleDrop}
@@ -697,6 +795,8 @@ export default function PersonalNotesEditor({
                 </div>
                 
                 <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => setIsEditorFullscreen(false)}
                   className="bg-white/20 hover:bg-white/30 text-white font-black px-4 py-1.5 rounded-xl transition-all flex items-center gap-2 border border-white/20 shadow-sm"
                 >
