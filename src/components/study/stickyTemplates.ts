@@ -15,6 +15,12 @@ export interface StickyTemplate {
     width: number;  // % of visible cropped width for safe writing
     height: number; // % of visible cropped height for safe writing
   };
+  writingRegions?: {
+    x: number;      // % offset relative to visible cropped width
+    y: number;      // % offset relative to visible cropped top
+    width: number;  // % of visible cropped width
+    height: number; // % of visible cropped height
+  }[];
   padding: string;       // Custom CSS padding inside text zone, e.g. "4% 5%"
   defaultFontSize: number;
   lineHeight: number;    // Line spacing per template, e.g. 1.5
