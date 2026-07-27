@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { StudyDocument } from '@/types';
 import Button from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'motion/react';
+import PersonalNotesEditor from './PersonalNotesEditor';
 
 interface NotesPanelProps {
   document: StudyDocument;
@@ -606,21 +607,16 @@ export default function NotesPanel({ document, onUpdatePersonalNotes, onTriggerQ
 
         {/* --- 📝 PERSONAL NOTES TAB --- */}
         {activeTab === 'personal' && (
-          <div className="flex flex-col h-full gap-3">
-            <textarea
-              className={`flex-1 w-full bg-white/60 dark:bg-black/30 border-2 border-[#7c6a75]/20 rounded-xl p-4 ${textSize} text-[#5d5770] dark:text-gray-200 focus:outline-none focus:border-[#7c6a75]/60 resize-none custom-scrollbar leading-relaxed`}
-              placeholder="Jot down your own thoughts, formulas, summaries, and exam checklists here..."
-              value={personalNotes}
-              onChange={(e) => {
-                setPersonalNotes(e.target.value);
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem(`dazai_notes_${document.id}`, e.target.value);
-                }
+          <div className="flex flex-col h-full w-full min-h-[300px]">
+            <PersonalNotesEditor
+              documentId={document.id}
+              documentName={document.name}
+              onUpdateNotes={(html) => {
+                setPersonalNotes(html);
+                onUpdatePersonalNotes(html);
               }}
+              isLarge={isLarge}
             />
-            <Button variant="primary" onClick={handleSaveNotes} className="w-full text-xs md:text-sm py-2.5 font-bold shadow-md">
-              Save Personal Notes
-            </Button>
           </div>
         )}
       </div>
