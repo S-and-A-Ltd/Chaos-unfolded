@@ -601,3 +601,50 @@ h1, h2, h3, h4, .font-heading {
   animation: none;
 }
 
+/* ============================================================
+   TipTap Rich Text Editor Custom Styling
+   ============================================================ */
+.ProseMirror {
+  outline: none !important;
+}
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.5rem 0;
+}
+.ProseMirror li[data-type="taskItem"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+.ProseMirror li[data-type="taskItem"] > label {
+  margin-top: 0.2rem;
+  user-select: none;
+}
+.ProseMirror li[data-type="taskItem"] > label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #8b5cf6;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.ProseMirror li[data-type="taskItem"][data-checked="true"] > div {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+.ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  margin: 1rem auto;
+  cursor: pointer;
+  border: 2px solid rgba(124, 106, 117, 0.2);
+  transition: all 0.2s;
+}
+.ProseMirror img:hover {
+  border-color: #8b5cf6;
+  transform: scale(1.01);
+}
+

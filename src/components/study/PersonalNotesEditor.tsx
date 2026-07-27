@@ -6,6 +6,21 @@ import { motion, AnimatePresence } from 'motion/react';
 import { StudyDocument } from '@/types';
 import StudyCanvas from './StudyCanvas';
 
+// TipTap Imports
+import { useEditor, EditorContent } from '@tiptap/react';
+import { StarterKit } from '@tiptap/starter-kit';
+import { Underline } from '@tiptap/extension-underline';
+import { TextStyle } from '@tiptap/extension-text-style';
+import { Color } from '@tiptap/extension-color';
+import { Highlight } from '@tiptap/extension-highlight';
+import { TextAlign } from '@tiptap/extension-text-align';
+import { TaskList } from '@tiptap/extension-task-list';
+import { TaskItem } from '@tiptap/extension-task-item';
+import { Link } from '@tiptap/extension-link';
+import { Image } from '@tiptap/extension-image';
+import { FontFamily } from '@tiptap/extension-font-family';
+import { Extension } from '@tiptap/core';
+
 interface PersonalNotesEditorProps {
   documentId: string;
   documentName: string;
@@ -13,6 +28,47 @@ interface PersonalNotesEditorProps {
   onUpdateNotes: (notesHtml: string) => void;
   isLarge?: boolean;
 }
+
+// Custom TipTap Extension for Font Size
+const FontSize = Extension.create({
+  name: 'fontSize',
+  addOptions() {
+    return {
+      types: ['textStyle'],
+    };
+  },
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: element => element.style.fontSize?.replace(/['"]+/g, ''),
+            renderHTML: attributes => {
+              if (!attributes.fontSize) {
+                return {};
+              }
+              return {
+                style: `font-size: ${attributes.fontSize}`,
+              };
+            },
+          },
+        },
+      },
+    ];
+  },
+  addCommands() {
+    return {
+      setFontSize: (fontSize: string) => ({ chain }: any) => {
+        return chain().setMark('textStyle', { fontSize }).run();
+      },
+      unsetFontSize: () => ({ chain }: any) => {
+        return chain().setMark('textStyle', { fontSize: null }).removeEmptyTextStyle().run();
+      },
+    } as any;
+  },
+});
 
 // 35-45% opacity rgba highlights for readability similar to MS Word/OneNote
 const HIGHLIGHT_COLORS = [
@@ -45,11 +101,11 @@ const FONT_FAMILIES = [
 ];
 
 const FONT_SIZES = [
-  { name: 'Small (10pt)', value: '1' },
-  { name: 'Normal (12pt)', value: '3' },
-  { name: 'Medium (14pt)', value: '4' },
-  { name: 'Large (18pt)', value: '5' },
-  { name: 'Huge (24pt)', value: '6' },
+  { name: 'Small (10pt)', value: '13px' },
+  { name: 'Normal (12pt)', value: '16px' },
+  { name: 'Medium (14pt)', value: '18px' },
+  { name: 'Large (18pt)', value: '24px' },
+  { name: 'Huge (24pt)', value: '32px' },
 ];
 
 type DropdownType = 'font' | 'size' | 'heading' | 'textColor' | 'highlight' | 'align' | null;
@@ -61,10 +117,8 @@ export default function PersonalNotesEditor({
   onUpdateNotes,
   isLarge = false,
 }: PersonalNotesEditorProps) {
-  const editorRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const savedRangeRef = useRef<Range | null>(null);
 
   // Editor Stats & Status
   const [wordCount, setWordCount] = useState(0);
@@ -84,26 +138,109 @@ export default function PersonalNotesEditor({
   // Image resize & reposition selection state
   const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
 
-  // 1. Load initial content from storage on mount
+  // 1. Initialize TipTap Editor (0% execCommand, 100% proper commands)
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        bulletList: { keepMarks: true },
+        orderedList: { keepMarks: true },
+      }),
+      Underline,
+      TextStyle,
+      FontSize,
+      FontFamily,
+      Color,
+      Highlight.configure({ multicolor: true }),
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+      }),
+      TaskList,
+      TaskItem.configure({
+        nested: true,
+      }),
+      Link.configure({
+        openOnClick: true,
+        autolink: true,
+      }),
+      Image.configure({
+        inline: false,
+        allowBase64: true,
+      }),
+    ],
+    content: '',
+    onUpdate: ({ editor }) => {
+      const html = editor.getHTML();
+      const text = editor.getText();
+      const chars = text.replace(/\s/g, '').length;
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      setCharCount(chars);
+      setWordCount(words);
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`dazai_notes_${documentId}`, html);
+        const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        localStorage.setItem(`dazai_notes_timestamp_${documentId}`, now);
+        setLastEdited(now);
+      }
+      onUpdateNotes(html);
+    },
+    editorProps: {
+      attributes: {
+        class: 'prose dark:prose-invert max-w-none focus:outline-none min-h-[220px] w-full p-4 font-sans leading-relaxed text-[#5d5770] dark:text-gray-200',
+      },
+      handlePaste: (view, event) => {
+        const items = event.clipboardData?.items;
+        if (items) {
+          for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+              event.preventDefault();
+              const file = items[i].getAsFile();
+              if (file) insertImageFile(file);
+              return true;
+            }
+          }
+        }
+        return false;
+      },
+      handleDrop: (view, event, slice, moved) => {
+        if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+          const file = event.dataTransfer.files[0];
+          if (file.type.startsWith('image/')) {
+            event.preventDefault();
+            insertImageFile(file);
+            return true;
+          }
+        }
+        return false;
+      },
+    },
+  });
+
+  // 2. Load initial content from storage on mount or documentId change
   useEffect(() => {
-    if (typeof window !== 'undefined' && editorRef.current) {
-      const savedHtml = localStorage.getItem(`dazai_notes_${documentId}`) || '';
+    if (typeof window !== 'undefined' && editor && !editor.isDestroyed) {
+      const savedHtml = localStorage.getItem(`dazai_notes_${documentId}`);
       const savedTime = localStorage.getItem(`dazai_notes_timestamp_${documentId}`) || 'Not saved yet';
       
       if (savedHtml && !savedHtml.includes('<') && !savedHtml.includes('>')) {
-        editorRef.current.innerHTML = `<p>${savedHtml.replace(/\n/g, '<br/>')}</p>`;
+        editor.commands.setContent(`<p>${savedHtml.replace(/\n/g, '<br/>')}</p>`);
       } else if (savedHtml) {
-        editorRef.current.innerHTML = savedHtml;
+        editor.commands.setContent(savedHtml);
       } else {
-        editorRef.current.innerHTML = `<p class="text-gray-400">Start typing your personal study notes, formulas, or drag & drop screenshots here...</p>`;
+        editor.commands.setContent(`<p class="text-gray-400">Start typing your personal study notes, formulas, or drag & drop screenshots here...</p>`);
       }
 
       setLastEdited(savedTime);
-      updateStatsOnly();
+      
+      const text = editor.getText();
+      const chars = text.replace(/\s/g, '').length;
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      setCharCount(chars);
+      setWordCount(words);
     }
-  }, [documentId]);
+  }, [documentId, editor]);
 
-  // 2. Dropdown Outside Click and Esc Key Listener
+  // 3. Dropdown Outside Click and Esc Key Listener
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
@@ -123,44 +260,10 @@ export default function PersonalNotesEditor({
     };
   }, []);
 
-  const updateStatsOnly = () => {
-    if (!editorRef.current) return;
-    const text = editorRef.current.innerText || '';
-    const chars = text.replace(/\s/g, '').length;
-    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-    setCharCount(chars);
-    setWordCount(words);
-  };
-
-  // 3. Selection Save & Restore (Crucial for preventing toolbar clicks from stealing selection range)
-  const saveSelection = () => {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.anchorNode)) {
-      savedRangeRef.current = sel.getRangeAt(0).cloneRange();
-    }
-  };
-
-  const restoreSelection = () => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    const sel = window.getSelection();
-    if (sel && savedRangeRef.current) {
-      sel.removeAllRanges();
-      sel.addRange(savedRangeRef.current);
-    }
-  };
-
-  // 4. Save and notify parent
-  const updateStatsAndSave = useCallback(() => {
-    if (!editorRef.current) return;
-    const html = editorRef.current.innerHTML;
-    const text = editorRef.current.innerText || '';
-
-    const chars = text.replace(/\s/g, '').length;
-    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-    setCharCount(chars);
-    setWordCount(words);
-
+  // 4. Save and notify parent helper
+  const saveCurrentState = useCallback(() => {
+    if (!editor) return;
+    const html = editor.getHTML();
     if (typeof window !== 'undefined') {
       localStorage.setItem(`dazai_notes_${documentId}`, html);
       const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -168,81 +271,67 @@ export default function PersonalNotesEditor({
       setLastEdited(now);
     }
     onUpdateNotes(html);
-  }, [documentId, onUpdateNotes]);
+  }, [documentId, editor, onUpdateNotes]);
 
-  // 5. Formatting Command Executors (Guaranteed to execute on saved selection)
-  const execCmd = (command: string, value: string | undefined = undefined) => {
-    restoreSelection();
-    document.execCommand(command, false, value);
-    saveSelection();
-    updateStatsAndSave();
+  // 5. Image Insertion (via TipTap API)
+  const insertImageFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl && editor) {
+        editor.chain().focus().setImage({ src: dataUrl }).run();
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
-  const applyHighlight = (rgbaColor: string | null) => {
-    restoreSelection();
-    if (!rgbaColor) {
-      document.execCommand('removeFormat', false, undefined);
+  // 6. Click handler for image resizing/alignment selection
+  const handleEditorClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target instanceof HTMLImageElement) {
+      setSelectedImg(target);
     } else {
-      document.execCommand('hiliteColor', false, rgbaColor);
-      document.execCommand('backColor', false, rgbaColor);
-    }
-    setActiveDropdown(null);
-    saveSelection();
-    updateStatsAndSave();
-  };
-
-  const applyTextColor = (hexColor: string) => {
-    restoreSelection();
-    document.execCommand('foreColor', false, hexColor);
-    setActiveDropdown(null);
-    saveSelection();
-    updateStatsAndSave();
-  };
-
-  const applyFontFamily = (fontName: string) => {
-    restoreSelection();
-    document.execCommand('fontName', false, fontName);
-    setActiveDropdown(null);
-    saveSelection();
-    updateStatsAndSave();
-  };
-
-  const applyFontSize = (sizeVal: string) => {
-    restoreSelection();
-    document.execCommand('fontSize', false, sizeVal);
-    setActiveDropdown(null);
-    saveSelection();
-    updateStatsAndSave();
-  };
-
-  const insertHeading = (tag: 'h1' | 'h2' | 'h3' | 'p') => {
-    restoreSelection();
-    document.execCommand('formatBlock', false, `<${tag}>`);
-    setActiveDropdown(null);
-    saveSelection();
-    updateStatsAndSave();
-  };
-
-  const insertChecklist = () => {
-    restoreSelection();
-    const id = `chk_${Date.now()}`;
-    const html = `<div class="dazai-checklist-item my-1.5 flex items-center gap-2.5" style="display: flex; align-items: center; gap: 10px;"><input type="checkbox" id="${id}" style="width: 16px; height: 16px; accent-color: #8b5cf6; cursor: pointer;" onchange="this.setAttribute('checked', this.checked ? 'true' : 'false');" /><span style="flex: 1; outline: none; border-bottom: 1px dashed rgba(124, 106, 117, 0.3);">New checklist task...</span></div><p><br/></p>`;
-    document.execCommand('insertHTML', false, html);
-    saveSelection();
-    updateStatsAndSave();
-  };
-
-  const insertLink = () => {
-    restoreSelection();
-    const url = window.prompt('Enter link URL:', 'https://');
-    if (url) {
-      document.execCommand('createLink', false, url);
-      saveSelection();
-      updateStatsAndSave();
+      if (selectedImg) setSelectedImg(null);
     }
   };
 
-  // 6. Find & Replace Handlers (Ctrl+H)
+  const resizeSelectedImage = (newWidth: string) => {
+    if (selectedImg) {
+      selectedImg.style.width = newWidth;
+      selectedImg.style.height = 'auto';
+      selectedImg.style.borderRadius = '10px';
+      saveCurrentState();
+    }
+  };
+
+  const alignSelectedImage = (alignment: 'left' | 'center' | 'right') => {
+    if (selectedImg) {
+      if (alignment === 'center') {
+        selectedImg.style.margin = '14px auto';
+        selectedImg.style.float = 'none';
+        selectedImg.style.display = 'block';
+      } else if (alignment === 'left') {
+        selectedImg.style.margin = '0 16px 14px 0';
+        selectedImg.style.float = 'left';
+        selectedImg.style.display = 'inline-block';
+      } else if (alignment === 'right') {
+        selectedImg.style.margin = '0 0 14px 16px';
+        selectedImg.style.float = 'right';
+        selectedImg.style.display = 'inline-block';
+      }
+      saveCurrentState();
+    }
+  };
+
+  const deleteSelectedImage = () => {
+    if (selectedImg) {
+      selectedImg.remove();
+      setSelectedImg(null);
+      saveCurrentState();
+    }
+  };
+
+  // 7. Find & Replace Handlers (Ctrl+H)
   const handleFindNext = () => {
     if (findQuery) {
       window.find(findQuery, false, false, true);
@@ -250,191 +339,28 @@ export default function PersonalNotesEditor({
   };
 
   const handleReplace = () => {
-    if (findQuery && window.getSelection()?.toString().toLowerCase() === findQuery.toLowerCase()) {
-      document.execCommand('insertText', false, replaceQuery);
-      updateStatsAndSave();
+    if (findQuery && window.getSelection()?.toString().toLowerCase() === findQuery.toLowerCase() && editor) {
+      editor.commands.insertContent(replaceQuery);
     } else if (findQuery) {
-      if (window.find(findQuery, false, false, true)) {
-        document.execCommand('insertText', false, replaceQuery);
-        updateStatsAndSave();
+      if (window.find(findQuery, false, false, true) && editor) {
+        editor.commands.insertContent(replaceQuery);
       }
     }
   };
 
   const handleReplaceAll = () => {
-    if (findQuery && editorRef.current) {
+    if (findQuery && editor) {
       let count = 0;
       const sel = window.getSelection();
       sel?.removeAllRanges();
       while (window.find(findQuery, false, false, true)) {
-        document.execCommand('insertText', false, replaceQuery);
+        editor.commands.insertContent(replaceQuery);
         count++;
         if (count > 500) break;
       }
-      updateStatsAndSave();
     }
   };
 
-  // 7. Image Insertion
-  const insertImageFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
-        restoreSelection();
-        const imgHtml = `<div class="dazai-img-wrapper my-3 p-2.5 bg-white/85 dark:bg-black/30 border-2 border-[#7c6a75]/30 rounded-2xl max-w-fit mx-auto shadow-md transition-all cursor-move" contenteditable="false" draggable="true" style="margin: 14px auto; padding: 12px; border: 2px solid rgba(124, 106, 117, 0.25); border-radius: 16px; background: rgba(255,255,255,0.9); display: block; float: none;"><img src="${dataUrl}" style="width: 350px; max-width: 100%; height: auto; border-radius: 10px; cursor: pointer; display: block; margin: 0 auto;" class="dazai-note-img block mx-auto" /><div contenteditable="true" class="text-center text-xs text-[#5d5770] dark:text-gray-300 mt-2 p-1 border-b border-dashed border-[#7c6a75]/30 focus:border-[#7c6a75] outline-none min-w-[180px] italic" style="text-align: center; font-size: 12px; margin-top: 8px; font-style: italic;">Caption: Add image description here...</div></div><p><br/></p>`;
-        document.execCommand('insertHTML', false, imgHtml);
-        saveSelection();
-        updateStatsAndSave();
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
-    const items = e.clipboardData?.items;
-    if (items) {
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') !== -1) {
-          e.preventDefault();
-          const file = items[i].getAsFile();
-          if (file) insertImageFile(file);
-          return;
-        }
-      }
-    }
-    setTimeout(updateStatsAndSave, 50);
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    const files = e.dataTransfer?.files;
-    if (files && files.length > 0) {
-      for (let i = 0; i < files.length; i++) {
-        if (files[i].type.startsWith('image/')) {
-          e.preventDefault();
-          insertImageFile(files[i]);
-          return;
-        }
-      }
-    }
-  };
-
-  // 8. Click handler for image resizing/alignment and checklist strikethroughs
-  const handleEditorClick = (e: React.MouseEvent) => {
-    saveSelection();
-    const target = e.target as HTMLElement;
-    if (target instanceof HTMLInputElement && target.type === 'checkbox') {
-      if (target.checked) {
-        target.setAttribute('checked', 'true');
-        target.nextElementSibling?.classList.add('line-through', 'opacity-50');
-      } else {
-        target.removeAttribute('checked');
-        target.nextElementSibling?.classList.remove('line-through', 'opacity-50');
-      }
-      updateStatsAndSave();
-    } else if (target instanceof HTMLImageElement) {
-      setSelectedImg(target);
-    } else {
-      if (selectedImg) setSelectedImg(null);
-    }
-  };
-
-  // Image Resizing & Repositioning / Alignment
-  const resizeSelectedImage = (newWidth: string) => {
-    if (selectedImg) {
-      selectedImg.style.width = newWidth;
-      selectedImg.style.height = 'auto';
-      updateStatsAndSave();
-    }
-  };
-
-  const alignSelectedImage = (alignment: 'left' | 'center' | 'right') => {
-    if (selectedImg) {
-      const wrapper = (selectedImg.closest('.dazai-img-wrapper') as HTMLElement) || selectedImg;
-      if (alignment === 'center') {
-        wrapper.style.margin = '14px auto';
-        wrapper.style.float = 'none';
-        wrapper.style.display = 'block';
-      } else if (alignment === 'left') {
-        wrapper.style.margin = '0 16px 14px 0';
-        wrapper.style.float = 'left';
-        wrapper.style.display = 'inline-block';
-      } else if (alignment === 'right') {
-        wrapper.style.margin = '0 0 14px 16px';
-        wrapper.style.float = 'right';
-        wrapper.style.display = 'inline-block';
-      }
-      updateStatsAndSave();
-    }
-  };
-
-  const deleteSelectedImage = () => {
-    if (selectedImg) {
-      const wrapper = selectedImg.closest('.dazai-img-wrapper');
-      if (wrapper) {
-        wrapper.remove();
-      } else {
-        selectedImg.remove();
-      }
-      setSelectedImg(null);
-      updateStatsAndSave();
-    }
-  };
-
-  // 9. Keyboard Shortcuts & List Fixes (Tab / Shift+Tab for nesting, Enter on empty item exits list)
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    const isCtrl = e.ctrlKey || e.metaKey;
-    if (isCtrl && e.key.toLowerCase() === 'b') {
-      e.preventDefault();
-      execCmd('bold');
-    } else if (isCtrl && e.key.toLowerCase() === 'i') {
-      e.preventDefault();
-      execCmd('italic');
-    } else if (isCtrl && e.key.toLowerCase() === 'u') {
-      e.preventDefault();
-      execCmd('underline');
-    } else if (isCtrl && e.key.toLowerCase() === 'z') {
-      e.preventDefault();
-      if (e.shiftKey) {
-        execCmd('redo');
-      } else {
-        execCmd('undo');
-      }
-    } else if (isCtrl && e.key.toLowerCase() === 'y') {
-      e.preventDefault();
-      execCmd('redo');
-    } else if (isCtrl && e.key.toLowerCase() === 'h') {
-      e.preventDefault();
-      setShowFindReplace(!showFindReplace);
-    } else if (e.key === 'Tab') {
-      const sel = window.getSelection();
-      let node = sel?.anchorNode;
-      while (node && node !== editorRef.current) {
-        if (node.nodeName.toLowerCase() === 'li' || node.nodeName.toLowerCase() === 'ul' || node.nodeName.toLowerCase() === 'ol') {
-          e.preventDefault();
-          if (e.shiftKey) {
-            execCmd('outdent');
-          } else {
-            execCmd('indent');
-          }
-          return;
-        }
-        node = node.parentNode;
-      }
-    } else if (e.key === 'Enter') {
-      const sel = window.getSelection();
-      let node = sel?.anchorNode;
-      if (node && (node.nodeName.toLowerCase() === 'li' || node.parentElement?.nodeName.toLowerCase() === 'li')) {
-        const li = (node.nodeName.toLowerCase() === 'li' ? node : node.parentElement) as HTMLElement;
-        if (!li.innerText.trim() && li.innerText !== '\n') {
-          e.preventDefault();
-          execCmd('outdent');
-        }
-      }
-    }
-  };
-
-  // CRITICAL: onMouseDown={e => e.preventDefault()} prevents button clicks from stealing selection focus!
   const ToolBtn = ({
     onClick,
     title,
@@ -449,7 +375,7 @@ export default function PersonalNotesEditor({
     <button
       type="button"
       onMouseDown={(e) => {
-        e.preventDefault(); // Prevents focus theft from contentEditable
+        e.preventDefault(); // Prevents focus theft from TipTap
       }}
       onClick={(e) => {
         e.preventDefault();
@@ -470,19 +396,21 @@ export default function PersonalNotesEditor({
     setActiveDropdown(prev => (prev === type ? null : type));
   };
 
-  const renderEditorUI = (fullscreen: boolean) => {
-    const editorSize = fullscreen || isLarge ? 'text-sm md:text-base leading-relaxed p-6' : 'text-xs leading-relaxed p-4';
+  if (!editor) {
+    return <div className="p-8 text-center text-gray-400">Loading TipTap rich-text editor...</div>;
+  }
 
+  const renderEditorUI = (fullscreen: boolean) => {
     return (
       <div className="flex flex-col h-full bg-white/50 dark:bg-[#1a1823]/60 border-2 border-[#7c6a75]/20 rounded-xl overflow-hidden shadow-sm relative">
         
-        {/* --- EDITING TOOLBAR --- */}
+        {/* --- EDITING TOOLBAR (100% TipTap Command API) --- */}
         <div ref={toolbarRef} className="bg-[#7c6a75]/10 dark:bg-black/30 border-b border-[#7c6a75]/20 p-1.5 flex flex-wrap items-center gap-1 select-none">
           
           {/* Undo / Redo */}
           <div className="flex items-center gap-0.5 border-r border-[#7c6a75]/20 pr-1">
-            <ToolBtn onClick={() => execCmd('undo')} title="Undo (Ctrl+Z)">↩</ToolBtn>
-            <ToolBtn onClick={() => execCmd('redo')} title="Redo (Ctrl+Y)">↪</ToolBtn>
+            <ToolBtn onClick={() => editor.chain().focus().undo().run()} title="Undo (Ctrl+Z)" active={editor.isActive('undo')}>↩</ToolBtn>
+            <ToolBtn onClick={() => editor.chain().focus().redo().run()} title="Redo (Ctrl+Y)" active={editor.isActive('redo')}>↪</ToolBtn>
           </div>
 
           {/* Font Family & Size */}
@@ -497,7 +425,10 @@ export default function PersonalNotesEditor({
                     key={f.name}
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => applyFontFamily(f.value)}
+                    onClick={() => {
+                      editor.chain().focus().setFontFamily(f.value).run();
+                      setActiveDropdown(null);
+                    }}
                     className="text-left px-2.5 py-1.5 hover:bg-[#7c6a75]/10 rounded font-medium truncate"
                     style={{ fontFamily: f.value }}
                   >
@@ -517,7 +448,10 @@ export default function PersonalNotesEditor({
                     key={s.name}
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => applyFontSize(s.value)}
+                    onClick={() => {
+                      (editor.chain().focus() as any).setFontSize(s.value).run();
+                      setActiveDropdown(null);
+                    }}
                     className="text-left px-2.5 py-1.5 hover:bg-[#7c6a75]/10 rounded font-bold"
                   >
                     {s.name}
@@ -529,22 +463,22 @@ export default function PersonalNotesEditor({
 
           {/* Bold, Italic, Underline */}
           <div className="flex items-center gap-0.5 border-r border-[#7c6a75]/20 pr-1">
-            <ToolBtn onClick={() => execCmd('bold')} title="Bold (Ctrl+B)"><b>B</b></ToolBtn>
-            <ToolBtn onClick={() => execCmd('italic')} title="Italic (Ctrl+I)"><i>I</i></ToolBtn>
-            <ToolBtn onClick={() => execCmd('underline')} title="Underline (Ctrl+U)"><u>U</u></ToolBtn>
+            <ToolBtn onClick={() => editor.chain().focus().toggleBold().run()} title="Bold (Ctrl+B)" active={editor.isActive('bold')}><b>B</b></ToolBtn>
+            <ToolBtn onClick={() => editor.chain().focus().toggleItalic().run()} title="Italic (Ctrl+I)" active={editor.isActive('italic')}><i>I</i></ToolBtn>
+            <ToolBtn onClick={() => editor.chain().focus().toggleUnderline().run()} title="Underline (Ctrl+U)" active={editor.isActive('underline')}><u>U</u></ToolBtn>
           </div>
 
           {/* Headings Picker */}
           <div className="relative border-r border-[#7c6a75]/20 pr-1">
-            <ToolBtn onClick={() => toggleDropdown('heading')} title="Headings & Typography" active={activeDropdown === 'heading'}>
+            <ToolBtn onClick={() => toggleDropdown('heading')} title="Headings & Typography" active={activeDropdown === 'heading' || editor.isActive('heading')}>
               <span>H▾</span>
             </ToolBtn>
             {activeDropdown === 'heading' && (
               <div className="absolute left-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/30 rounded-lg shadow-xl p-1 z-[60] flex flex-col min-w-[110px]">
-                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertHeading('h1')} className="text-left font-black text-sm px-2 py-1 hover:bg-[#7c6a75]/10 rounded">H1 Title</button>
-                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertHeading('h2')} className="text-left font-bold text-xs px-2 py-1 hover:bg-[#7c6a75]/10 rounded">H2 Section</button>
-                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertHeading('h3')} className="text-left font-semibold text-[11px] px-2 py-1 hover:bg-[#7c6a75]/10 rounded">H3 Subtitle</button>
-                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertHeading('p')} className="text-left text-xs px-2 py-1 hover:bg-[#7c6a75]/10 rounded">Paragraph</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { editor.chain().focus().toggleHeading({ level: 1 }).run(); setActiveDropdown(null); }} className="text-left font-black text-sm px-2 py-1 hover:bg-[#7c6a75]/10 rounded">H1 Title</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { editor.chain().focus().toggleHeading({ level: 2 }).run(); setActiveDropdown(null); }} className="text-left font-bold text-xs px-2 py-1 hover:bg-[#7c6a75]/10 rounded">H2 Section</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { editor.chain().focus().toggleHeading({ level: 3 }).run(); setActiveDropdown(null); }} className="text-left font-semibold text-[11px] px-2 py-1 hover:bg-[#7c6a75]/10 rounded">H3 Subtitle</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { editor.chain().focus().setParagraph().run(); setActiveDropdown(null); }} className="text-left text-xs px-2 py-1 hover:bg-[#7c6a75]/10 rounded">Paragraph</button>
               </div>
             )}
           </div>
@@ -561,7 +495,10 @@ export default function PersonalNotesEditor({
                     key={col.name}
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => applyTextColor(col.color)}
+                    onClick={() => {
+                      editor.chain().focus().setColor(col.color).run();
+                      setActiveDropdown(null);
+                    }}
                     title={`Text: ${col.name}`}
                     className="w-6 h-6 rounded-md border border-gray-300 flex items-center justify-center text-xs shadow-sm hover:scale-110"
                     style={{ backgroundColor: col.color }}
@@ -570,7 +507,7 @@ export default function PersonalNotesEditor({
               </div>
             )}
 
-            <ToolBtn onClick={() => toggleDropdown('highlight')} title="Highlight text color (35-45% opacity)" active={activeDropdown === 'highlight'}>
+            <ToolBtn onClick={() => toggleDropdown('highlight')} title="Highlight text color (35-45% opacity)" active={activeDropdown === 'highlight' || editor.isActive('highlight')}>
               <span>🖍️▾</span>
             </ToolBtn>
             {activeDropdown === 'highlight' && (
@@ -580,7 +517,10 @@ export default function PersonalNotesEditor({
                     key={col.name}
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => applyHighlight(col.color)}
+                    onClick={() => {
+                      editor.chain().focus().toggleHighlight({ color: col.color }).run();
+                      setActiveDropdown(null);
+                    }}
                     title={`Highlight ${col.name}`}
                     className="w-8 h-8 rounded-md flex items-center justify-center text-sm shadow-sm hover:scale-110 transition-transform"
                     style={{ backgroundColor: col.color }}
@@ -591,7 +531,10 @@ export default function PersonalNotesEditor({
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => applyHighlight(null)}
+                  onClick={() => {
+                    editor.chain().focus().unsetHighlight().run();
+                    setActiveDropdown(null);
+                  }}
                   title="Remove Highlight"
                   className="col-span-3 text-[10px] bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 py-1 rounded font-bold text-center mt-1"
                 >
@@ -603,30 +546,39 @@ export default function PersonalNotesEditor({
 
           {/* Text Alignment (Left, Center, Right, Justify) */}
           <div className="relative border-r border-[#7c6a75]/20 pr-1">
-            <ToolBtn onClick={() => toggleDropdown('align')} title="Text Alignment" active={activeDropdown === 'align'}>
+            <ToolBtn onClick={() => toggleDropdown('align')} title="Text Alignment" active={activeDropdown === 'align' || editor.isActive({ textAlign: 'center' })}>
               <span>Align ▾</span>
             </ToolBtn>
             {activeDropdown === 'align' && (
               <div className="absolute left-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/30 rounded-xl shadow-xl p-1 z-[60] flex flex-col min-w-[110px] text-xs">
-                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { execCmd('justifyLeft'); setActiveDropdown(null); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">⬅️ Left</button>
-                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { execCmd('justifyCenter'); setActiveDropdown(null); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">↔️ Center</button>
-                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { execCmd('justifyRight'); setActiveDropdown(null); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">➡️ Right</button>
-                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { execCmd('justifyFull'); setActiveDropdown(null); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">≣ Justify</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { editor.chain().focus().setTextAlign('left').run(); setActiveDropdown(null); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">⬅️ Left</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { editor.chain().focus().setTextAlign('center').run(); setActiveDropdown(null); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">↔️ Center</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { editor.chain().focus().setTextAlign('right').run(); setActiveDropdown(null); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">➡️ Right</button>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { editor.chain().focus().setTextAlign('justify').run(); setActiveDropdown(null); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">≣ Justify</button>
               </div>
             )}
           </div>
 
           {/* Lists & Checklists */}
           <div className="flex items-center gap-0.5 border-r border-[#7c6a75]/20 pr-1">
-            <ToolBtn onClick={() => execCmd('insertUnorderedList')} title="Bullet List">• List</ToolBtn>
-            <ToolBtn onClick={() => execCmd('insertOrderedList')} title="Numbered List">1. List</ToolBtn>
-            <ToolBtn onClick={insertChecklist} title="Insert Interactive Checklist">☑ Check</ToolBtn>
+            <ToolBtn onClick={() => editor.chain().focus().toggleBulletList().run()} title="Bullet List" active={editor.isActive('bulletList')}>• List</ToolBtn>
+            <ToolBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} title="Numbered List" active={editor.isActive('orderedList')}>1. List</ToolBtn>
+            <ToolBtn onClick={() => editor.chain().focus().toggleTaskList().run()} title="Insert Interactive Checklist" active={editor.isActive('taskList')}>☑ Check</ToolBtn>
           </div>
 
           {/* Divider, Link, Image, Find/Replace, Study Canvas */}
           <div className="flex items-center gap-0.5 flex-wrap">
-            <ToolBtn onClick={() => execCmd('insertHorizontalRule')} title="Horizontal Divider">—</ToolBtn>
-            <ToolBtn onClick={insertLink} title="Insert Hyperlink">🔗</ToolBtn>
+            <ToolBtn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Horizontal Divider">—</ToolBtn>
+            <ToolBtn
+              onClick={() => {
+                const url = window.prompt('Enter link URL:', 'https://');
+                if (url) editor.chain().focus().setLink({ href: url }).run();
+              }}
+              title="Insert Hyperlink"
+              active={editor.isActive('link')}
+            >
+              🔗
+            </ToolBtn>
             <ToolBtn onClick={() => fileInputRef.current?.click()} title="Insert Image / Screenshot">🖼️ Img</ToolBtn>
             <ToolBtn onClick={() => setShowFindReplace(!showFindReplace)} title="Find & Replace (Ctrl+H)">🔍 Find</ToolBtn>
             <input
@@ -719,23 +671,10 @@ export default function PersonalNotesEditor({
           </div>
         )}
 
-        {/* --- EDITABLE AREA (Continually saves range selection on any mouse or keyboard interaction) --- */}
-        <div
-          ref={editorRef}
-          contentEditable
-          suppressContentEditableWarning
-          onInput={() => { saveSelection(); updateStatsAndSave(); }}
-          onKeyUp={() => { saveSelection(); updateStatsAndSave(); }}
-          onMouseUp={saveSelection}
-          onBlur={saveSelection}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          onDrop={handleDrop}
-          onDragOver={(e) => e.preventDefault()}
-          onClick={handleEditorClick}
-          className={`flex-1 overflow-y-auto ${editorSize} text-[#5d5770] dark:text-gray-200 focus:outline-none custom-scrollbar font-sans`}
-          style={{ minHeight: fullscreen ? '70vh' : '220px' }}
-        />
+        {/* --- TIPTAP PROSEMIRROR EDITABLE AREA --- */}
+        <div onClick={handleEditorClick} className="flex-1 overflow-y-auto custom-scrollbar" style={{ minHeight: fullscreen ? '70vh' : '220px' }}>
+          <EditorContent editor={editor} />
+        </div>
 
         {/* --- FOOTER STATUS & AUTO-SAVE BAR --- */}
         <div className="bg-[#7c6a75]/10 dark:bg-black/30 border-t border-[#7c6a75]/20 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#5d5770]/80 dark:text-gray-400 font-medium">
@@ -750,7 +689,7 @@ export default function PersonalNotesEditor({
             </span>
             <Button
               variant="ghost"
-              onClick={updateStatsAndSave}
+              onClick={saveCurrentState}
               className="text-[10px] py-0.5 px-2 font-bold hover:bg-white/50"
             >
               💾 Save Now
@@ -789,8 +728,8 @@ export default function PersonalNotesEditor({
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">📝</span>
                   <div>
-                    <h2 className="font-black text-base md:text-lg tracking-wide">{documentName} - Rich Text Personal Notes</h2>
-                    <p className="text-[11px] text-white/80">Formatting toolbar, checklists, drag-and-drop screenshot captions, and live word counts</p>
+                    <h2 className="font-black text-base md:text-lg tracking-wide">{documentName} - Rich Text Personal Notes (TipTap)</h2>
+                    <p className="text-[11px] text-white/80">ProseMirror command engine, checklists, drag-and-drop screenshot captions, and live word counts</p>
                   </div>
                 </div>
                 
