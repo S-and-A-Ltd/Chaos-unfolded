@@ -1,224 +1,432 @@
 export interface StickyTemplate {
   id: string;
   name: string;
-  assetUrl: string;
-  // Safe text writing region expressed as percentage of total container bounds [0-100]
-  // This ensures the rich text layer scales proportionally with the note and never overlaps artwork!
-  safeRegion: {
-    x: number;      // % offset from left border
-    y: number;      // % offset from top border (below "NOTE:" badge & tape)
-    width: number;  // % of total width for writing
-    height: number; // % of total height for writing (above bottom mascots/decorations)
+  image: string; // Asset URL in /public/assets/sticky-notes/
+  aspectRatio: number; // Width / Height ratio to preserve natural dimensions without stretching
+  cropBounds?: {
+    top: number;    // % offset from top image border
+    left: number;   // % offset from left image border
+    width: number;  // % of total visible image width
+    height: number; // % of total visible image height
   };
-  defaultTextColor?: string;
-  defaultFontSize?: number;
+  textArea: {
+    x: number;      // % offset from left border of card
+    y: number;      // % offset from top border (below "NOTE:" badge & tape)
+    width: number;  // % of total card width for safe writing
+    height: number; // % of total card height for safe writing (above bottom mascots/artwork)
+  };
+  padding: string;       // Custom CSS padding inside text zone, e.g. "4% 5%"
+  defaultFontSize: number;
+  lineHeight: number;    // Line spacing per template, e.g. 1.5
+  defaultTextColor: string;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
 }
 
-// 28 Self-contained Sticky Note Asset Templates with metadata
-export const STICKY_TEMPLATES: StickyTemplate[] = [
+// Initial calibrated defaults for all 28 self-contained stationery note templates
+export const INITIAL_STICKY_TEMPLATES: StickyTemplate[] = [
   {
     id: 'note-1',
     name: 'Yellow Taiyaki Bear',
-    assetUrl: '/assets/sticky-notes/note-1.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-1.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-2',
     name: 'Pink Peach Blossom',
-    assetUrl: '/assets/sticky-notes/note-2.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-2.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-3',
     name: 'Sky Blue Cloud Bear',
-    assetUrl: '/assets/sticky-notes/note-3.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-3.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-4',
     name: 'Sage Green Clover',
-    assetUrl: '/assets/sticky-notes/note-4.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-4.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-5',
     name: 'Lavender Dream Ribbon',
-    assetUrl: '/assets/sticky-notes/note-5.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-5.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-6',
     name: 'Peach Apricot Memo',
-    assetUrl: '/assets/sticky-notes/note-6.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-6.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-7',
     name: 'Lemon Butter Sunshine',
-    assetUrl: '/assets/sticky-notes/note-7.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-7.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-8',
     name: 'Roseberry Strawberry Patch',
-    assetUrl: '/assets/sticky-notes/note-8.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-8.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-9',
     name: 'Minty Penguin Chill',
-    assetUrl: '/assets/sticky-notes/note-9.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-9.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-10',
     name: 'Lilac Bunny Dream',
-    assetUrl: '/assets/sticky-notes/note-10.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-10.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-11',
     name: 'Vanilla Cream Honey',
-    assetUrl: '/assets/sticky-notes/note-11.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-11.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-12',
     name: 'Cherry Blossom Pink',
-    assetUrl: '/assets/sticky-notes/note-12.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-12.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-13',
     name: 'Glacier Blue Frost',
-    assetUrl: '/assets/sticky-notes/note-13.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-13.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-14',
     name: 'Matcha Green Tea',
-    assetUrl: '/assets/sticky-notes/note-14.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-14.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-15',
     name: 'Violet Twilight',
-    assetUrl: '/assets/sticky-notes/note-15.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-15.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-16',
     name: 'Caramel Macchiato',
-    assetUrl: '/assets/sticky-notes/note-16.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-16.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-17',
     name: 'Banana Milk Sparkle',
-    assetUrl: '/assets/sticky-notes/note-17.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-17.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-18',
     name: 'Cotton Candy Cloud',
-    assetUrl: '/assets/sticky-notes/note-18.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-18.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-19',
     name: 'Breeze Mint Leaf',
-    assetUrl: '/assets/sticky-notes/note-19.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-19.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-20',
     name: 'Amethyst Berry',
-    assetUrl: '/assets/sticky-notes/note-20.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-20.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-21',
     name: 'Honey Citrus Grid',
-    assetUrl: '/assets/sticky-notes/note-21.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-21.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-22',
     name: 'Rose Gold Blossom',
-    assetUrl: '/assets/sticky-notes/note-22.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-22.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-23',
     name: 'Ocean Ripple Blue',
-    assetUrl: '/assets/sticky-notes/note-23.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-23.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-24',
     name: 'Eucalyptus Green',
-    assetUrl: '/assets/sticky-notes/note-24.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-24.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-25',
     name: 'Sugar Plum Violet',
-    assetUrl: '/assets/sticky-notes/note-25.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-25.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-26',
     name: 'Tangerine Sunrise',
-    assetUrl: '/assets/sticky-notes/note-26.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-26.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-27',
     name: 'Golden Glow Memo',
-    assetUrl: '/assets/sticky-notes/note-27.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
+    image: '/assets/sticky-notes/note-27.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
     defaultTextColor: '#3A3A3A',
+    textAlign: 'left',
   },
   {
     id: 'note-28',
     name: 'Starlight Lavender',
-    assetUrl: '/assets/sticky-notes/note-28.jpeg',
-    safeRegion: { x: 13, y: 22, width: 74, height: 58 },
-    defaultTextColor: '#3A3A3A',
+    image: '/assets/sticky-notes/note-28.jpeg',
+    aspectRatio: 1.0,
+    cropBounds: { top: 1, left: 1, width: 98, height: 98 },
+    textArea: { x: 12, y: 22, width: 76, height: 58 },
+    padding: '4% 5%',
+    defaultFontSize: 15,
+    lineHeight: 1.5,
+    textAlign: 'left',
   },
 ];
 
+export const STICKY_TEMPLATES = INITIAL_STICKY_TEMPLATES;
+
+// Helper to get all templates, merging with any local developer calibrations saved via Template Editor
+export const getStickyTemplates = (): StickyTemplate[] => {
+  if (typeof window === 'undefined') return INITIAL_STICKY_TEMPLATES;
+  try {
+    const calibrated = localStorage.getItem('dazai_calibrated_templates');
+    if (calibrated) {
+      const parsed: StickyTemplate[] = JSON.parse(calibrated);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return INITIAL_STICKY_TEMPLATES.map(t => {
+          const found = parsed.find(p => p.id === t.id || p.image === t.image);
+          return found || t;
+        });
+      }
+    }
+  } catch (e) {
+    console.error('Failed to parse calibrated templates from localStorage', e);
+  }
+  return INITIAL_STICKY_TEMPLATES;
+};
+
 // Helper to find a template by asset URL or ID
 export const getStickyTemplate = (assetUrlOrId?: string): StickyTemplate => {
-  if (!assetUrlOrId) return STICKY_TEMPLATES[0];
-  const found = STICKY_TEMPLATES.find(
-    (t) => t.id === assetUrlOrId || t.assetUrl === assetUrlOrId || assetUrlOrId.endsWith(t.assetUrl)
+  const all = getStickyTemplates();
+  if (!assetUrlOrId) return all[0];
+  const found = all.find(
+    (t) => t.id === assetUrlOrId || t.image === assetUrlOrId || assetUrlOrId.endsWith(t.image)
   );
-  return found || STICKY_TEMPLATES[0];
+  return found || all[0];
+};
+
+// Helper to save a calibrated template (used by the development Template Editor)
+export const saveCalibratedTemplate = (updated: StickyTemplate): StickyTemplate[] => {
+  const current = getStickyTemplates();
+  const next = current.map(t => t.id === updated.id ? updated : t);
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('dazai_calibrated_templates', JSON.stringify(next));
+  }
+  return next;
 };
