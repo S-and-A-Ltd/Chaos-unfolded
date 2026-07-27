@@ -20,6 +20,7 @@ export interface CanvasItem {
   width: number;
   height: number;
   color?: string; // bg hex or rgba
+  bgAsset?: string; // Transparent PNG/JPEG background template for asset-based sticky notes
   shapeType?: 'rectangle' | 'circle' | 'line' | 'arrow';
   fontSize?: number;
   isAiCard?: boolean;
@@ -32,14 +33,18 @@ export interface CanvasItem {
   endY?: number;
 }
 
-// Cute Pastel Memo Themes matching the reference aesthetics
-const MEMO_THEMES = [
-  { name: 'Yellow Sun', bg: '#fffdf0', border: '#fde047', headerBg: '#fef08a', text: '#713f12', badge: '☀️ NOTE', accent: '🐻' },
-  { name: 'Rose Strawberry', bg: '#fff5f7', border: '#f472b6', headerBg: '#fbcfe8', text: '#881337', badge: '💖 NOTE', accent: '🍓' },
-  { name: 'Sky Cloud', bg: '#f0f9ff', border: '#38bdf8', headerBg: '#bae6fd', text: '#0c4a6e', badge: '☁️ NOTE', accent: '🐧' },
-  { name: 'Sage Clover', bg: '#f2fbf5', border: '#4ade80', headerBg: '#bbf7d0', text: '#14532d', badge: '🍀 NOTE', accent: '🌷' },
-  { name: 'Lavender Dream', bg: '#f8f5ff', border: '#c084fc', headerBg: '#e9d5ff', text: '#581c87', badge: '🔮 NOTE', accent: '🎀' },
-  { name: 'Peach Apricot', bg: '#fffaf5', border: '#fb923c', headerBg: '#fed7aa', text: '#7c2d12', badge: '🍑 NOTE', accent: '🌸' },
+// Asset-based sticky note templates in /public/assets/sticky-notes/
+// Generating asset paths dynamically so adding new themes only requires dropping PNGs in the folder
+const STICKY_NOTE_ASSETS = Array.from({ length: 28 }, (_, i) => `/assets/sticky-notes/note-${i + 1}.jpeg`);
+
+// Fallback pastel themes for non-asset AI cards
+const FALLBACK_THEMES = [
+  { name: 'Yellow Sun', bg: '#fffdf0', border: '#fde047' },
+  { name: 'Rose Strawberry', bg: '#fff5f7', border: '#f472b6' },
+  { name: 'Sky Cloud', bg: '#f0f9ff', border: '#38bdf8' },
+  { name: 'Sage Clover', bg: '#f2fbf5', border: '#4ade80' },
+  { name: 'Lavender Dream', bg: '#f8f5ff', border: '#c084fc' },
+  { name: 'Peach Apricot', bg: '#fffaf5', border: '#fb923c' },
 ];
 
 export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
@@ -83,10 +88,17 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
 
   // Modals & Popovers
   const [activeDropdown, setActiveDropdown] = useState<'add' | 'ai' | null>(null);
+  const [showThemePicker, setShowThemePicker] = useState<boolean>(false);
   const [lastSaved, setLastSaved] = useState<string>('Just now');
 
-  // 1. Load saved canvas items from localStorage on mount
+  // 1. Preload sticky note assets & load canvas items from localStorage on mount
   useEffect(() => {
+    // Preload PNG/JPEG templates into browser cache when Study Canvas opens
+    STICKY_NOTE_ASSETS.forEach(src => {
+      const img = new Image();
+      img.src = src;
+    });
+
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem(`dazai_canvas_${document.id}`);
@@ -110,23 +122,22 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
         {
           id: 'welcome_1',
           type: 'sticky',
-          title: '📌 Welcome to Study Canvas!',
-          content: 'This is an infinite pastel study whiteboard.\n\n• Double click to edit note cards\n• Drag corner handles to resize any object\n• Use ✨ Insert AI to drop readable summaries\n• Connect ideas with snapping arrows!',
+          content: '📌 Welcome to your Study Canvas!\n\n• Asset-based transparent PNG notes\n• Text auto-wraps & resizes with card\n• Click 🖼️ Sticky Themes to browse all 24+ memo pads\n• Connect ideas with snapping arrows!',
           x: 100,
           y: 80,
           width: 300,
-          height: 240,
-          color: '#fffdf0',
+          height: 300,
+          bgAsset: '/assets/sticky-notes/note-1.jpeg',
         },
         {
           id: 'welcome_2',
           type: 'ai-card',
           title: '🤖 Study Subject',
           content: `Document: ${document.name}\n\nUse this space to build mind maps, flowcharts, and visual summaries!`,
-          x: 460,
+          x: 440,
           y: 100,
           width: 280,
-          height: 200,
+          height: 220,
           color: '#f8f5ff',
           isAiCard: true,
         },
@@ -190,6 +201,7 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
     const handleEscKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setActiveDropdown(null);
+        setShowThemePicker(false);
         setSelectedId(null);
       }
     };
@@ -407,13 +419,13 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
     let newItem: CanvasItem = {
       id,
       type,
-      title: type === 'sticky' ? '📌 Sticky Note' : type === 'text' ? 'Text Box' : undefined,
       content: type === 'sticky' ? 'Type note here...' : type === 'text' ? 'Double click to edit text...' : '',
       x: centerX > 0 ? centerX : 100,
       y: centerY > 0 ? centerY : 100,
-      width: type === 'sticky' ? 260 : type === 'text' ? 240 : type === 'shape' && shapeType === 'circle' ? 160 : 200,
-      height: type === 'sticky' ? 220 : type === 'text' ? 120 : type === 'shape' && shapeType === 'circle' ? 160 : 120,
-      color: type === 'sticky' ? '#fffdf0' : type === 'shape' ? '#e0f2fe' : '#ffffff',
+      width: type === 'sticky' ? 280 : type === 'text' ? 240 : type === 'shape' && shapeType === 'circle' ? 160 : 200,
+      height: type === 'sticky' ? 280 : type === 'text' ? 120 : type === 'shape' && shapeType === 'circle' ? 160 : 120,
+      color: type === 'shape' ? '#e0f2fe' : '#ffffff',
+      bgAsset: type === 'sticky' ? STICKY_NOTE_ASSETS[0] : undefined,
       shapeType,
     };
 
@@ -435,6 +447,28 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
         toId: endCard?.id,
       };
     }
+
+    const next = [...items, newItem];
+    saveItems(next, true);
+    setSelectedId(id);
+  };
+
+  // Insert specific asset note from Theme Picker
+  const addStickyNoteAsset = (assetUrl: string) => {
+    const id = `sticky_${Date.now()}`;
+    const centerX = Math.round((-pan.x + 200) / scale / GRID_SIZE) * GRID_SIZE;
+    const centerY = Math.round((-pan.y + 150) / scale / GRID_SIZE) * GRID_SIZE;
+
+    const newItem: CanvasItem = {
+      id,
+      type: 'sticky',
+      content: 'Write your study note here...',
+      x: centerX > 0 ? centerX : 120,
+      y: centerY > 0 ? centerY : 100,
+      width: 280,
+      height: 280,
+      bgAsset: assetUrl,
+    };
 
     const next = [...items, newItem];
     saveItems(next, true);
@@ -478,8 +512,8 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
     saveItems(next, false);
   };
 
-  const updateItemColor = (id: string, color: string) => {
-    const next = items.map(i => i.id === id ? { ...i, color } : i);
+  const updateItemBgAsset = (id: string, bgAsset: string) => {
+    const next = items.map(i => i.id === id ? { ...i, bgAsset } : i);
     saveItems(next, true);
   };
 
@@ -515,6 +549,14 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
               <button onClick={handleRedo} disabled={historyIdx >= history.length - 1} className="px-2 py-1 hover:bg-white/20 disabled:opacity-40 rounded text-xs font-bold" title="Redo">↪ Redo</button>
             </div>
 
+            {/* Quick Sticky Note Theme Picker Button */}
+            <button
+              onClick={() => setShowThemePicker(true)}
+              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-black px-3 py-1.5 rounded-xl text-xs shadow-md flex items-center gap-1.5 transition-transform hover:scale-105"
+            >
+              <span>🖼️ Sticky Themes (24+)</span>
+            </button>
+
             {/* Add Items Dropdown */}
             <div className="relative">
               <button
@@ -525,9 +567,9 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
                 <span>▾</span>
               </button>
               {activeDropdown === 'add' && (
-                <div className="absolute left-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/40 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col min-w-[170px] text-gray-800 dark:text-gray-200 text-xs">
-                  <button onClick={() => addItem('sticky')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">📌 Pastel Memo Note</button>
-                  <button onClick={() => addItem('text')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">📝 Transparent Text</button>
+                <div className="absolute left-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/40 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col min-w-[190px] text-gray-800 dark:text-gray-200 text-xs">
+                  <button onClick={() => { setActiveDropdown(null); setShowThemePicker(true); }} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">📌 Sticky Note Theme Picker...</button>
+                  <button onClick={() => addItem('text')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">📝 Transparent Text Box</button>
                   <button onClick={() => addItem('arrow')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">➔ Snapping Arrow</button>
                   <button onClick={() => addItem('shape', 'rectangle')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">🔲 Rectangle Box</button>
                   <button onClick={() => addItem('shape', 'circle')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">⚪ Circle / Concept</button>
@@ -792,13 +834,14 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
             {/* --- CANVAS CARDS & SHAPES RENDERER --- */}
             {items.filter(i => i.type !== 'arrow').map((item) => {
               const isSelected = selectedId === item.id;
-              const isSticky = item.type === 'sticky' || item.isAiCard;
+              const isSticky = item.type === 'sticky' || item.bgAsset !== undefined;
+              const isAiCard = item.isAiCard && !item.bgAsset;
               const isText = item.type === 'text';
               const isShape = item.type === 'shape';
               const isCircle = isShape && item.shapeType === 'circle';
 
-              // Find matching memo theme for stickies
-              const theme = MEMO_THEMES.find(t => t.bg === item.color || t.headerBg === item.color) || MEMO_THEMES[0];
+              // Fallback theme for AI cards without bg asset
+              const theme = FALLBACK_THEMES.find(t => t.bg === item.color) || FALLBACK_THEMES[0];
 
               return (
                 <div
@@ -808,7 +851,7 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
                     isSelected
                       ? 'ring-2 ring-purple-600 shadow-[0_12px_40px_rgba(139,92,246,0.35)] z-20 scale-[1.01]'
                       : isText
-                      ? 'hover:border-dashed hover:border-2 hover:border-gray-400 z-10'
+                      ? 'border border-dashed border-gray-400/50 dark:border-gray-500/50 bg-white/30 dark:bg-black/20 hover:border-purple-400 z-10'
                       : 'shadow-[0_8px_20px_rgba(0,0,0,0.08)] z-10 hover:shadow-xl'
                   }`}
                   style={{
@@ -816,81 +859,92 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
                     top: `${item.y}px`,
                     width: `${item.width}px`,
                     minHeight: `${item.height}px`,
-                    backgroundColor: isText ? 'transparent' : isSticky ? theme.bg : item.color || '#ffffff',
+                    backgroundColor: isText || isSticky ? 'transparent' : isAiCard ? theme.bg : item.color || '#ffffff',
                     borderRadius: isCircle ? '50%' : isSticky ? '24px' : '16px',
-                    border: isText && !isSelected ? '2px solid transparent' : isSticky ? `2.5px solid ${theme.border}` : isSelected ? '2px solid #8b5cf6' : '2px solid rgba(124, 106, 117, 0.25)',
-                    backgroundImage: isSticky ? `radial-gradient(${theme.text}12 1px, transparent 1px)` : undefined,
-                    backgroundSize: '16px 16px',
+                    border: isText && !isSelected ? undefined : isSticky ? 'none' : isSelected ? '2px solid #8b5cf6' : '2px solid rgba(124, 106, 117, 0.25)',
                   }}
                 >
-                  {/* --- MEMO BADGE / HEADER BAR --- */}
-                  {isSticky ? (
-                    <div className="flex items-center justify-between px-3.5 py-2 rounded-t-3xl border-b border-black/5 cursor-move" style={{ backgroundColor: theme.headerBg }}>
-                      <div className="flex items-center gap-1.5 font-black text-xs tracking-wide" style={{ color: theme.text }}>
-                        <span>{theme.badge}</span>
-                        <span className="text-[10px] opacity-75 truncate max-w-[120px]">{item.title?.replace('📌 ', '').replace('✨ AI: ', '')}</span>
-                      </div>
-                      
-                      {/* Theme switcher & delete */}
-                      <div className="flex items-center gap-1">
-                        {isSelected && (
-                          <div className="flex items-center gap-1 mr-1 bg-white/70 px-1.5 py-0.5 rounded-full shadow-inner">
-                            {MEMO_THEMES.map(t => (
-                              <button
-                                key={t.name}
-                                onClick={(e) => { e.stopPropagation(); updateItemColor(item.id, t.bg); }}
-                                className="w-3.5 h-3.5 rounded-full border border-black/20 hover:scale-125 transition-transform"
-                                style={{ backgroundColor: t.headerBg }}
-                                title={t.name}
-                              />
-                            ))}
-                          </div>
-                        )}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
-                          className="text-red-500 hover:text-red-700 font-bold px-1 text-xs"
-                          title="Delete note (Del)"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  ) : !isText ? (
-                    <div className="flex items-center justify-between px-3 py-1.5 border-b border-black/10 rounded-t-2xl bg-black/5 cursor-move">
-                      <span className="font-black text-xs text-[#5d5770] truncate max-w-[150px]">
-                        {item.title || (isCircle ? '⚪ Concept Circle' : '🔲 Rectangle Box')}
+                  {/* --- ASSET-BASED STICKY NOTE BACKGROUND --- */}
+                  {item.bgAsset ? (
+                    <img
+                      src={item.bgAsset}
+                      alt="Sticky Note Template"
+                      className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none rounded-2xl"
+                      style={{ zIndex: 0 }}
+                    />
+                  ) : isAiCard ? (
+                    <div className="flex items-center justify-between px-3.5 py-2 rounded-t-3xl border-b border-black/5 cursor-move" style={{ backgroundColor: theme.border }}>
+                      <span className="font-black text-xs text-gray-800 truncate max-w-[150px]">
+                        {item.title || '✨ AI Insight'}
                       </span>
                       <button
                         onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
                         className="text-red-500 hover:text-red-700 font-bold px-1 text-xs"
-                        title="Delete shape (Del)"
                       >
                         ✕
                       </button>
                     </div>
                   ) : null}
 
-                  {/* --- ITEM BODY / TEXTAREA --- */}
-                  <div className="flex-1 p-3.5 flex flex-col justify-center relative">
+                  {/* Top center drag handle pill for clean, headerless shapes and notes */}
+                  {(isSticky || isShape) && (
+                    <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-black/20 dark:bg-white/30 hover:bg-purple-600 rounded-full cursor-move z-30 opacity-60 group-hover:opacity-100 transition-opacity" title="Drag card" />
+                  )}
+
+                  {/* --- FLOATING ACTION PILL WHEN SELECTED --- */}
+                  {isSelected && (
+                    <div className="absolute -top-10 right-0 flex items-center gap-1 bg-white dark:bg-[#2b2b36] border-2 border-purple-500 rounded-xl px-2 py-0.5 shadow-xl z-50 animate-fadeIn">
+                      {isSticky && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setShowThemePicker(true); }}
+                          className="text-purple-600 dark:text-purple-300 hover:text-purple-800 font-black px-1.5 py-0.5 text-xs rounded hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center gap-1 border-r border-gray-300 dark:border-gray-600 pr-2"
+                          title="Change Note Theme"
+                        >
+                          <span>🎨</span><span>Change Theme</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
+                        className="text-red-500 hover:text-red-700 font-black px-1.5 py-0.5 text-xs rounded hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-1"
+                        title="Delete (Del)"
+                      >
+                        <span>✕</span><span>Delete</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newId = `item_${Date.now()}`;
+                          saveItems([...items, { ...item, id: newId, x: item.x + 30, y: item.y + 30 }], true);
+                          setSelectedId(newId);
+                        }}
+                        className="text-purple-600 dark:text-purple-300 hover:text-purple-800 font-black px-1.5 py-0.5 text-xs rounded hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center gap-1"
+                        title="Duplicate (Ctrl+D)"
+                      >
+                        <span>📑</span><span>Duplicate</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* --- ITEM BODY / TEXTAREA (Safe Margins & Responsive Text) --- */}
+                  <div className={`flex-1 flex flex-col justify-center relative z-10 ${
+                    isSticky ? 'pt-[18%] pb-[18%] pl-[14%] pr-[14%]' : 'p-3.5'
+                  }`}>
                     <textarea
                       value={item.content}
                       onChange={(e) => updateItemContent(item.id, e.target.value)}
-                      placeholder="Type note or idea here..."
-                      className={`w-full h-full bg-transparent border-none focus:outline-none resize-none font-sans text-xs md:text-sm text-[#333333] dark:text-gray-200 custom-scrollbar leading-relaxed ${
-                        isCircle ? 'text-center font-bold' : isText ? 'text-base font-medium' : ''
+                      placeholder={isText ? "Double click or start typing here..." : "Write your note here..."}
+                      className={`w-full h-full bg-transparent border-none focus:outline-none resize-none font-sans custom-scrollbar leading-relaxed whitespace-pre-wrap break-words ${
+                        isCircle ? 'text-center font-bold text-gray-800 dark:text-gray-200' : isText ? 'text-base font-medium text-gray-800 dark:text-gray-200' : 'font-bold'
                       }`}
                       style={{
-                        minHeight: `${item.height - (isSticky ? 50 : 35)}px`,
+                        fontFamily: isSticky ? "'Quicksand', 'Nunito', sans-serif" : undefined,
+                        fontSize: isSticky ? `${item.fontSize || Math.max(13, Math.round(item.width / 18))}px` : undefined,
+                        color: isSticky ? '#3A3A3A' : undefined,
+                        textShadow: isSticky ? '0 0 12px rgba(255,255,255,0.9), 0 0 4px rgba(255,255,255,1)' : undefined,
+                        minHeight: `${item.height - (isSticky ? 80 : 35)}px`,
                       }}
                       onMouseDown={(e) => e.stopPropagation()}
                     />
-
-                    {/* Cute Corner Mascot for Pastel Memos */}
-                    {isSticky && (
-                      <div className="absolute bottom-2 right-2 text-xl select-none pointer-events-none opacity-85">
-                        {theme.accent}
-                      </div>
-                    )}
                   </div>
 
                   {/* --- 4 CORNER RESIZE HANDLES WHEN SELECTED --- */}
@@ -922,7 +976,7 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
           {/* Empty state hint */}
           {items.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-gray-400 font-bold text-sm">
-              🎨 Canvas is empty. Click ➕ Add Item or ✨ Insert AI at the top!
+              🎨 Canvas is empty. Click ➕ Add Item or 🖼️ Sticky Themes at the top!
             </div>
           )}
         </div>
@@ -944,6 +998,56 @@ export default function StudyCanvas({ document, onClose }: StudyCanvasProps) {
             </Button>
           </div>
         </div>
+
+        {/* --- STICKY NOTE THEME PICKER MODAL (6x4 Grid of Image Previews) --- */}
+        {showThemePicker && (
+          <div className="fixed inset-0 z-[9999999] bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn select-none">
+            <div className="bg-white dark:bg-[#232130] border-4 border-purple-500 rounded-3xl p-6 shadow-2xl max-w-4xl w-full max-h-[88vh] flex flex-col">
+              <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-3 mb-4">
+                <div>
+                  <h3 className="font-black text-lg text-purple-700 dark:text-purple-300 flex items-center gap-2">
+                    <span>🖼️ Choose a Sticky Note Theme</span>
+                    <span className="bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 text-xs px-2.5 py-0.5 rounded-full font-bold">
+                      {STICKY_NOTE_ASSETS.length} Templates
+                    </span>
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Click any aesthetic memo template to drop it onto your whiteboard or update selected note!</p>
+                </div>
+                <button
+                  onClick={() => setShowThemePicker(false)}
+                  className="bg-gray-100 dark:bg-white/10 hover:bg-red-500 hover:text-white text-gray-700 dark:text-gray-200 font-bold w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+                  title="Close Picker (Esc)"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 overflow-y-auto custom-scrollbar p-2 flex-1 max-h-[65vh]">
+                {STICKY_NOTE_ASSETS.map((src, i) => (
+                  <div
+                    key={src}
+                    onClick={() => {
+                      if (selectedId && items.find(it => it.id === selectedId && (it.type === 'sticky' || it.bgAsset))) {
+                        updateItemBgAsset(selectedId, src);
+                      } else {
+                        addStickyNoteAsset(src);
+                      }
+                      setShowThemePicker(false);
+                    }}
+                    className="group relative aspect-square rounded-2xl overflow-hidden border-2 border-gray-200 dark:border-purple-500/30 hover:border-purple-600 dark:hover:border-pink-400 cursor-pointer shadow-sm hover:shadow-xl hover:scale-105 transition-all bg-[#faf8fc] dark:bg-[#181622] flex items-center justify-center p-1.5"
+                  >
+                    <img src={src} alt={`Template ${i + 1}`} className="w-full h-full object-contain pointer-events-none" />
+                    <div className="absolute inset-0 bg-purple-600/0 group-hover:bg-purple-600/15 transition-colors flex items-end justify-center pb-2">
+                      <span className="opacity-0 group-hover:opacity-100 bg-purple-600 text-white font-black text-[10px] px-2.5 py-1 rounded-full shadow-lg transition-opacity flex items-center gap-1">
+                        <span>{selectedId && items.find(it => it.id === selectedId && it.bgAsset) ? '🎨 Apply' : '➕ Insert'}</span>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </motion.div>
