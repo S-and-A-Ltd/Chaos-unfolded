@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Group, Image as KonvaImage, Text as KonvaText, Circle as KonvaCircle } from 'react-konva';
 import { Html } from 'react-konva-utils';
 import useImage from 'use-image';
 import { CanvasItem, AnchorPosition, getAnchorCoords, useCanvasStore } from '@/stores/useCanvasStore';
-import { getStickyTemplate, StickyTemplate, autoAlphaCropImage } from '@/components/study/stickyTemplates';
+import { getStickyTemplate, autoAlphaCropImage } from '@/components/study/stickyTemplates';
 
 interface StickyNoteObjectProps {
   item: CanvasItem;
@@ -88,13 +88,86 @@ const splitTextAcrossRegions = (
   return regionTexts;
 };
 
-export default function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: StickyNoteObjectProps) {
-  const { updateItemField, setSelectedId, startEditing, editingText, setEditingText, commitEditing, spawnArrowFromAnchor } = useCanvasStore();
-  const template = getStickyTemplate(item.bgAsset);
+interface InlineTextEditorProps {
+  initialContent: string;
+  tw: number;
+  th: number;
+  fontFamily: string;
+  fontSize: number;
+  lineHeight: number;
+  textColor: string;
+  isBold?: boolean;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  padding?: string;
+  commitEditing: (newText?: string) => void;
+}
+
+const InlineTextEditor = React.memo(({
+  initialContent,
+  tw,
+  th,
+  fontFamily,
+  fontSize,
+  lineHeight,
+  textColor,
+  isBold,
+  textAlign,
+  padding,
+  commitEditing,
+}: InlineTextEditorProps) => {
+  const [localText, setLocalText] = useState(initialContent);
+
+  const handleBlur = useCallback(() => {
+    commitEditing(localText);
+  }, [commitEditing, localText]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape' || ((e.ctrlKey || e.metaKey) && e.key === 'Enter')) {
+      e.preventDefault();
+      commitEditing(localText);
+    }
+  }, [commitEditing, localText]);
+
+  return (
+    <textarea
+      value={localText}
+      onChange={(e) => setLocalText(e.target.value)}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      autoFocus
+      className="bg-transparent border-0 outline-none shadow-none p-0 focus:ring-0 resize-none font-sans custom-scrollbar whitespace-pre-wrap break-words overflow-hidden"
+      style={{
+        width: `${tw}px`,
+        height: `${th}px`,
+        fontFamily: fontFamily,
+        fontSize: `${fontSize}px`,
+        lineHeight: lineHeight,
+        color: textColor,
+        fontWeight: isBold !== undefined ? (isBold ? 'bold' : 'normal') : 'bold',
+        textAlign: textAlign || 'left',
+        padding: padding || '4px',
+        background: 'transparent',
+        border: 'none',
+        outline: 'none',
+        boxShadow: 'none',
+        caretColor: textColor,
+      }}
+    />
+  );
+});
+
+function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: StickyNoteObjectProps) {
+  const updateItemField = useCanvasStore(state => state.updateItemField);
+  const setSelectedId = useCanvasStore(state => state.setSelectedId);
+  const startEditing = useCanvasStore(state => state.startEditing);
+  const commitEditing = useCanvasStore(state => state.commitEditing);
+  const spawnArrowFromAnchor = useCanvasStore(state => state.spawnArrowFromAnchor);
+
+  const template = useMemo(() => getStickyTemplate(item.bgAsset), [item.bgAsset]);
   const [image] = useImage(template.image);
   const [crop, setCrop] = useState<{ x: number; y: number; width: number; height: number } | undefined>(undefined);
 
-  // Auto-crop transparent borders on import
+  // Auto-crop transparent borders on import (stable dependencies without object reference looping)
   useEffect(() => {
     if (image) {
       const iw = image.naturalWidth || image.width;
@@ -116,32 +189,73 @@ export default function StickyNoteObject({ item, isSelected, isEditing, gridSnap
         });
       }
     }
-  }, [image, template]);
+  }, [image, template.croppedBounds]);
 
-  const regions = (template.writingRegions && template.writingRegions.length > 0)
-    ? template.writingRegions
-    : [template.writingArea || { x: 12, y: 22, width: 76, height: 58 }];
+  const regions = useMemo(() => {
+    return (template.writingRegions && template.writingRegions.length > 0)
+      ? template.writingRegions
+      : [template.writingArea || { x: 12, y: 22, width: 76, height: 58 }];
+  }, [template]);
 
   const fontSize = item.fontSize || template.defaultFontSize || 15;
   const fontFamily = item.fontFamily || template.defaultFont || "'Quicksand', 'Nunito', sans-serif";
   const lineHeight = template.lineHeight || 1.5;
   const textColor = item.textColor || template.defaultTextColor || '#3A3A3A';
 
-  const flowedTexts = splitTextAcrossRegions(
-    item.content,
-    regions,
-    item.width,
-    item.height,
-    fontSize,
-    lineHeight,
-    fontFamily
-  );
+  const flowedTexts = useMemo(() => {
+    return splitTextAcrossRegions(
+      item.content,
+      regions,
+      item.width,
+      item.height,
+      fontSize,
+      lineHeight,
+      fontFamily
+    );
+  }, [item.content, regions, item.width, item.height, fontSize, lineHeight, fontFamily]);
 
   const primaryReg = regions[0];
   const tx = (primaryReg.x / 100) * item.width;
   const ty = (primaryReg.y / 100) * item.height;
   const tw = (primaryReg.width / 100) * item.width;
   const th = (primaryReg.height / 100) * item.height;
+
+  const handleClick = useCallback((e: any) => {
+    e.cancelBubble = true;
+    setSelectedId(item.id);
+  }, [setSelectedId, item.id]);
+
+  const handleDblClick = useCallback((e: any) => {
+    e.cancelBubble = true;
+    startEditing(item);
+  }, [startEditing, item]);
+
+  const handleDragEnd = useCallback((e: any) => {
+    let fx = e.target.x();
+    let fy = e.target.y();
+    if (gridSnap) {
+      fx = Math.round(fx / GRID_SIZE) * GRID_SIZE;
+      fy = Math.round(fy / GRID_SIZE) * GRID_SIZE;
+      e.target.x(fx);
+      e.target.y(fy);
+    }
+    updateItemField(item.id, 'x', fx);
+    updateItemField(item.id, 'y', fy);
+  }, [gridSnap, GRID_SIZE, updateItemField, item.id]);
+
+  const handleTransformEnd = useCallback((e: any) => {
+    const node = e.target;
+    const scaleX = node.scaleX();
+    const scaleY = node.scaleY();
+    node.scaleX(1);
+    node.scaleY(1);
+
+    let newW = Math.round(node.width() * scaleX);
+    let newH = Math.round(newW / (template.aspectRatio || 1.0));
+
+    updateItemField(item.id, 'width', Math.max(80, newW));
+    updateItemField(item.id, 'height', Math.max(80, newH));
+  }, [updateItemField, item.id, template.aspectRatio]);
 
   return (
     <Group
@@ -151,40 +265,10 @@ export default function StickyNoteObject({ item, isSelected, isEditing, gridSnap
       width={item.width}
       height={item.height}
       draggable={!isEditing}
-      onClick={(e: any) => {
-        e.cancelBubble = true;
-        setSelectedId(item.id);
-      }}
-      onDblClick={(e: any) => {
-        e.cancelBubble = true;
-        startEditing(item);
-      }}
-      onDragEnd={(e: any) => {
-        let fx = e.target.x();
-        let fy = e.target.y();
-        if (gridSnap) {
-          fx = Math.round(fx / GRID_SIZE) * GRID_SIZE;
-          fy = Math.round(fy / GRID_SIZE) * GRID_SIZE;
-          e.target.x(fx);
-          e.target.y(fy);
-        }
-        updateItemField(item.id, 'x', fx);
-        updateItemField(item.id, 'y', fy);
-      }}
-      onTransformEnd={(e: any) => {
-        const node = e.target;
-        const scaleX = node.scaleX();
-        const scaleY = node.scaleY();
-        node.scaleX(1);
-        node.scaleY(1);
-
-        let newW = Math.round(node.width() * scaleX);
-        // Scale proportionally without stretching decorative artwork
-        let newH = Math.round(newW / (template.aspectRatio || 1.0));
-
-        updateItemField(item.id, 'width', Math.max(80, newW));
-        updateItemField(item.id, 'height', Math.max(80, newH));
-      }}
+      onClick={handleClick}
+      onDblClick={handleDblClick}
+      onDragEnd={handleDragEnd}
+      onTransformEnd={handleTransformEnd}
     >
       {/* Decorative background PNG only */}
       {image && (
@@ -227,28 +311,18 @@ export default function StickyNoteObject({ item, isSelected, isEditing, gridSnap
       {/* Temporary transparent HTML textarea integrated into Konva coordinates via react-konva-utils <Html> */}
       {isEditing && (
         <Html groupProps={{ x: tx, y: ty }} divProps={{ style: { opacity: 1 } }}>
-          <textarea
-            value={editingText}
-            onChange={(e) => setEditingText(e.target.value)}
-            onBlur={commitEditing}
-            autoFocus
-            className="bg-transparent border-0 outline-none shadow-none p-0 focus:ring-0 resize-none font-sans custom-scrollbar whitespace-pre-wrap break-words overflow-hidden"
-            style={{
-              width: `${tw}px`,
-              height: `${th}px`,
-              fontFamily: fontFamily,
-              fontSize: `${fontSize}px`,
-              lineHeight: lineHeight,
-              color: textColor,
-              fontWeight: item.isBold !== undefined ? (item.isBold ? 'bold' : 'normal') : 'bold',
-              textAlign: item.textAlign || template.textAlign || 'left',
-              padding: template.padding || '4px',
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              boxShadow: 'none',
-              caretColor: textColor,
-            }}
+          <InlineTextEditor
+            initialContent={item.content}
+            tw={tw}
+            th={th}
+            fontFamily={fontFamily}
+            fontSize={fontSize}
+            lineHeight={lineHeight}
+            textColor={textColor}
+            isBold={item.isBold}
+            textAlign={item.textAlign || template.textAlign}
+            padding={template.padding}
+            commitEditing={commitEditing}
           />
         </Html>
       )}
@@ -278,3 +352,5 @@ export default function StickyNoteObject({ item, isSelected, isEditing, gridSnap
     </Group>
   );
 }
+
+export default React.memo(StickyNoteObject);

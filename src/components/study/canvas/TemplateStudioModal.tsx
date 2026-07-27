@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import { getStickyTemplates, saveCalibratedTemplate, StickyTemplate } from '@/components/study/stickyTemplates';
 
-export default function TemplateStudioModal() {
-  const { showTemplateEditor, setShowTemplateEditor } = useCanvasStore();
+function TemplateStudioModal() {
+  const showTemplateEditor = useCanvasStore(state => state.showTemplateEditor);
+  const setShowTemplateEditor = useCanvasStore(state => state.setShowTemplateEditor);
+
   const [devTemplates, setDevTemplates] = useState<StickyTemplate[]>([]);
   const [activeDevIndex, setActiveDevIndex] = useState<number>(0);
   const [devDraggingRegionIdx, setDevDraggingRegionIdx] = useState<number | null>(null);
@@ -18,14 +20,13 @@ export default function TemplateStudioModal() {
     }
   }, [showTemplateEditor]);
 
-  if (!showTemplateEditor || devTemplates.length === 0) return null;
-
-  const getActiveRegions = (): { x: number; y: number; width: number; height: number }[] => {
+  const getActiveRegions = useCallback((): { x: number; y: number; width: number; height: number }[] => {
+    if (!devTemplates || !devTemplates[activeDevIndex]) return [];
     const t = devTemplates[activeDevIndex];
     return (t.writingRegions && t.writingRegions.length > 0) ? t.writingRegions : [t.writingArea || { x: 12, y: 22, width: 76, height: 58 }];
-  };
+  }, [devTemplates, activeDevIndex]);
 
-  const updateDevRegion = (regionIdx: number, x: number, y: number, width: number, height: number) => {
+  const updateDevRegion = useCallback((regionIdx: number, x: number, y: number, width: number, height: number) => {
     const currentRegions = [...getActiveRegions()];
     currentRegions[regionIdx] = {
       x: Math.max(0, Math.min(100 - width, Math.round(x))),
@@ -40,9 +41,9 @@ export default function TemplateStudioModal() {
     };
     const nextList = saveCalibratedTemplate(updated);
     setDevTemplates(nextList);
-  };
+  }, [getActiveRegions, devTemplates, activeDevIndex]);
 
-  const addDevRegion = () => {
+  const addDevRegion = useCallback(() => {
     const currentRegions = [...getActiveRegions()];
     currentRegions.push({ x: 20, y: 50, width: 60, height: 35 });
     const updated: StickyTemplate = {
@@ -51,9 +52,9 @@ export default function TemplateStudioModal() {
     };
     const nextList = saveCalibratedTemplate(updated);
     setDevTemplates(nextList);
-  };
+  }, [getActiveRegions, devTemplates, activeDevIndex]);
 
-  const deleteDevRegion = (regionIdx: number) => {
+  const deleteDevRegion = useCallback((regionIdx: number) => {
     const currentRegions = [...getActiveRegions()];
     if (currentRegions.length <= 1) return;
     currentRegions.splice(regionIdx, 1);
@@ -64,16 +65,18 @@ export default function TemplateStudioModal() {
     };
     const nextList = saveCalibratedTemplate(updated);
     setDevTemplates(nextList);
-  };
+  }, [getActiveRegions, devTemplates, activeDevIndex]);
 
-  const updateDevTemplateField = (field: keyof StickyTemplate, value: any) => {
+  const updateDevTemplateField = useCallback((field: keyof StickyTemplate, value: any) => {
     const updated: StickyTemplate = {
       ...devTemplates[activeDevIndex],
       [field]: value,
     };
     const nextList = saveCalibratedTemplate(updated);
     setDevTemplates(nextList);
-  };
+  }, [devTemplates, activeDevIndex]);
+
+  if (!showTemplateEditor || devTemplates.length === 0 || !devTemplates[activeDevIndex]) return null;
 
   return (
     <div className="fixed inset-0 z-[99999999] bg-black/85 backdrop-blur-lg flex items-center justify-center p-4 animate-fadeIn select-none">
@@ -254,3 +257,5 @@ export default function TemplateStudioModal() {
     </div>
   );
 }
+
+export default React.memo(TemplateStudioModal);

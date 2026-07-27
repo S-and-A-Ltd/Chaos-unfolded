@@ -1,11 +1,18 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import { getStickyTemplates, StickyTemplate } from '@/components/study/stickyTemplates';
+import { useShallow } from 'zustand/react/shallow';
 
-export default function ThemePickerModal() {
-  const { showThemePicker, setShowThemePicker, selectedId, items, updateItemBgAsset, addStickyNoteAsset } = useCanvasStore();
+function ThemePickerModal() {
+  const showThemePicker = useCanvasStore(state => state.showThemePicker);
+  const setShowThemePicker = useCanvasStore(state => state.setShowThemePicker);
+  const selectedId = useCanvasStore(state => state.selectedId);
+  const items = useCanvasStore(useShallow(state => state.items));
+  const updateItemBgAsset = useCanvasStore(state => state.updateItemBgAsset);
+  const addStickyNoteAsset = useCanvasStore(state => state.addStickyNoteAsset);
+
   const [templates, setTemplates] = useState<StickyTemplate[]>([]);
 
   useEffect(() => {
@@ -13,6 +20,15 @@ export default function ThemePickerModal() {
       setTemplates(getStickyTemplates());
     }
   }, [showThemePicker]);
+
+  const handleSelectTemplate = useCallback((t: StickyTemplate) => {
+    if (selectedId && items.find(it => it.id === selectedId && (it.type === 'sticky' || it.bgAsset))) {
+      updateItemBgAsset(selectedId, t.image);
+    } else {
+      addStickyNoteAsset(t.image);
+    }
+    setShowThemePicker(false);
+  }, [selectedId, items, updateItemBgAsset, addStickyNoteAsset, setShowThemePicker]);
 
   if (!showThemePicker) return null;
 
@@ -36,14 +52,7 @@ export default function ThemePickerModal() {
           {templates.map((t) => (
             <div
               key={t.id}
-              onClick={() => {
-                if (selectedId && items.find(it => it.id === selectedId && (it.type === 'sticky' || it.bgAsset))) {
-                  updateItemBgAsset(selectedId, t.image);
-                } else {
-                  addStickyNoteAsset(t.image);
-                }
-                setShowThemePicker(false);
-              }}
+              onClick={() => handleSelectTemplate(t)}
               className="group relative aspect-square rounded-2xl overflow-hidden border-2 border-gray-200 dark:border-purple-500/30 hover:border-purple-600 cursor-pointer shadow-sm hover:shadow-xl hover:scale-105 transition-all bg-[#faf8fc] dark:bg-[#181622] flex items-center justify-center p-1.5"
             >
               <img src={t.image} alt={t.name} className="w-full h-full object-contain pointer-events-none" />
@@ -54,3 +63,5 @@ export default function ThemePickerModal() {
     </div>
   );
 }
+
+export default React.memo(ThemePickerModal);

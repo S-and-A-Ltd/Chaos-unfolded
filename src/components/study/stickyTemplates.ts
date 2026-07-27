@@ -441,35 +441,50 @@ export const INITIAL_STICKY_TEMPLATES: StickyTemplate[] = [
   },
 ];
 
-export const STICKY_TEMPLATES = INITIAL_STICKY_TEMPLATES;
+const NORMALIZED_INITIAL: StickyTemplate[] = INITIAL_STICKY_TEMPLATES.map(t => ({
+  ...t,
+  defaultFont: t.defaultFont || "'Quicksand', 'Nunito', sans-serif",
+  writingRegions: (t.writingRegions && t.writingRegions.length > 0) ? t.writingRegions : [t.writingArea || { x: 12, y: 22, width: 76, height: 58 }],
+}));
 
-// Helper to get all templates, merging with any local developer calibrations saved via Template Editor
+export const STICKY_TEMPLATES = NORMALIZED_INITIAL;
+
+let cachedCalibrated: string | null = null;
+let cachedResult: StickyTemplate[] = NORMALIZED_INITIAL;
+
+// Helper to get all templates with stable object references
 export const getStickyTemplates = (): StickyTemplate[] => {
-  const normalize = (t: any): StickyTemplate => ({
-    ...t,
-    defaultFont: t.defaultFont || "'Quicksand', 'Nunito', sans-serif",
-    writingRegions: (t.writingRegions && t.writingRegions.length > 0) ? t.writingRegions : [t.writingArea || { x: 12, y: 22, width: 76, height: 58 }],
-  });
-
-  if (typeof window === 'undefined') return INITIAL_STICKY_TEMPLATES.map(normalize);
+  if (typeof window === 'undefined') return NORMALIZED_INITIAL;
   try {
     const calibrated = localStorage.getItem('dazai_calibrated_templates');
-    if (calibrated) {
-      const parsed: any[] = JSON.parse(calibrated);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return INITIAL_STICKY_TEMPLATES.map(t => {
-          const found = parsed.find(p => p.id === t.id || p.image === t.image);
-          return normalize(found || t);
-        });
-      }
+    if (calibrated === cachedCalibrated && cachedResult !== NORMALIZED_INITIAL) {
+      return cachedResult;
+    }
+    if (!calibrated) {
+      cachedCalibrated = null;
+      cachedResult = NORMALIZED_INITIAL;
+      return NORMALIZED_INITIAL;
+    }
+    const parsed: any[] = JSON.parse(calibrated);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      cachedCalibrated = calibrated;
+      cachedResult = NORMALIZED_INITIAL.map(t => {
+        const found = parsed.find(p => p.id === t.id || p.image === t.image);
+        return found ? {
+          ...found,
+          defaultFont: found.defaultFont || t.defaultFont || "'Quicksand', 'Nunito', sans-serif",
+          writingRegions: (found.writingRegions && found.writingRegions.length > 0) ? found.writingRegions : [found.writingArea || { x: 12, y: 22, width: 76, height: 58 }],
+        } : t;
+      });
+      return cachedResult;
     }
   } catch (e) {
     console.error('Failed to parse calibrated templates from localStorage', e);
   }
-  return INITIAL_STICKY_TEMPLATES.map(normalize);
+  return NORMALIZED_INITIAL;
 };
 
-// Helper to find a template by asset URL or ID
+// Helper to find a template by asset URL or ID returning stable reference
 export const getStickyTemplate = (assetUrlOrId?: string): StickyTemplate => {
   const all = getStickyTemplates();
   if (!assetUrlOrId) return all[0];
@@ -484,7 +499,10 @@ export const saveCalibratedTemplate = (updated: StickyTemplate): StickyTemplate[
   const current = getStickyTemplates();
   const next = current.map(t => t.id === updated.id ? updated : t);
   if (typeof window !== 'undefined') {
-    localStorage.setItem('dazai_calibrated_templates', JSON.stringify(next));
+    const str = JSON.stringify(next);
+    localStorage.setItem('dazai_calibrated_templates', str);
+    cachedCalibrated = str;
+    cachedResult = next;
   }
   return next;
 };

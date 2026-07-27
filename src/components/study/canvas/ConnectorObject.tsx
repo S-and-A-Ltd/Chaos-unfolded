@@ -1,16 +1,18 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Group, Line as KonvaLine, Circle as KonvaCircle } from 'react-konva';
 import { CanvasItem, getAnchorCoords, useCanvasStore } from '@/stores/useCanvasStore';
+import { useShallow } from 'zustand/react/shallow';
 
 interface ConnectorObjectProps {
   arrow: CanvasItem;
   isSelected: boolean;
 }
 
-export default function ConnectorObject({ arrow, isSelected }: ConnectorObjectProps) {
-  const { items, setSelectedId } = useCanvasStore();
+function ConnectorObject({ arrow, isSelected }: ConnectorObjectProps) {
+  const items = useCanvasStore(useShallow(state => state.items));
+  const setSelectedId = useCanvasStore(state => state.setSelectedId);
 
   let sx = arrow.startX ?? (arrow.x + 10);
   let sy = arrow.startY ?? (arrow.y + 25);
@@ -54,13 +56,15 @@ export default function ConnectorObject({ arrow, isSelected }: ConnectorObjectPr
     tension = 0;
   }
 
+  const handleClick = useCallback((e: any) => {
+    e.cancelBubble = true;
+    setSelectedId(arrow.id);
+  }, [setSelectedId, arrow.id]);
+
   return (
     <Group
       id={`node_${arrow.id}`}
-      onClick={(e: any) => {
-        e.cancelBubble = true;
-        setSelectedId(arrow.id);
-      }}
+      onClick={handleClick}
     >
       {/* Invisible thicker hit line for easier selection */}
       <KonvaLine
@@ -91,3 +95,5 @@ export default function ConnectorObject({ arrow, isSelected }: ConnectorObjectPr
     </Group>
   );
 }
+
+export default React.memo(ConnectorObject);

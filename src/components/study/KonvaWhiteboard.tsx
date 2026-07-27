@@ -15,8 +15,13 @@ interface KonvaWhiteboardProps {
   onClose: () => void;
 }
 
-export default function KonvaWhiteboard({ document, onClose }: KonvaWhiteboardProps) {
-  const { initCanvas, items, pan, lastSaved, saveNow } = useCanvasStore();
+function KonvaWhiteboard({ document, onClose }: KonvaWhiteboardProps) {
+  const initCanvas = useCanvasStore(state => state.initCanvas);
+  const itemsLength = useCanvasStore(state => state.items.length);
+  const panX = useCanvasStore(state => state.pan.x);
+  const panY = useCanvasStore(state => state.pan.y);
+  const lastSaved = useCanvasStore(state => state.lastSaved);
+  const saveNow = useCanvasStore(state => state.saveNow);
 
   useEffect(() => {
     initCanvas(document.id, document.name);
@@ -33,8 +38,8 @@ export default function KonvaWhiteboard({ document, onClose }: KonvaWhiteboardPr
 
         <div className="bg-[#7c6a75]/10 dark:bg-black/30 border-t border-[#7c6a75]/20 px-4 py-1.5 flex items-center justify-between text-[11px] text-[#5d5770] dark:text-gray-400 font-medium z-30">
           <div className="flex items-center gap-4">
-            <span>🗂️ <strong>{items.length}</strong> canvas objects</span>
-            <span>📍 Pan: X={Math.round(pan.x)}, Y={Math.round(pan.y)}</span>
+            <span>🗂️ <strong>{itemsLength}</strong> canvas objects</span>
+            <span>📍 Pan: X={Math.round(panX)}, Y={Math.round(panY)}</span>
             <span className="hidden md:inline text-purple-600 dark:text-purple-400 font-bold">💡 Tip: Click purple edge dots to draw snapping connectors! Double-click card to edit text.</span>
           </div>
           <div className="flex items-center gap-2">
@@ -51,3 +56,5 @@ export default function KonvaWhiteboard({ document, onClose }: KonvaWhiteboardPr
     </div>
   );
 }
+
+export default React.memo(KonvaWhiteboard);

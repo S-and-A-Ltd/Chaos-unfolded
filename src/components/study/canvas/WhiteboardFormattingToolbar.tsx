@@ -2,9 +2,16 @@
 
 import React from 'react';
 import { useCanvasStore, ConnectorStyle } from '@/stores/useCanvasStore';
+import { useShallow } from 'zustand/react/shallow';
 
-export default function WhiteboardFormattingToolbar() {
-  const { items, selectedId, editingId, updateItemField, deleteItem, duplicateItem, setShowThemePicker } = useCanvasStore();
+function WhiteboardFormattingToolbar() {
+  const items = useCanvasStore(useShallow(state => state.items));
+  const selectedId = useCanvasStore(state => state.selectedId);
+  const editingId = useCanvasStore(state => state.editingId);
+  const updateItemField = useCanvasStore(state => state.updateItemField);
+  const deleteItem = useCanvasStore(state => state.deleteItem);
+  const duplicateItem = useCanvasStore(state => state.duplicateItem);
+  const setShowThemePicker = useCanvasStore(state => state.setShowThemePicker);
   
   if (!selectedId || editingId) return null;
   const selectedItem = items.find(i => i.id === selectedId);
@@ -131,3 +138,5 @@ export default function WhiteboardFormattingToolbar() {
     </div>
   );
 }
+
+export default React.memo(WhiteboardFormattingToolbar);

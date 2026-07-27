@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import { StudyDocument } from '@/types';
 import html2canvas from 'html2canvas';
@@ -10,32 +10,29 @@ interface WhiteboardToolbarProps {
   onClose: () => void;
 }
 
-export default function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
-  const {
-    historyIdx,
-    history,
-    undo,
-    redo,
-    setShowThemePicker,
-    setShowTemplateEditor,
-    activeDropdown,
-    setActiveDropdown,
-    addItem,
-    insertAiCard,
-    gridSnap,
-    setGridSnap,
-    scale,
-    setScale,
-    setPan,
-    items,
-  } = useCanvasStore();
+function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
+  const historyIdx = useCanvasStore(state => state.historyIdx);
+  const historyLength = useCanvasStore(state => state.history.length);
+  const undo = useCanvasStore(state => state.undo);
+  const redo = useCanvasStore(state => state.redo);
+  const setShowThemePicker = useCanvasStore(state => state.setShowThemePicker);
+  const setShowTemplateEditor = useCanvasStore(state => state.setShowTemplateEditor);
+  const activeDropdown = useCanvasStore(state => state.activeDropdown);
+  const setActiveDropdown = useCanvasStore(state => state.setActiveDropdown);
+  const addItem = useCanvasStore(state => state.addItem);
+  const insertAiCard = useCanvasStore(state => state.insertAiCard);
+  const gridSnap = useCanvasStore(state => state.gridSnap);
+  const setGridSnap = useCanvasStore(state => state.setGridSnap);
+  const scale = useCanvasStore(state => state.scale);
+  const setScale = useCanvasStore(state => state.setScale);
+  const setPan = useCanvasStore(state => state.setPan);
 
-  const handleExportPng = async () => {
-    const container = document.querySelector('.canvas-container') as HTMLElement;
+  const handleExportPng = useCallback(async () => {
+    const container = window.document.querySelector('.canvas-container') as HTMLElement;
     if (!container) return;
     try {
       const canvas = await html2canvas(container, { backgroundColor: '#f7f5fa', scale: 2 });
-      const link = document.createElement('a');
+      const link = window.document.createElement('a');
       link.download = `${document.name || 'study-canvas'}-whiteboard.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
@@ -43,7 +40,7 @@ export default function WhiteboardToolbar({ document, onClose }: WhiteboardToolb
       console.error('Export failed:', e);
       alert('Failed to export whiteboard PNG.');
     }
-  };
+  }, [document.name]);
 
   return (
     <div className="bg-[#7c6a75] dark:bg-[#342e48] text-white px-5 py-2.5 flex flex-wrap items-center justify-between shadow-md z-30 gap-2">
@@ -61,7 +58,7 @@ export default function WhiteboardToolbar({ document, onClose }: WhiteboardToolb
       <div className="flex items-center gap-1.5 flex-wrap">
         <div className="flex items-center gap-0.5 bg-black/20 p-1 rounded-lg">
           <button onClick={undo} disabled={historyIdx <= 0} className="px-2 py-1 hover:bg-white/20 disabled:opacity-40 rounded text-xs font-bold" title="Undo">↩ Undo</button>
-          <button onClick={redo} disabled={historyIdx >= history.length - 1} className="px-2 py-1 hover:bg-white/20 disabled:opacity-40 rounded text-xs font-bold" title="Redo">↪ Redo</button>
+          <button onClick={redo} disabled={historyIdx >= historyLength - 1} className="px-2 py-1 hover:bg-white/20 disabled:opacity-40 rounded text-xs font-bold" title="Redo">↪ Redo</button>
         </div>
 
         <button
@@ -166,3 +163,5 @@ export default function WhiteboardToolbar({ document, onClose }: WhiteboardToolb
     </div>
   );
 }
+
+export default React.memo(WhiteboardToolbar);

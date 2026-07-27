@@ -83,7 +83,7 @@ interface CanvasStoreState {
   setSelectedId: (id: string | null) => void;
   startEditing: (item: CanvasItem) => void;
   setEditingText: (text: string) => void;
-  commitEditing: () => void;
+  commitEditing: (newText?: string) => void;
   setScale: (scale: number | ((prev: number) => number)) => void;
   setPan: (pan: { x: number; y: number }) => void;
   setGridSnap: (snap: boolean | ((prev: boolean) => boolean)) => void;
@@ -369,10 +369,11 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
   startEditing: (item) => set({ editingId: item.id, editingText: item.content }),
   setEditingText: (text) => set({ editingText: text }),
   
-  commitEditing: () => {
+  commitEditing: (newText?: string) => {
     const { editingId, editingText, items, saveItems } = get();
     if (editingId) {
-      const next = items.map(i => i.id === editingId ? { ...i, content: editingText } : i);
+      const textToSave = newText !== undefined ? newText : editingText;
+      const next = items.map(i => i.id === editingId ? { ...i, content: textToSave } : i);
       saveItems(next, false);
       set({ editingId: null });
     }
