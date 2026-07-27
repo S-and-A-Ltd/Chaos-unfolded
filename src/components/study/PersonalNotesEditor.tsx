@@ -3,26 +3,59 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Button from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'motion/react';
+import { StudyDocument } from '@/types';
+import StudyCanvas from './StudyCanvas';
 
 interface PersonalNotesEditorProps {
   documentId: string;
   documentName: string;
+  document?: StudyDocument;
   onUpdateNotes: (notesHtml: string) => void;
   isLarge?: boolean;
 }
 
+// 35-45% opacity rgba highlights for readability similar to MS Word/OneNote
 const HIGHLIGHT_COLORS = [
-  { name: 'Yellow', color: '#fef08a', label: '🟨' },
-  { name: 'Amber', color: '#fed7aa', label: '🟧' },
-  { name: 'Pink', color: '#fbcfe8', label: '🩷' },
-  { name: 'Green', color: '#bbf7d0', label: '🟩' },
-  { name: 'Blue', color: '#bfdbfe', label: '🟦' },
-  { name: 'Purple', color: '#e9d5ff', label: '🪻' },
+  { name: 'Yellow', color: 'rgba(254, 240, 138, 0.45)', label: '🟨' },
+  { name: 'Amber', color: 'rgba(254, 215, 170, 0.45)', label: '🟧' },
+  { name: 'Pink', color: 'rgba(251, 207, 232, 0.45)', label: '🩷' },
+  { name: 'Green', color: 'rgba(187, 247, 208, 0.45)', label: '🟩' },
+  { name: 'Blue', color: 'rgba(191, 219, 254, 0.45)', label: '🟦' },
+  { name: 'Purple', color: 'rgba(233, 213, 255, 0.45)', label: '🪻' },
+];
+
+const TEXT_COLORS = [
+  { name: 'Black', color: '#000000', label: '⚫' },
+  { name: 'Dark Purple', color: '#4c1d95', label: '💜' },
+  { name: 'Dark Teal', color: '#0f766e', label: '🩵' },
+  { name: 'Amber Brown', color: '#9a3412', label: '🧡' },
+  { name: 'Crimson Red', color: '#b91c1c', label: '❤️' },
+  { name: 'Navy Blue', color: '#1e3a8a', label: '💙' },
+  { name: 'Slate Gray', color: '#4b5563', label: '🩶' },
+  { name: 'Pure White', color: '#ffffff', label: '⚪' },
+];
+
+const FONT_FAMILIES = [
+  { name: 'Default Sans', value: 'Inter, system-ui, sans-serif' },
+  { name: 'Arial', value: 'Arial, sans-serif' },
+  { name: 'Georgia Serif', value: 'Georgia, serif' },
+  { name: 'Courier Mono', value: '"Courier New", Courier, monospace' },
+  { name: 'Times New Roman', value: '"Times New Roman", Times, serif' },
+  { name: 'Verdana', value: 'Verdana, Geneva, sans-serif' },
+];
+
+const FONT_SIZES = [
+  { name: 'Small (10pt)', value: '1' },
+  { name: 'Normal (12pt)', value: '3' },
+  { name: 'Medium (14pt)', value: '4' },
+  { name: 'Large (18pt)', value: '5' },
+  { name: 'Huge (24pt)', value: '6' },
 ];
 
 export default function PersonalNotesEditor({
   documentId,
   documentName,
+  document,
   onUpdateNotes,
   isLarge = false,
 }: PersonalNotesEditorProps) {
@@ -34,10 +67,22 @@ export default function PersonalNotesEditor({
   const [charCount, setCharCount] = useState(0);
   const [lastEdited, setLastEdited] = useState<string>('Just now');
   const [isEditorFullscreen, setIsEditorFullscreen] = useState(false);
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const [showHeadingPicker, setShowHeadingPicker] = useState(false);
+  const [showCanvas, setShowCanvas] = useState(false);
 
-  // Image resize selection state
+  // Compact Toolbar Dropdowns
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showTextColorPicker, setShowTextColorPicker] = useState(false);
+  const [showHeadingPicker, setShowHeadingPicker] = useState(false);
+  const [showFontPicker, setShowFontPicker] = useState(false);
+  const [showSizePicker, setShowSizePicker] = useState(false);
+  const [showAlignPicker, setShowAlignPicker] = useState(false);
+
+  // Find & Replace State (Ctrl+H)
+  const [showFindReplace, setShowFindReplace] = useState(false);
+  const [findQuery, setFindQuery] = useState('');
+  const [replaceQuery, setReplaceQuery] = useState('');
+
+  // Image resize & reposition selection state
   const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
 
   // 1. Load initial content from storage on mount
@@ -46,13 +91,12 @@ export default function PersonalNotesEditor({
       const savedHtml = localStorage.getItem(`dazai_notes_${documentId}`) || '';
       const savedTime = localStorage.getItem(`dazai_notes_timestamp_${documentId}`) || 'Not saved yet';
       
-      // If saved content is plain text from before, wrap in paragraphs
       if (savedHtml && !savedHtml.includes('<') && !savedHtml.includes('>')) {
         editorRef.current.innerHTML = `<p>${savedHtml.replace(/\n/g, '<br/>')}</p>`;
       } else if (savedHtml) {
         editorRef.current.innerHTML = savedHtml;
       } else {
-        editorRef.current.innerHTML = `<p className="text-gray-400">Start typing your personal notes, formulas, or drag & drop screenshots here...</p>`;
+        editorRef.current.innerHTML = `<p class="text-gray-400">Start typing your personal study notes, formulas, or drag & drop screenshots here...</p>`;
       }
 
       setLastEdited(savedTime);
@@ -60,7 +104,6 @@ export default function PersonalNotesEditor({
     }
   }, [documentId]);
 
-  // Helper to update words and chars without triggering save loop
   const updateStatsOnly = () => {
     if (!editorRef.current) return;
     const text = editorRef.current.innerText || '';
@@ -97,16 +140,36 @@ export default function PersonalNotesEditor({
     updateStatsAndSave();
   };
 
-  const applyHighlight = (hexColor: string | null) => {
+  const applyHighlight = (rgbaColor: string | null) => {
     editorRef.current?.focus();
-    if (!hexColor) {
+    if (!rgbaColor) {
       document.execCommand('removeFormat', false, undefined);
     } else {
-      // HiliteColor works across browsers for background highlight
-      document.execCommand('hiliteColor', false, hexColor);
-      document.execCommand('backColor', false, hexColor);
+      document.execCommand('hiliteColor', false, rgbaColor);
+      document.execCommand('backColor', false, rgbaColor);
     }
     setShowColorPicker(false);
+    updateStatsAndSave();
+  };
+
+  const applyTextColor = (hexColor: string) => {
+    editorRef.current?.focus();
+    document.execCommand('foreColor', false, hexColor);
+    setShowTextColorPicker(false);
+    updateStatsAndSave();
+  };
+
+  const applyFontFamily = (fontName: string) => {
+    editorRef.current?.focus();
+    document.execCommand('fontName', false, fontName);
+    setShowFontPicker(false);
+    updateStatsAndSave();
+  };
+
+  const applyFontSize = (sizeVal: string) => {
+    editorRef.current?.focus();
+    document.execCommand('fontSize', false, sizeVal);
+    setShowSizePicker(false);
     updateStatsAndSave();
   };
 
@@ -132,14 +195,48 @@ export default function PersonalNotesEditor({
     }
   };
 
-  // 4. Image Insertion (File Picker, Paste Screenshot, Drag & Drop)
+  // 4. Find & Replace Handlers (Ctrl+H)
+  const handleFindNext = () => {
+    if (findQuery) {
+      window.find(findQuery, false, false, true);
+    }
+  };
+
+  const handleReplace = () => {
+    if (findQuery && window.getSelection()?.toString().toLowerCase() === findQuery.toLowerCase()) {
+      document.execCommand('insertText', false, replaceQuery);
+      updateStatsAndSave();
+    } else if (findQuery) {
+      if (window.find(findQuery, false, false, true)) {
+        document.execCommand('insertText', false, replaceQuery);
+        updateStatsAndSave();
+      }
+    }
+  };
+
+  const handleReplaceAll = () => {
+    if (findQuery && editorRef.current) {
+      let count = 0;
+      // Start from top of document
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      while (window.find(findQuery, false, false, true)) {
+        document.execCommand('insertText', false, replaceQuery);
+        count++;
+        if (count > 500) break; // prevent infinite loop
+      }
+      updateStatsAndSave();
+    }
+  };
+
+  // 5. Image Insertion (Draggable, repositionable, resize support, aspect ratio, alignment, captions)
   const insertImageFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string;
       if (dataUrl) {
         editorRef.current?.focus();
-        const imgHtml = `<div class="dazai-img-wrapper my-3 p-2.5 bg-white/80 dark:bg-black/30 border-2 border-[#7c6a75]/20 rounded-xl max-w-fit mx-auto shadow-md" contenteditable="false" style="margin: 14px auto; padding: 10px; border: 2px solid rgba(124, 106, 117, 0.2); border-radius: 12px; background: rgba(255,255,255,0.8);"><img src="${dataUrl}" style="width: 350px; max-width: 100%; height: auto; border-radius: 8px; cursor: pointer; display: block; margin: 0 auto;" class="dazai-note-img block mx-auto" /><div contenteditable="true" class="text-center text-xs text-[#5d5770] dark:text-gray-300 mt-2 p-1 border-b border-dashed border-[#7c6a75]/30 focus:border-[#7c6a75] outline-none min-w-[180px] italic" style="text-align: center; font-size: 12px; margin-top: 8px; font-style: italic;">Caption: Add image description here...</div></div><p><br/></p>`;
+        const imgHtml = `<div class="dazai-img-wrapper my-3 p-2.5 bg-white/85 dark:bg-black/30 border-2 border-[#7c6a75]/30 rounded-2xl max-w-fit mx-auto shadow-md transition-all cursor-move" contenteditable="false" draggable="true" style="margin: 14px auto; padding: 12px; border: 2px solid rgba(124, 106, 117, 0.25); border-radius: 16px; background: rgba(255,255,255,0.9); display: block; float: none;"><img src="${dataUrl}" style="width: 350px; max-width: 100%; height: auto; border-radius: 10px; cursor: pointer; display: block; margin: 0 auto;" class="dazai-note-img block mx-auto" /><div contenteditable="true" class="text-center text-xs text-[#5d5770] dark:text-gray-300 mt-2 p-1 border-b border-dashed border-[#7c6a75]/30 focus:border-[#7c6a75] outline-none min-w-[180px] italic" style="text-align: center; font-size: 12px; margin-top: 8px; font-style: italic;">Caption: Add image description here...</div></div><p><br/></p>`;
         document.execCommand('insertHTML', false, imgHtml);
         updateStatsAndSave();
       }
@@ -175,7 +272,7 @@ export default function PersonalNotesEditor({
     }
   };
 
-  // 5. Click handler for image resizing and checklist strikethroughs
+  // 6. Click handler for image resizing/alignment and checklist strikethroughs
   const handleEditorClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     if (target instanceof HTMLInputElement && target.type === 'checkbox') {
@@ -194,10 +291,31 @@ export default function PersonalNotesEditor({
     }
   };
 
-  // Image Resizing & Deletion
+  // Image Resizing & Repositioning / Alignment
   const resizeSelectedImage = (newWidth: string) => {
     if (selectedImg) {
       selectedImg.style.width = newWidth;
+      selectedImg.style.height = 'auto'; // keep aspect ratio
+      updateStatsAndSave();
+    }
+  };
+
+  const alignSelectedImage = (alignment: 'left' | 'center' | 'right') => {
+    if (selectedImg) {
+      const wrapper = (selectedImg.closest('.dazai-img-wrapper') as HTMLElement) || selectedImg;
+      if (alignment === 'center') {
+        wrapper.style.margin = '14px auto';
+        wrapper.style.float = 'none';
+        wrapper.style.display = 'block';
+      } else if (alignment === 'left') {
+        wrapper.style.margin = '0 16px 14px 0';
+        wrapper.style.float = 'left';
+        wrapper.style.display = 'inline-block';
+      } else if (alignment === 'right') {
+        wrapper.style.margin = '0 0 14px 16px';
+        wrapper.style.float = 'right';
+        wrapper.style.display = 'inline-block';
+      }
       updateStatsAndSave();
     }
   };
@@ -215,7 +333,7 @@ export default function PersonalNotesEditor({
     }
   };
 
-  // 6. Keyboard Shortcuts (Ctrl+B, Ctrl+I, Ctrl+Z, Ctrl+Y, Ctrl+U)
+  // 7. Keyboard Shortcuts & List Fixes (Tab / Shift+Tab for nesting, Enter on empty item exits list)
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const isCtrl = e.ctrlKey || e.metaKey;
     if (isCtrl && e.key.toLowerCase() === 'b') {
@@ -237,10 +355,39 @@ export default function PersonalNotesEditor({
     } else if (isCtrl && e.key.toLowerCase() === 'y') {
       e.preventDefault();
       execCmd('redo');
+    } else if (isCtrl && e.key.toLowerCase() === 'h') {
+      e.preventDefault();
+      setShowFindReplace(!showFindReplace);
+    } else if (e.key === 'Tab') {
+      // Nested list support: Tab indents, Shift+Tab outdents inside li
+      const sel = window.getSelection();
+      let node = sel?.anchorNode;
+      while (node && node !== editorRef.current) {
+        if (node.nodeName.toLowerCase() === 'li' || node.nodeName.toLowerCase() === 'ul' || node.nodeName.toLowerCase() === 'ol') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            execCmd('outdent');
+          } else {
+            execCmd('indent');
+          }
+          return;
+        }
+        node = node.parentNode;
+      }
+    } else if (e.key === 'Enter') {
+      // Exit list on double Enter / empty item
+      const sel = window.getSelection();
+      let node = sel?.anchorNode;
+      if (node && (node.nodeName.toLowerCase() === 'li' || node.parentElement?.nodeName.toLowerCase() === 'li')) {
+        const li = (node.nodeName.toLowerCase() === 'li' ? node : node.parentElement) as HTMLElement;
+        if (!li.innerText.trim() && li.innerText !== '\n') {
+          e.preventDefault();
+          execCmd('outdent');
+        }
+      }
     }
   };
 
-  // Render Toolbar Button
   const ToolBtn = ({
     onClick,
     title,
@@ -267,7 +414,6 @@ export default function PersonalNotesEditor({
   );
 
   const renderEditorUI = (fullscreen: boolean) => {
-    const toolbarSize = fullscreen || isLarge ? 'text-xs md:text-sm py-1.5 px-2.5' : 'text-[11px] py-1 px-1.5';
     const editorSize = fullscreen || isLarge ? 'text-sm md:text-base leading-relaxed p-6' : 'text-xs leading-relaxed p-4';
 
     return (
@@ -280,6 +426,35 @@ export default function PersonalNotesEditor({
           <div className="flex items-center gap-0.5 border-r border-[#7c6a75]/20 pr-1">
             <ToolBtn onClick={() => execCmd('undo')} title="Undo (Ctrl+Z)">↩</ToolBtn>
             <ToolBtn onClick={() => execCmd('redo')} title="Redo (Ctrl+Y)">↪</ToolBtn>
+          </div>
+
+          {/* Font Family & Size */}
+          <div className="relative border-r border-[#7c6a75]/20 pr-1 flex items-center gap-0.5">
+            <ToolBtn onClick={() => setShowFontPicker(!showFontPicker)} title="Font Family">
+              <span>Font ▾</span>
+            </ToolBtn>
+            {showFontPicker && (
+              <div className="absolute left-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/30 rounded-xl shadow-2xl p-1 z-[60] flex flex-col min-w-[140px] text-xs">
+                {FONT_FAMILIES.map((f) => (
+                  <button key={f.name} onClick={() => applyFontFamily(f.value)} className="text-left px-2.5 py-1.5 hover:bg-[#7c6a75]/10 rounded font-medium truncate" style={{ fontFamily: f.value }}>
+                    {f.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <ToolBtn onClick={() => setShowSizePicker(!showSizePicker)} title="Font Size">
+              <span>Size ▾</span>
+            </ToolBtn>
+            {showSizePicker && (
+              <div className="absolute left-10 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/30 rounded-xl shadow-2xl p-1 z-[60] flex flex-col min-w-[120px] text-xs">
+                {FONT_SIZES.map((s) => (
+                  <button key={s.name} onClick={() => applyFontSize(s.value)} className="text-left px-2.5 py-1.5 hover:bg-[#7c6a75]/10 rounded font-bold">
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Bold, Italic, Underline */}
@@ -296,55 +471,72 @@ export default function PersonalNotesEditor({
             </ToolBtn>
             {showHeadingPicker && (
               <div className="absolute left-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/30 rounded-lg shadow-xl p-1 z-[60] flex flex-col min-w-[110px]">
-                <button onClick={() => insertHeading('h1')} className="text-left font-black text-sm px-2 py-1 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded">H1 Title</button>
-                <button onClick={() => insertHeading('h2')} className="text-left font-bold text-xs px-2 py-1 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded">H2 Section</button>
-                <button onClick={() => insertHeading('h3')} className="text-left font-semibold text-[11px] px-2 py-1 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded">H3 Subtitle</button>
-                <button onClick={() => insertHeading('p')} className="text-left text-xs px-2 py-1 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded">Paragraph</button>
+                <button onClick={() => insertHeading('h1')} className="text-left font-black text-sm px-2 py-1 hover:bg-[#7c6a75]/10 rounded">H1 Title</button>
+                <button onClick={() => insertHeading('h2')} className="text-left font-bold text-xs px-2 py-1 hover:bg-[#7c6a75]/10 rounded">H2 Section</button>
+                <button onClick={() => insertHeading('h3')} className="text-left font-semibold text-[11px] px-2 py-1 hover:bg-[#7c6a75]/10 rounded">H3 Subtitle</button>
+                <button onClick={() => insertHeading('p')} className="text-left text-xs px-2 py-1 hover:bg-[#7c6a75]/10 rounded">Paragraph</button>
               </div>
             )}
           </div>
 
-          {/* Highlight Color Palette */}
-          <div className="relative border-r border-[#7c6a75]/20 pr-1">
-            <ToolBtn onClick={() => setShowColorPicker(!showColorPicker)} title="Highlight text color">
+          {/* Text Color & Highlight Palette (35-45% Opacity) */}
+          <div className="relative border-r border-[#7c6a75]/20 pr-1 flex items-center gap-0.5">
+            <ToolBtn onClick={() => setShowTextColorPicker(!showTextColorPicker)} title="Text Color">
+              <span>A▾</span>
+            </ToolBtn>
+            {showTextColorPicker && (
+              <div className="absolute left-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/30 rounded-lg shadow-xl p-1.5 z-[60] grid grid-cols-4 gap-1 w-[130px]">
+                {TEXT_COLORS.map((col) => (
+                  <button key={col.name} onClick={() => applyTextColor(col.color)} title={`Text: ${col.name}`} className="w-6 h-6 rounded-md border border-gray-300 flex items-center justify-center text-xs shadow-sm hover:scale-110" style={{ backgroundColor: col.color }} />
+                ))}
+              </div>
+            )}
+
+            <ToolBtn onClick={() => setShowColorPicker(!showColorPicker)} title="Highlight text color (35-45% opacity)">
               <span>🖍️▾</span>
             </ToolBtn>
             {showColorPicker && (
-              <div className="absolute left-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/30 rounded-lg shadow-xl p-1.5 z-[60] grid grid-cols-3 gap-1 w-[120px]">
+              <div className="absolute left-6 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/30 rounded-lg shadow-xl p-1.5 z-[60] grid grid-cols-3 gap-1 w-[120px]">
                 {HIGHLIGHT_COLORS.map((col) => (
-                  <button
-                    key={col.name}
-                    onClick={() => applyHighlight(col.color)}
-                    title={`Highlight ${col.name}`}
-                    className="w-8 h-8 rounded-md flex items-center justify-center text-sm shadow-sm hover:scale-110 transition-transform"
-                    style={{ backgroundColor: col.color }}
-                  >
+                  <button key={col.name} onClick={() => applyHighlight(col.color)} title={`Highlight ${col.name}`} className="w-8 h-8 rounded-md flex items-center justify-center text-sm shadow-sm hover:scale-110 transition-transform" style={{ backgroundColor: col.color }}>
                     {col.label}
                   </button>
                 ))}
-                <button
-                  onClick={() => applyHighlight(null)}
-                  title="Remove Highlight"
-                  className="col-span-3 text-[10px] bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 py-1 rounded font-bold text-center mt-1"
-                >
+                <button onClick={() => applyHighlight(null)} title="Remove Highlight" className="col-span-3 text-[10px] bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 py-1 rounded font-bold text-center mt-1">
                   ✕ Clear Color
                 </button>
               </div>
             )}
           </div>
 
-          {/* Lists & Checklists */}
+          {/* Text Alignment (Left, Center, Right, Justify) */}
+          <div className="relative border-r border-[#7c6a75]/20 pr-1">
+            <ToolBtn onClick={() => setShowAlignPicker(!showAlignPicker)} title="Text Alignment">
+              <span>Align ▾</span>
+            </ToolBtn>
+            {showAlignPicker && (
+              <div className="absolute left-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/30 rounded-xl shadow-xl p-1 z-[60] flex flex-col min-w-[110px] text-xs">
+                <button onClick={() => { execCmd('justifyLeft'); setShowAlignPicker(false); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">⬅️ Left</button>
+                <button onClick={() => { execCmd('justifyCenter'); setShowAlignPicker(false); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">↔️ Center</button>
+                <button onClick={() => { execCmd('justifyRight'); setShowAlignPicker(false); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">➡️ Right</button>
+                <button onClick={() => { execCmd('justifyFull'); setShowAlignPicker(false); }} className="text-left px-2.5 py-1 hover:bg-[#7c6a75]/10 rounded font-bold">≣ Justify</button>
+              </div>
+            )}
+          </div>
+
+          {/* Lists & Checklists (Standard behavior with nested tab support) */}
           <div className="flex items-center gap-0.5 border-r border-[#7c6a75]/20 pr-1">
             <ToolBtn onClick={() => execCmd('insertUnorderedList')} title="Bullet List">• List</ToolBtn>
             <ToolBtn onClick={() => execCmd('insertOrderedList')} title="Numbered List">1. List</ToolBtn>
             <ToolBtn onClick={insertChecklist} title="Insert Interactive Checklist">☑ Check</ToolBtn>
           </div>
 
-          {/* Divider, Link, Image */}
-          <div className="flex items-center gap-0.5">
+          {/* Divider, Link, Image, Find/Replace, Study Canvas */}
+          <div className="flex items-center gap-0.5 flex-wrap">
             <ToolBtn onClick={() => execCmd('insertHorizontalRule')} title="Horizontal Divider">—</ToolBtn>
             <ToolBtn onClick={insertLink} title="Insert Hyperlink">🔗</ToolBtn>
             <ToolBtn onClick={() => fileInputRef.current?.click()} title="Insert Image / Screenshot">🖼️ Img</ToolBtn>
+            <ToolBtn onClick={() => setShowFindReplace(!showFindReplace)} title="Find & Replace (Ctrl+H)">🔍 Find</ToolBtn>
             <input
               ref={fileInputRef}
               type="file"
@@ -356,6 +548,15 @@ export default function PersonalNotesEditor({
                 }
               }}
             />
+
+            {/* OPEN STUDY CANVAS BUTTON */}
+            <button
+              onClick={() => setShowCanvas(true)}
+              className="bg-gradient-to-r from-purple-500 to-teal-400 hover:from-purple-600 hover:to-teal-500 text-white font-black px-2.5 py-1 rounded-md shadow-sm text-xs transition-transform hover:scale-105 flex items-center gap-1 ml-1"
+              title="Open Digital Study Whiteboard Canvas"
+            >
+              <span>🎨 Study Canvas</span>
+            </button>
           </div>
 
           {/* Maximize / Minimize Fullscreen Button */}
@@ -371,11 +572,45 @@ export default function PersonalNotesEditor({
 
         </div>
 
-        {/* --- IMAGE RESIZE CONTROLS (Floating when image clicked) --- */}
+        {/* --- FIND & REPLACE BAR (Ctrl+H) --- */}
+        {showFindReplace && (
+          <div className="bg-purple-100 dark:bg-purple-950/80 border-b-2 border-purple-300 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-purple-900 dark:text-purple-200 animate-fadeIn z-20">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span>🔍 Find:</span>
+              <input
+                type="text"
+                placeholder="Find text..."
+                value={findQuery}
+                onChange={(e) => setFindQuery(e.target.value)}
+                className="bg-white dark:bg-black/40 border border-purple-300 rounded px-2 py-0.5 text-xs text-black dark:text-white"
+              />
+              <span>Replace:</span>
+              <input
+                type="text"
+                placeholder="Replace with..."
+                value={replaceQuery}
+                onChange={(e) => setReplaceQuery(e.target.value)}
+                className="bg-white dark:bg-black/40 border border-purple-300 rounded px-2 py-0.5 text-xs text-black dark:text-white"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <button onClick={handleFindNext} className="bg-white dark:bg-black/40 hover:bg-purple-200 px-2 py-0.5 rounded border border-purple-300">Find Next</button>
+              <button onClick={handleReplace} className="bg-white dark:bg-black/40 hover:bg-purple-200 px-2 py-0.5 rounded border border-purple-300">Replace</button>
+              <button onClick={handleReplaceAll} className="bg-purple-600 text-white hover:bg-purple-700 px-2.5 py-0.5 rounded shadow-sm">Replace All</button>
+              <button onClick={() => setShowFindReplace(false)} className="text-gray-500 hover:text-gray-800 font-bold px-1.5 ml-1">✕</button>
+            </div>
+          </div>
+        )}
+
+        {/* --- IMAGE RESIZE & ALIGNMENT CONTROLS (Floating when image clicked) --- */}
         {selectedImg && (
-          <div className="bg-amber-100 dark:bg-amber-950/80 border-b-2 border-amber-400 px-3 py-1.5 flex items-center justify-between gap-2 text-xs font-bold text-amber-900 dark:text-amber-200 animate-fadeIn">
-            <div className="flex items-center gap-2">
-              <span>🖼️ Image Size:</span>
+          <div className="bg-amber-100 dark:bg-amber-950/80 border-b-2 border-amber-400 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-amber-900 dark:text-amber-200 animate-fadeIn z-20">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span>🖼️ Align:</span>
+              <button onClick={() => alignSelectedImage('left')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">⬅️ Left</button>
+              <button onClick={() => alignSelectedImage('center')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">↔️ Center</button>
+              <button onClick={() => alignSelectedImage('right')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">➡️ Right</button>
+              <span className="ml-2">Size:</span>
               <button onClick={() => resizeSelectedImage('200px')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">Small</button>
               <button onClick={() => resizeSelectedImage('400px')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">Medium</button>
               <button onClick={() => resizeSelectedImage('650px')} className="bg-white dark:bg-black/40 px-2 py-0.5 rounded border border-amber-300 hover:bg-amber-200">Large</button>
@@ -476,6 +711,16 @@ export default function PersonalNotesEditor({
 
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- STUDY CANVAS MODAL OVERLAY --- */}
+      <AnimatePresence>
+        {showCanvas && (
+          <StudyCanvas
+            document={document || { id: documentId, name: documentName, uri: '', type: 'pdf', status: 'ready', uploadedAt: Date.now() }}
+            onClose={() => setShowCanvas(false)}
+          />
         )}
       </AnimatePresence>
     </>

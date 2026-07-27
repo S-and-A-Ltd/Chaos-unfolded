@@ -611,6 +611,7 @@ export default function NotesPanel({ document, onUpdatePersonalNotes, onTriggerQ
             <PersonalNotesEditor
               documentId={document.id}
               documentName={document.name}
+              document={document}
               onUpdateNotes={(html) => {
                 setPersonalNotes(html);
                 onUpdatePersonalNotes(html);
