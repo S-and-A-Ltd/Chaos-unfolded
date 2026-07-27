@@ -1,4 +1,4 @@
-export interface StickyTemplate {
+export interface NoteTemplate {
   id: string;
   name: string;
   image: string; // Asset URL in /public/assets/sticky-notes/
@@ -22,11 +22,14 @@ export interface StickyTemplate {
     height: number; // % of visible cropped height
   }[];
   padding: string;       // Custom CSS padding inside text zone, e.g. "4% 5%"
+  defaultFont?: string;  // e.g. "'Quicksand', 'Nunito', sans-serif"
   defaultFontSize: number;
   lineHeight: number;    // Line spacing per template, e.g. 1.5
   defaultTextColor: string;
   textAlign?: 'left' | 'center' | 'right' | 'justify';
 }
+
+export type StickyTemplate = NoteTemplate;
 
 // Automatically scans PNG alpha channel to remove invisible transparent padding around artwork
 export const autoAlphaCropImage = (img: HTMLImageElement): { top: number; left: number; width: number; height: number } => {
@@ -442,22 +445,28 @@ export const STICKY_TEMPLATES = INITIAL_STICKY_TEMPLATES;
 
 // Helper to get all templates, merging with any local developer calibrations saved via Template Editor
 export const getStickyTemplates = (): StickyTemplate[] => {
-  if (typeof window === 'undefined') return INITIAL_STICKY_TEMPLATES;
+  const normalize = (t: any): StickyTemplate => ({
+    ...t,
+    defaultFont: t.defaultFont || "'Quicksand', 'Nunito', sans-serif",
+    writingRegions: (t.writingRegions && t.writingRegions.length > 0) ? t.writingRegions : [t.writingArea || { x: 12, y: 22, width: 76, height: 58 }],
+  });
+
+  if (typeof window === 'undefined') return INITIAL_STICKY_TEMPLATES.map(normalize);
   try {
     const calibrated = localStorage.getItem('dazai_calibrated_templates');
     if (calibrated) {
-      const parsed: StickyTemplate[] = JSON.parse(calibrated);
+      const parsed: any[] = JSON.parse(calibrated);
       if (Array.isArray(parsed) && parsed.length > 0) {
         return INITIAL_STICKY_TEMPLATES.map(t => {
           const found = parsed.find(p => p.id === t.id || p.image === t.image);
-          return found || t;
+          return normalize(found || t);
         });
       }
     }
   } catch (e) {
     console.error('Failed to parse calibrated templates from localStorage', e);
   }
-  return INITIAL_STICKY_TEMPLATES;
+  return INITIAL_STICKY_TEMPLATES.map(normalize);
 };
 
 // Helper to find a template by asset URL or ID

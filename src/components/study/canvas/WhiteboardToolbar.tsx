@@ -1,0 +1,168 @@
+'use client';
+
+import React from 'react';
+import { useCanvasStore } from '@/stores/useCanvasStore';
+import { StudyDocument } from '@/types';
+import html2canvas from 'html2canvas';
+
+interface WhiteboardToolbarProps {
+  document: StudyDocument;
+  onClose: () => void;
+}
+
+export default function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
+  const {
+    historyIdx,
+    history,
+    undo,
+    redo,
+    setShowThemePicker,
+    setShowTemplateEditor,
+    activeDropdown,
+    setActiveDropdown,
+    addItem,
+    insertAiCard,
+    gridSnap,
+    setGridSnap,
+    scale,
+    setScale,
+    setPan,
+    items,
+  } = useCanvasStore();
+
+  const handleExportPng = async () => {
+    const container = document.querySelector('.canvas-container') as HTMLElement;
+    if (!container) return;
+    try {
+      const canvas = await html2canvas(container, { backgroundColor: '#f7f5fa', scale: 2 });
+      const link = document.createElement('a');
+      link.download = `${document.name || 'study-canvas'}-whiteboard.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (e) {
+      console.error('Export failed:', e);
+      alert('Failed to export whiteboard PNG.');
+    }
+  };
+
+  return (
+    <div className="bg-[#7c6a75] dark:bg-[#342e48] text-white px-5 py-2.5 flex flex-wrap items-center justify-between shadow-md z-30 gap-2">
+      <div className="flex items-center gap-3">
+        <span className="text-2xl">🎨</span>
+        <div>
+          <h2 className="font-black text-sm md:text-base tracking-wide flex items-center gap-2">
+            <span>Study Whiteboard Engine</span>
+            <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] uppercase font-bold">Zustand + Konva Html</span>
+          </h2>
+          <p className="text-[10px] text-white/80 hidden md:block">Excalidraw/FigJam clean architecture with stable zooming, multi-region text flow & anchor connectors</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-0.5 bg-black/20 p-1 rounded-lg">
+          <button onClick={undo} disabled={historyIdx <= 0} className="px-2 py-1 hover:bg-white/20 disabled:opacity-40 rounded text-xs font-bold" title="Undo">↩ Undo</button>
+          <button onClick={redo} disabled={historyIdx >= history.length - 1} className="px-2 py-1 hover:bg-white/20 disabled:opacity-40 rounded text-xs font-bold" title="Redo">↪ Redo</button>
+        </div>
+
+        <button
+          onClick={() => setShowThemePicker(true)}
+          className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-black px-3 py-1.5 rounded-xl text-xs shadow-md flex items-center gap-1.5 transition-transform hover:scale-105"
+        >
+          <span>🖼️ Sticky Themes (28+)</span>
+        </button>
+
+        <button
+          onClick={() => setShowTemplateEditor(true)}
+          className="bg-amber-500 hover:bg-amber-600 text-black font-black px-3 py-1.5 rounded-xl text-xs shadow-md flex items-center gap-1 transition-transform hover:scale-105"
+          title="Open Template Calibration Studio (Dev Tool)"
+        >
+          <span>🛠️ Template Editor</span>
+        </button>
+
+        <div className="relative">
+          <button
+            onClick={() => setActiveDropdown(activeDropdown === 'add' ? null : 'add')}
+            className="bg-white text-[#7c6a75] hover:bg-white/90 font-black px-3 py-1.5 rounded-xl text-xs shadow-sm flex items-center gap-1 transition-all hover:scale-105"
+          >
+            <span>➕ Add Item</span>
+            <span>▾</span>
+          </button>
+          {activeDropdown === 'add' && (
+            <div className="absolute left-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/40 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col min-w-[190px] text-gray-800 dark:text-gray-200 text-xs">
+              <button onClick={() => { setActiveDropdown(null); setShowThemePicker(true); }} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">📌 Sticky Note Theme Picker...</button>
+              <button onClick={() => { setActiveDropdown(null); setShowTemplateEditor(true); }} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2 text-amber-600 dark:text-amber-400">🛠️ Template Editor (Calibrate)...</button>
+              <button onClick={() => addItem('text')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">📝 Transparent Text Box</button>
+              <button onClick={() => addItem('arrow')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">➔ Snapping Arrow Connector</button>
+              <button onClick={() => addItem('shape', 'rectangle')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">🔲 Rectangle Box</button>
+              <button onClick={() => addItem('shape', 'circle')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">⚪ Circle / Concept</button>
+            </div>
+          )}
+        </div>
+
+        <div className="relative">
+          <button
+            onClick={() => setActiveDropdown(activeDropdown === 'ai' ? null : 'ai')}
+            className="bg-gradient-to-r from-amber-400 to-pink-500 hover:from-amber-300 hover:to-pink-400 text-black font-black px-3 py-1.5 rounded-xl text-xs shadow-md flex items-center gap-1.5 animate-pulse transition-transform hover:scale-105"
+          >
+            <span>✨ Insert AI</span>
+            <span>▾</span>
+          </button>
+          {activeDropdown === 'ai' && (
+            <div className="absolute right-0 top-full mt-1 bg-white dark:bg-[#232130] border-2 border-[#7c6a75]/40 rounded-2xl shadow-2xl p-3 z-[60] w-[340px] max-h-[460px] overflow-y-auto custom-scrollbar text-gray-900 dark:text-gray-100 text-xs">
+              <div className="font-black text-center text-xs text-[#7c6a75] dark:text-purple-300 border-b pb-2 mb-3">
+                ✨ Cached Document Insights
+              </div>
+              {document.aiData?.aiNotes?.chapterSummary && (
+                <button
+                  onClick={() => insertAiCard('Chapter Summary', document.aiData!.aiNotes!.chapterSummary!, '#fff5f7')}
+                  className="w-full text-left bg-pink-50 dark:bg-pink-950/50 hover:bg-pink-100 dark:hover:bg-pink-900/60 p-2.5 rounded-xl border border-pink-300 dark:border-pink-500/40 mb-2.5 transition-all shadow-sm group"
+                >
+                  <div className="font-bold text-sm text-pink-700 dark:text-pink-300 mb-1">📑 Chapter Summary</div>
+                  <div className="text-xs text-gray-800 dark:text-gray-200 line-clamp-3">{document.aiData.aiNotes.chapterSummary}</div>
+                </button>
+              )}
+              {document.aiData?.aiNotes?.keyConcepts && document.aiData.aiNotes.keyConcepts.length > 0 && (
+                <div className="mb-3">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mt-2 mb-1.5 px-1">Key Concepts</div>
+                  {document.aiData.aiNotes.keyConcepts.map((kc, i) => (
+                    <button key={i} onClick={() => insertAiCard(`Concept #${i+1}`, String(kc), '#f8f5ff')} className="w-full text-left bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 p-2 rounded-xl mb-1 text-xs font-semibold">
+                      ⚡ {String(kc)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={() => setGridSnap(prev => !prev)}
+          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
+            gridSnap ? 'bg-amber-400 text-black border-amber-500 shadow-sm' : 'bg-black/30 text-white/70 border-white/10'
+          }`}
+        >
+          📐 Grid Snap: {gridSnap ? 'ON' : 'OFF'}
+        </button>
+
+        <button
+          onClick={handleExportPng}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm"
+          title="Export PNG using html2canvas"
+        >
+          📸 Export PNG
+        </button>
+
+        <div className="flex items-center gap-1 bg-black/30 px-2 py-0.5 rounded-lg text-xs font-bold">
+          <button onClick={() => setScale(s => Math.max(0.5, s - 0.1))} className="hover:text-amber-300 px-1">➖</button>
+          <span className="w-10 text-center font-mono">{Math.round(scale * 100)}%</span>
+          <button onClick={() => setScale(s => Math.min(2.0, s + 0.1))} className="hover:text-amber-300 px-1">➕</button>
+          <button onClick={() => { setScale(1); setPan({ x: 0, y: 0 }); }} className="text-[10px] ml-1 bg-white/20 px-1.5 py-0.5 rounded">Reset</button>
+        </div>
+
+        <button onClick={onClose} className="bg-white/20 hover:bg-red-500 hover:text-white font-black px-3 py-1.5 rounded-xl ml-2 border border-white/20">
+          ✕ Close
+        </button>
+      </div>
+    </div>
+  );
+}
