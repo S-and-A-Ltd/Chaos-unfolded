@@ -59,6 +59,7 @@ interface YoutubeHubProps {
 
 export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
   /* ---------- store selectors ---------- */
+  const mode = useYoutubeStore((s) => s.mode);
   const searchQuery = useYoutubeStore((s) => s.searchQuery);
   const searchResults = useYoutubeStore((s) => s.searchResults);
   const upNextQueue = useYoutubeStore((s) => s.upNextQueue);
@@ -66,17 +67,21 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
   const playlistTitle = useYoutubeStore((s) => s.playlistTitle);
   const message = useYoutubeStore((s) => s.message);
   const isSearching = useYoutubeStore((s) => s.isSearching);
+  const isFetchingNextPage = useYoutubeStore((s) => s.isFetchingNextPage);
   const isProcessing = useYoutubeStore((s) => s.isProcessing);
   const autoplay = useYoutubeStore((s) => s.autoplay);
+  const searchNextPageToken = useYoutubeStore((s) => s.searchNextPageToken);
 
   const setSearchQuery = useYoutubeStore((s) => s.setSearchQuery);
   const setSearchResults = useYoutubeStore((s) => s.setSearchResults);
+  const fetchNextSearchPage = useYoutubeStore((s) => s.fetchNextSearchPage);
   const setPlaylistTitle = useYoutubeStore((s) => s.setPlaylistTitle);
   const setMessage = useYoutubeStore((s) => s.setMessage);
   const setIsSearching = useYoutubeStore((s) => s.setIsSearching);
   const setIsProcessing = useYoutubeStore((s) => s.setIsProcessing);
   const toggleAutoplay = useYoutubeStore((s) => s.toggleAutoplay);
   const selectVideo = useYoutubeStore((s) => s.selectVideo);
+  const exitWatchMode = useYoutubeStore((s) => s.exitWatchMode);
   const clearSearch = useYoutubeStore((s) => s.clearSearch);
   const restoreFromStorage = useYoutubeStore((s) => s.restoreFromStorage);
   const persistToStorage = useYoutubeStore((s) => s.persistToStorage);
@@ -87,18 +92,34 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
   const currentVideoIdRef = useRef<string>('');
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   /* ---------- restore from localStorage on mount ---------- */
   useEffect(() => {
     restoreFromStorage();
   }, [restoreFromStorage]);
 
-  /* ---------- scroll active item into view ---------- */
+  /* ---------- scroll active item into view (Watch Mode) ---------- */
   useEffect(() => {
-    if (activeItemRef.current) {
+    if (mode === 'watch' && activeItemRef.current) {
       activeItemRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [currentVideoUrl]);
+  }, [currentVideoUrl, mode]);
+
+  /* ---------- Infinite Scrolling ---------- */
+  const handleScroll = useCallback(() => {
+    if (mode !== 'search') return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    // Trigger if within 100px of the bottom
+    if (scrollHeight - scrollTop - clientHeight < 100) {
+      if (searchNextPageToken && !isFetchingNextPage && !isSearching) {
+        fetchNextSearchPage();
+      }
+    }
+  }, [mode, searchNextPageToken, isFetchingNextPage, isSearching, fetchNextSearchPage]);
 
   /* ---------- YT.Player lifecycle ---------- */
   const createOrUpdatePlayer = useCallback(
@@ -171,7 +192,16 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
 
   /* ---------- React to video URL changes ---------- */
   useEffect(() => {
-    if (!currentVideoUrl) return;
+    if (!currentVideoUrl) {
+      if (playerRef.current && typeof playerRef.current.destroy === 'function') {
+        try { playerRef.current.destroy(); } catch { /* ignore */ }
+        playerRef.current = null;
+        currentVideoIdRef.current = '';
+      }
+      return;
+    }
+    
+    // Always ensure the player container is visible if there is a video
     const videoId = extractVideoId(currentVideoUrl);
     if (videoId) {
       createOrUpdatePlayer(videoId);
@@ -197,13 +227,14 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
     setIsSearching(true);
     setPlaylistTitle('');
     setMessage('');
+    // Any new search forcefully exits watch mode
+    useYoutubeStore.setState({ currentVideoUrl: '', mode: 'search', upNextQueue: [] });
 
     try {
       const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(searchQuery)}`);
       const data = await res.json();
       if (data.items) {
-        setSearchResults(data.items);
-        persistToStorage();
+        setSearchResults(data.items, data.nextPageToken);
       }
     } catch {
       setMessage('Failed to search YouTube.');
@@ -218,13 +249,13 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
     setIsSearching(true);
     setPlaylistTitle(`Playlist: ${title}`);
     setMessage('');
+    useYoutubeStore.setState({ currentVideoUrl: '', mode: 'search', upNextQueue: [] });
 
     try {
       const res = await fetch(`/api/youtube/search?listId=${listId}`);
       const data = await res.json();
       if (data.items) {
-        setSearchResults(data.items);
-        persistToStorage();
+        setSearchResults(data.items, data.nextPageToken);
       }
     } catch {
       setMessage('Failed to fetch playlist videos.');
@@ -240,7 +271,7 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
 
     return (
       <div
-        key={`${isQueue ? 'q' : 's'}-${idx}`}
+        key={`${isQueue ? 'q' : 's'}-${idx}-${item.videoId || item.url}`}
         ref={isActive ? activeItemRef : null}
         onClick={() => {
           if (item.type === 'list') {
@@ -296,15 +327,29 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
         )}
       </AnimatePresence>
 
-      {/* LEFT COLUMN: Search Sidebar */}
+      {/* LEFT COLUMN: Sidebar */}
       <div className="w-[320px] shrink-0 flex flex-col gap-4">
         {/* Header row */}
         <div className="flex items-center gap-2">
-          <div className="flex-1 flex bg-[#7c6a75]/10 p-1.5 rounded-xl border-2 border-[#7c6a75]/15">
-            <button className="flex-1 py-1.5 rounded-lg text-xs font-black uppercase transition-all bg-white text-[#7181c8] shadow-sm border border-[#7c6a75]/10 cursor-default">
-              📺 Web Search
+          {mode === 'watch' ? (
+            <button
+              onClick={() => {
+                if (playerRef.current && typeof playerRef.current.pauseVideo === 'function') {
+                  playerRef.current.pauseVideo();
+                }
+                exitWatchMode();
+              }}
+              className="flex-1 py-1.5 rounded-xl text-xs font-black transition-all bg-white text-[#7181c8] hover:bg-[#7181c8]/10 shadow-sm border-2 border-[#7181c8]/30 flex items-center justify-center gap-2"
+            >
+              <span className="text-sm">←</span> Back to Results
             </button>
-          </div>
+          ) : (
+            <div className="flex-1 flex bg-[#7c6a75]/10 p-1.5 rounded-xl border-2 border-[#7c6a75]/15">
+              <button className="flex-1 py-1.5 rounded-lg text-xs font-black uppercase transition-all bg-white text-[#7181c8] shadow-sm border border-[#7c6a75]/10 cursor-default">
+                📺 Web Search
+              </button>
+            </div>
+          )}
           {/* Autoplay toggle */}
           <button
             onClick={toggleAutoplay}
@@ -324,21 +369,28 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
 
         {/* Sidebar content */}
         <div className="flex-1 bg-white/40 border-3 border-[#7c6a75] rounded-2xl shadow-inner flex flex-col overflow-hidden p-3 gap-3">
-          <form onSubmit={handleSearchYoutube} className="flex gap-2 w-full">
-            <input
-              type="text"
-              placeholder="Search YouTube..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 min-w-0 bg-white/60 border-2 border-[#7c6a75]/20 rounded-xl px-3 py-1.5 text-xs text-[#5d5770] focus:outline-none focus:border-[#7181c8] font-bold"
-            />
-            <Button variant="primary" type="submit" isLoading={isSearching} className="px-3 py-1.5 text-xs shrink-0">
-              🔍
-            </Button>
-          </form>
+          {mode === 'search' && (
+            <form onSubmit={handleSearchYoutube} className="flex gap-2 w-full">
+              <input
+                type="text"
+                placeholder="Search YouTube..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 min-w-0 bg-white/60 border-2 border-[#7c6a75]/20 rounded-xl px-3 py-1.5 text-xs text-[#5d5770] focus:outline-none focus:border-[#7181c8] font-bold"
+              />
+              <Button variant="primary" type="submit" isLoading={isSearching} className="px-3 py-1.5 text-xs shrink-0">
+                🔍
+              </Button>
+            </form>
+          )}
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pb-10">
-            {playlistTitle && (
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pb-10"
+          >
+            {/* Playlist Title */}
+            {playlistTitle && mode === 'search' && (
               <div className="bg-[#7c6a75]/10 px-2 py-1.5 rounded-lg flex justify-between items-center mb-2">
                 <span className="text-[9px] font-black uppercase truncate text-[#5d5770]">{playlistTitle}</span>
                 <button onClick={() => clearSearch()} className="text-[9px] text-blue-500 font-bold hover:underline shrink-0 ml-2">
@@ -361,46 +413,58 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
             {/* Content Lists */}
             <div className={isSearching && searchResults.length > 0 ? 'opacity-60 pointer-events-none' : ''}>
               
-              {/* Active Video */}
-              {currentVideoUrl && (() => {
-                const currentVideo = [...searchResults, ...upNextQueue].find(v => v.url === currentVideoUrl);
-                if (currentVideo) {
-                  return (
-                    <div className="mb-4">
-                      <div className="flex items-center gap-2 mb-2 text-[#7c6a75] font-black text-xs border-b-2 border-[#7c6a75]/10 pb-1">
-                        <span>▶ Currently Playing</span>
-                      </div>
-                      {renderVideoItem(currentVideo, 9999, true)}
-                    </div>
-                  );
-                }
-                return null;
-              })()}
+              {/* WATCH MODE: Active Video & Up Next */}
+              {mode === 'watch' && (
+                <>
+                  {/* Active Video */}
+                  {currentVideoUrl && (() => {
+                    const currentVideo = [...searchResults, ...upNextQueue].find(v => v.url === currentVideoUrl);
+                    if (currentVideo) {
+                      return (
+                        <div className="mb-4">
+                          <div className="flex items-center gap-2 mb-2 text-[#7c6a75] font-black text-xs border-b-2 border-[#7c6a75]/10 pb-1">
+                            <span>▶ Currently Playing</span>
+                          </div>
+                          {renderVideoItem(currentVideo, 9999, true)}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
 
-              {/* Up Next Queue */}
-              {upNextQueue.length > 0 && (
-                <div className="mb-4">
-                  <div className="flex items-center gap-2 mb-2 text-[#7c6a75] font-black text-xs border-b-2 border-[#7c6a75]/10 pb-1">
-                    <span>▶ Up Next</span>
+                  {/* Up Next Queue */}
+                  <div className="mb-4">
+                    <div className="flex items-center gap-2 mb-2 text-[#7c6a75] font-black text-xs border-b-2 border-[#7c6a75]/10 pb-1">
+                      <span>▶ Up Next</span>
+                    </div>
+                    {upNextQueue.length === 0 && !currentVideoUrl ? (
+                      <div className="text-xs text-[#5d5770]/60 text-center py-4 font-bold">No recommendations available.</div>
+                    ) : (
+                      upNextQueue.map((item, idx) => {
+                        if (item.url === currentVideoUrl) return null;
+                        return renderVideoItem(item, idx, true);
+                      })
+                    )}
                   </div>
-                  {upNextQueue.map((item, idx) => {
-                    // Skip rendering it again if it's currently playing
-                    if (item.url === currentVideoUrl) return null;
-                    return renderVideoItem(item, idx, true);
-                  })}
-                </div>
+                </>
               )}
 
-              {/* Search Results */}
-              {searchResults.length > 0 && (
+              {/* SEARCH MODE: Search Results */}
+              {mode === 'search' && searchResults.length > 0 && (
                 <div>
-                  <div className="flex items-center gap-2 mb-2 text-[#7c6a75] font-black text-xs border-b-2 border-[#7c6a75]/10 pb-1">
-                    <span>🔍 Search Results</span>
-                  </div>
-                  {searchResults.map((item, idx) => {
-                    if (item.url === currentVideoUrl) return null;
-                    return renderVideoItem(item, idx, false);
-                  })}
+                  {searchResults.map((item, idx) => renderVideoItem(item, idx, false))}
+                  
+                  {/* Infinite Loading Spinner */}
+                  {isFetchingNextPage && (
+                    <div className="flex justify-center py-4">
+                      <div className="w-5 h-5 border-2 border-[#7181c8] border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                  {!searchNextPageToken && searchResults.length > 0 && (
+                    <div className="text-center text-[#5d5770]/50 text-[10px] font-bold py-4">
+                      No more results
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -410,44 +474,46 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
       </div>
 
       {/* CENTER COLUMN: YouTube Player */}
-      <div className="flex-1 flex flex-col">
-        {!currentVideoUrl ? (
-          <div className="flex-1 flex items-center justify-center border-3 border-[#7c6a75]/20 border-dashed rounded-2xl bg-white/20">
-            <div className="text-center">
-              <span className="text-4xl opacity-50 block mb-2">📺</span>
-              <p className="text-[#5d5770]/60 font-black uppercase tracking-widest text-sm">Search and select a video to preview</p>
-            </div>
+      <div className="flex-1 flex flex-col relative">
+        {/* Placeholder (Search Mode only) */}
+        <div className={`absolute inset-0 flex items-center justify-center border-3 border-[#7c6a75]/20 border-dashed rounded-2xl bg-white/20 transition-opacity ${mode === 'search' ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none -z-10'}`}>
+          <div className="text-center">
+            <span className="text-4xl opacity-50 block mb-2">📺</span>
+            <p className="text-[#5d5770]/60 font-black uppercase tracking-widest text-sm">
+              {searchResults.length > 0 ? "Select a video from the results" : "Search to discover videos"}
+            </p>
           </div>
-        ) : (
-          <div className="flex-1 flex flex-col gap-3 h-full">
-            {/* Player container — YT.Player renders into this div */}
-            <div
-              ref={playerContainerRef}
-              className="flex-1 bg-black rounded-2xl border-3 border-[#7c6a75] overflow-hidden relative shadow-inner"
-            />
-            {/* Generate Notes Button */}
-            <Button
-              variant="primary"
-              isLoading={isProcessing}
-              onClick={async () => {
-                setIsProcessing(true);
-                try {
-                  await onAddYoutubeUrl(currentVideoUrl);
-                  setMessage('Video imported successfully! Switching to Study Hub...');
-                } catch {
-                  setMessage('Failed to import video.');
-                } finally {
-                  setIsProcessing(false);
-                  setTimeout(() => setMessage(''), 3000);
-                }
-              }}
-              className="w-full max-w-sm mx-auto py-2 shadow-[0_4px_0_#7c6a75]"
-            >
-              <span className="mr-2">✨</span>
-              Generate AI Notes & Quiz
-            </Button>
-          </div>
-        )}
+        </div>
+
+        {/* Player Container (Always mounted, hidden in Search mode) */}
+        <div className={`flex-1 flex flex-col gap-3 h-full absolute inset-0 ${mode === 'watch' ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none -z-10'}`}>
+          <div
+            ref={playerContainerRef}
+            className="flex-1 bg-black rounded-2xl border-3 border-[#7c6a75] overflow-hidden relative shadow-inner"
+          />
+          {/* Generate Notes Button */}
+          <Button
+            variant="primary"
+            isLoading={isProcessing}
+            onClick={async () => {
+              if (mode === 'search' || !currentVideoUrl) return;
+              setIsProcessing(true);
+              try {
+                await onAddYoutubeUrl(currentVideoUrl);
+                setMessage('Video imported successfully! Switching to Study Hub...');
+              } catch {
+                setMessage('Failed to import video.');
+              } finally {
+                setIsProcessing(false);
+                setTimeout(() => setMessage(''), 3000);
+              }
+            }}
+            className="w-full max-w-sm mx-auto py-2 shadow-[0_4px_0_#7c6a75]"
+          >
+            <span className="mr-2">✨</span>
+            Generate AI Notes & Quiz
+          </Button>
+        </div>
       </div>
     </div>
   );

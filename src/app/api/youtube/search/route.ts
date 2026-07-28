@@ -67,10 +67,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Search query is required' }, { status: 400 });
     }
 
+    const pageToken = searchParams.get('pageToken');
+
     let items: any[] = [];
+    let nextPageToken: string | undefined;
 
     // Use official YouTube Data API (avoids Vercel IP blocks and serverless crashes)
-    const ytApiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=15&q=${encodeURIComponent(query)}&type=${type === 'all' ? 'video,playlist' : type}&key=${apiKey}`;
+    let ytApiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=15&q=${encodeURIComponent(query)}&type=${type === 'all' ? 'video,playlist' : type}&key=${apiKey}`;
+    
+    if (pageToken) {
+      ytApiUrl += `&pageToken=${pageToken}`;
+    }
+
     const referer = req.headers.get('referer') || 'https://dazai-study-companion.vercel.app/';
     
     const apiRes = await fetch(ytApiUrl, {
@@ -92,7 +100,9 @@ export async function GET(req: NextRequest) {
       }));
     }
 
-    return NextResponse.json({ items });
+    nextPageToken = apiData.nextPageToken;
+
+    return NextResponse.json({ items, nextPageToken });
   } catch (error: any) {
     console.error('YouTube search error:', error);
     return NextResponse.json(
