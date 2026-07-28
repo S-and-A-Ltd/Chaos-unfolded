@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef, useEffect } from 'react';
 import { useCanvasStore } from '@/stores/useCanvasStore';
+import { useClickOutside } from '@/hooks/useClickOutside';
 import { StudyDocument } from '@/types';
 
 interface WhiteboardToolbarProps {
@@ -38,6 +39,24 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
   const saveNow = useCanvasStore(state => state.saveNow);
   const connectorMode = useCanvasStore(state => state.connectorMode);
   const setConnectorMode = useCanvasStore(state => state.setConnectorMode);
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  useClickOutside(dropdownRef, () => {
+    if (activeDropdown) {
+      setActiveDropdown(null);
+    }
+  });
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (activeDropdown) setActiveDropdown(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeDropdown, setActiveDropdown]);
 
   const handleSave = useCallback((e: React.MouseEvent, format: 'png' | 'pdf') => {
     e.preventDefault();
@@ -101,7 +120,7 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
         </button>
 
         {/* Canvas Manager */}
-        <div className="relative ml-2">
+        <div className="relative ml-2" ref={activeDropdown === 'canvas' ? dropdownRef : null}>
           <button
             onClick={() => setActiveDropdown(activeDropdown === 'canvas' ? null : 'canvas')}
             className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-3 py-1.5 rounded-xl text-xs shadow-sm flex items-center gap-1.5 transition-all hover:scale-105"
@@ -151,7 +170,7 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
           )}
         </div>
 
-        <div className="relative">
+        <div className="relative" ref={activeDropdown === 'add' ? dropdownRef : null}>
           <button
             onClick={() => setActiveDropdown(activeDropdown === 'add' ? null : 'add')}
             className="bg-white text-[#7c6a75] hover:bg-white/90 font-black px-3 py-1.5 rounded-xl text-xs shadow-sm flex items-center gap-1 transition-all hover:scale-105"
@@ -171,7 +190,7 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
           )}
         </div>
 
-        <div className="relative">
+        <div className="relative" ref={activeDropdown === 'ai' ? dropdownRef : null}>
           <button
             onClick={() => setActiveDropdown(activeDropdown === 'ai' ? null : 'ai')}
             className="bg-gradient-to-r from-amber-400 to-pink-500 hover:from-amber-300 hover:to-pink-400 text-black font-black px-3 py-1.5 rounded-xl text-xs shadow-md flex items-center gap-1.5 animate-pulse transition-transform hover:scale-105"
@@ -222,7 +241,7 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
             <input type="file" accept="image/png, image/jpeg, image/webp" hidden onChange={handleInsertImage} />
           </label>
           
-          <div className="relative">
+          <div className="relative" ref={activeDropdown === 'export' ? dropdownRef : null}>
             <button
               onClick={() => setActiveDropdown(activeDropdown === 'export' ? null : 'export')}
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm flex items-center gap-1 transition-all"

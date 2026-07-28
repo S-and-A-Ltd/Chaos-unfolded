@@ -141,6 +141,13 @@ function WhiteboardStage() {
         useCanvasStore.getState().undo();
         return;
       }
+
+      if (e.key === 'Escape') {
+        const state = useCanvasStore.getState();
+        if (state.selectedId) state.setSelectedId(null);
+        if (state.connectorMode) state.setConnectorMode(false);
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
         e.preventDefault();
         useCanvasStore.getState().redo();

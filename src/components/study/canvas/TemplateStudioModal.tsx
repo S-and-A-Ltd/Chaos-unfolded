@@ -20,6 +20,15 @@ function TemplateStudioModal() {
     }
   }, [showTemplateEditor]);
 
+  useEffect(() => {
+    if (!showTemplateEditor) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowTemplateEditor(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showTemplateEditor, setShowTemplateEditor]);
+
   const getActiveRegions = useCallback((): { x: number; y: number; width: number; height: number }[] => {
     if (!devTemplates || !devTemplates[activeDevIndex]) return [];
     const t = devTemplates[activeDevIndex];
@@ -79,8 +88,14 @@ function TemplateStudioModal() {
   if (!showTemplateEditor || devTemplates.length === 0 || !devTemplates[activeDevIndex]) return null;
 
   return (
-    <div className="fixed inset-0 z-[99999999] bg-black/85 backdrop-blur-lg flex items-center justify-center p-4 animate-fadeIn select-none">
-      <div className="bg-white dark:bg-[#1e1c2a] border-4 border-amber-500 rounded-3xl p-6 shadow-2xl max-w-6xl w-full max-h-[94vh] flex flex-col">
+    <div 
+      className="fixed inset-0 z-[9999999] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-fadeIn"
+      onClick={() => setShowTemplateEditor(false)}
+    >
+      <div 
+        className="bg-white dark:bg-[#1f1d2b] border-4 border-amber-500 rounded-3xl p-6 shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-3 mb-4">
           <div>
             <h3 className="font-black text-lg text-amber-600 dark:text-amber-400 flex items-center gap-2">

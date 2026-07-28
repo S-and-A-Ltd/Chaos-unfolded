@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { useCanvasStore, ConnectorStyle } from '@/stores/useCanvasStore';
 import { useShallow } from 'zustand/react/shallow';
 

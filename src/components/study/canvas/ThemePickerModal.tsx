@@ -21,6 +21,15 @@ function ThemePickerModal() {
     }
   }, [showThemePicker]);
 
+  useEffect(() => {
+    if (!showThemePicker) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowThemePicker(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showThemePicker, setShowThemePicker]);
+
   const handleSelectTemplate = useCallback((t: StickyTemplate) => {
     const selectedItem = selectedId ? items.find(it => it.id === selectedId) : null;
     if (selectedItem && (selectedItem.type === 'sticky' || selectedItem.bgAsset)) {
@@ -39,8 +48,14 @@ function ThemePickerModal() {
   if (!showThemePicker) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999999] bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn select-none">
-      <div className="bg-white dark:bg-[#232130] border-4 border-purple-500 rounded-3xl p-6 shadow-2xl max-w-4xl w-full max-h-[88vh] flex flex-col">
+    <div 
+      className="fixed inset-0 z-[9999999] bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn select-none"
+      onClick={() => setShowThemePicker(false)}
+    >
+      <div 
+        className="bg-white dark:bg-[#232130] border-4 border-purple-500 rounded-3xl p-6 shadow-2xl max-w-4xl w-full max-h-[88vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-3 mb-4">
           <div>
             <h3 className="font-black text-lg text-purple-700 dark:text-purple-300 flex items-center gap-2">
