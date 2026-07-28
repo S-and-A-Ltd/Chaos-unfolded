@@ -312,6 +312,10 @@ export async function GET(req: NextRequest) {
       const apiRes = await fetch(ytApiUrl, { headers: { 'Referer': referer } });
       const apiData = await apiRes.json();
       console.log('[DEBUG] apiData:', JSON.stringify(apiData).substring(0, 300));
+
+      if (apiData.error) {
+        throw new Error(apiData.error.message || 'YouTube API error');
+      }
       
       if (apiData.items) {
         items = apiData.items.map((item: any) => ({
