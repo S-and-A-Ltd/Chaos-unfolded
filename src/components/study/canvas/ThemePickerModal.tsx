@@ -22,8 +22,14 @@ function ThemePickerModal() {
   }, [showThemePicker]);
 
   const handleSelectTemplate = useCallback((t: StickyTemplate) => {
-    if (selectedId && items.find(it => it.id === selectedId && (it.type === 'sticky' || it.bgAsset))) {
-      updateItemBgAsset(selectedId, t.image);
+    const selectedItem = selectedId ? items.find(it => it.id === selectedId) : null;
+    if (selectedItem && (selectedItem.type === 'sticky' || selectedItem.bgAsset)) {
+      if (selectedItem.lockedBg) {
+        // Background is locked — don't change it
+        setShowThemePicker(false);
+        return;
+      }
+      updateItemBgAsset(selectedId!, t.image);
     } else {
       addStickyNoteAsset(t.image);
     }

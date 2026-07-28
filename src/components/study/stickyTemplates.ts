@@ -509,3 +509,56 @@ export const saveCalibratedTemplate = (updated: StickyTemplate): StickyTemplate[
   }
   return next;
 };
+
+// Cache for computed brightness per image URL
+const brightnessCache = new Map<string, 'light' | 'dark'>();
+
+/**
+ * Samples the writing region of a template image to determine overall brightness.
+ * Returns 'dark' if the region is dark (text should be white), 'light' otherwise.
+ * Uses a small downscaled canvas to avoid performance issues.
+ */
+export const getTemplateBrightness = (img: HTMLImageElement, template: StickyTemplate): 'light' | 'dark' => {
+  const cacheKey = template.id;
+  if (brightnessCache.has(cacheKey)) return brightnessCache.get(cacheKey)!;
+
+  try {
+    const sampleSize = 50; // Downsample to 50x50 for speed
+    const canvas = document.createElement('canvas');
+    canvas.width = sampleSize;
+    canvas.height = sampleSize;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { brightnessCache.set(cacheKey, 'light'); return 'light'; }
+
+    // Sample only the writing region area
+    const wa = template.writingArea || { x: 10, y: 10, width: 80, height: 80 };
+    const sx = (wa.x / 100) * (img.naturalWidth || img.width);
+    const sy = (wa.y / 100) * (img.naturalHeight || img.height);
+    const sw = (wa.width / 100) * (img.naturalWidth || img.width);
+    const sh = (wa.height / 100) * (img.naturalHeight || img.height);
+
+    ctx.drawImage(img, sx, sy, sw || 1, sh || 1, 0, 0, sampleSize, sampleSize);
+    const data = ctx.getImageData(0, 0, sampleSize, sampleSize).data;
+
+    let totalLuminance = 0;
+    const pixelCount = sampleSize * sampleSize;
+    for (let i = 0; i < data.length; i += 4) {
+      // Perceived brightness formula (ITU-R BT.601)
+      totalLuminance += (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+    }
+    const avgLuminance = totalLuminance / pixelCount;
+    const result = avgLuminance < 128 ? 'dark' : 'light';
+    brightnessCache.set(cacheKey, result);
+    return result;
+  } catch {
+    brightnessCache.set(cacheKey, 'light');
+    return 'light';
+  }
+};
+
+/**
+ * Returns the recommended text color for a template based on its brightness.
+ */
+export const autoTextColor = (brightness: 'light' | 'dark'): string => {
+  return brightness === 'dark' ? '#F0F0F0' : '#3A3A3A';
+};

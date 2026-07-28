@@ -117,12 +117,27 @@ function WhiteboardFormattingToolbar() {
           </button>
 
           {(selectedItem.type === 'sticky' || selectedItem.bgAsset) && (
-            <button
-              onClick={() => setShowThemePicker(true)}
-              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-2 py-0.5 rounded flex items-center gap-1 shadow-sm ml-1"
-            >
-              <span>🎨 Theme</span>
-            </button>
+            <>
+              <button
+                onClick={() => updateItemField(selectedItem.id, 'lockedBg', !selectedItem.lockedBg)}
+                className={`px-2 py-0.5 rounded flex items-center gap-1 transition-all ${
+                  selectedItem.lockedBg
+                    ? 'bg-amber-500 text-black shadow-sm'
+                    : 'bg-white/10 text-white/60 hover:bg-white/20'
+                }`}
+                title={selectedItem.lockedBg ? 'Background Locked — click to unlock' : 'Lock Background'}
+              >
+                {selectedItem.lockedBg ? '🔒' : '🔓'}
+              </button>
+              {!selectedItem.lockedBg && (
+                <button
+                  onClick={() => setShowThemePicker(true)}
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-2 py-0.5 rounded flex items-center gap-1 shadow-sm ml-1"
+                >
+                  <span>🎨 Theme</span>
+                </button>
+              )}
+            </>
           )}
         </>
       )}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Group, Rect as KonvaRect, Circle as KonvaCircle, Text as KonvaText } from 'react-konva';
 import { Html } from 'react-konva-utils';
 import { CanvasItem, AnchorPosition, getAnchorCoords, useCanvasStore } from '@/stores/useCanvasStore';
@@ -13,17 +13,21 @@ interface ShapeObjectProps {
   GRID_SIZE: number;
 }
 
-const FALLBACK_THEMES = [
-  { name: 'Yellow Sun', bg: '#fffdf0', border: '#fde047' },
-  { name: 'Rose Strawberry', bg: '#fff5f7', border: '#f472b6' },
-  { name: 'Sky Cloud', bg: '#f0f9ff', border: '#38bdf8' },
-  { name: 'Sage Clover', bg: '#f2fbf5', border: '#4ade80' },
-  { name: 'Lavender Dream', bg: '#f8f5ff', border: '#c084fc' },
-  { name: 'Peach Apricot', bg: '#fffaf5', border: '#fb923c' },
+const SHAPE_THEMES = [
+  { name: 'Yellow Sun', bg: '#fffdf0', border: '#fde047', text: '#3A3A3A' },
+  { name: 'Rose Strawberry', bg: '#fff5f7', border: '#f472b6', text: '#3A3A3A' },
+  { name: 'Sky Cloud', bg: '#f0f9ff', border: '#38bdf8', text: '#3A3A3A' },
+  { name: 'Sage Clover', bg: '#f2fbf5', border: '#4ade80', text: '#3A3A3A' },
+  { name: 'Lavender Dream', bg: '#f8f5ff', border: '#c084fc', text: '#3A3A3A' },
+  { name: 'Peach Apricot', bg: '#fffaf5', border: '#fb923c', text: '#3A3A3A' },
+  { name: 'Dark Slate', bg: '#1e293b', border: '#475569', text: '#F0F0F0' },
+  { name: 'Deep Purple', bg: '#2d1b69', border: '#7c3aed', text: '#F0F0F0' },
 ];
 
 interface InlineShapeEditorProps {
   initialContent: string;
+  initialCursorStart?: number;
+  initialCursorEnd?: number;
   tw: number;
   th: number;
   fontFamily: string;
@@ -31,11 +35,13 @@ interface InlineShapeEditorProps {
   textColor: string;
   isBold?: boolean;
   textAlign?: 'left' | 'center' | 'right' | 'justify';
-  commitEditing: (newText?: string) => void;
+  commitEditing: (newText?: string, cursorStart?: number, cursorEnd?: number) => void;
 }
 
 const InlineShapeEditor = React.memo(({
   initialContent,
+  initialCursorStart,
+  initialCursorEnd,
   tw,
   th,
   fontFamily,
@@ -46,32 +52,50 @@ const InlineShapeEditor = React.memo(({
   commitEditing,
 }: InlineShapeEditorProps) => {
   const [localText, setLocalText] = useState(initialContent);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Restore cursor position on mount
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (ta) {
+      ta.focus();
+      const start = initialCursorStart ?? localText.length;
+      const end = initialCursorEnd ?? start;
+      const s = Math.min(start, localText.length);
+      const e = Math.min(end, localText.length);
+      ta.setSelectionRange(s, e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleBlur = useCallback(() => {
-    commitEditing(localText);
+    const ta = textareaRef.current;
+    commitEditing(localText, ta?.selectionStart, ta?.selectionEnd);
   }, [commitEditing, localText]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault();
-      commitEditing(localText);
+      const ta = textareaRef.current;
+      commitEditing(localText, ta?.selectionStart, ta?.selectionEnd);
     }
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
-      commitEditing(localText);
+      const ta = textareaRef.current;
+      commitEditing(localText, ta?.selectionStart, ta?.selectionEnd);
     }
     e.stopPropagation();
   }, [commitEditing, localText]);
 
   return (
     <textarea
+      ref={textareaRef}
       value={localText}
       onChange={(e) => setLocalText(e.target.value)}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
-      autoFocus
       style={{
         width: `${tw}px`,
         height: `${th}px`,
@@ -92,11 +116,26 @@ const InlineShapeEditor = React.memo(({
         wordBreak: 'break-word',
         display: 'block',
         margin: 0,
-        padding: '4px',
+        padding: '8px',
       }}
     />
   );
 });
+
+/**
+ * Auto-detect text color from background hex color.
+ * Uses luminance formula to return white or dark text.
+ */
+function autoTextFromBg(bgColor?: string): string {
+  if (!bgColor || !bgColor.startsWith('#')) return '#3A3A3A';
+  const hex = bgColor.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return '#3A3A3A';
+  const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+  return luminance < 128 ? '#F0F0F0' : '#3A3A3A';
+}
 
 function ShapeObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: ShapeObjectProps) {
   const updateItemFields = useCanvasStore(state => state.updateItemFields);
@@ -108,11 +147,18 @@ function ShapeObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: Shape
   const isAiCard = item.isAiCard && !item.bgAsset;
   const isText = item.type === 'text';
   const isCircle = item.type === 'shape' && item.shapeType === 'circle';
-  const theme = FALLBACK_THEMES.find(t => t.bg === item.color) || FALLBACK_THEMES[0];
+  const theme = SHAPE_THEMES.find(t => t.bg === item.color) || SHAPE_THEMES[0];
 
   const fontSize = item.fontSize || 15;
   const fontFamily = item.fontFamily || "'Quicksand', 'Nunito', sans-serif";
-  const textColor = item.textColor || '#3A3A3A';
+  // Auto text color: use explicit textColor, then theme text, then auto-detect from bg
+  const textColor = item.textColor || theme.text || autoTextFromBg(item.color);
+
+  // Content insets — shapes/circles now have generous padding for writing
+  const padX = isCircle ? Math.round(item.width * 0.15) : 12;
+  const padY = isCircle ? Math.round(item.height * 0.2) : (isAiCard ? 36 : 12);
+  const contentW = Math.max(10, item.width - padX * 2);
+  const contentH = Math.max(10, item.height - padY - (isCircle ? Math.round(item.height * 0.15) : 12));
 
   const handleClick = useCallback((e: any) => {
     e.cancelBubble = true;
@@ -124,7 +170,6 @@ function ShapeObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: Shape
     startEditing(item);
   }, [startEditing, item]);
 
-  // BATCH position update
   const handleDragEnd = useCallback((e: any) => {
     let fx = e.target.x();
     let fy = e.target.y();
@@ -137,19 +182,18 @@ function ShapeObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: Shape
     updateItemFields(item.id, { x: fx, y: fy });
   }, [gridSnap, GRID_SIZE, updateItemFields, item.id]);
 
-  // BATCH size update
   const handleTransformEnd = useCallback((e: any) => {
     const node = e.target;
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
     node.scaleX(1);
     node.scaleY(1);
-
-    const newW = Math.max(60, Math.round(node.width() * scaleX));
-    const newH = Math.max(60, Math.round(node.height() * scaleY));
-
+    let newW = Math.max(60, Math.round(node.width() * scaleX));
+    let newH = Math.max(60, Math.round(node.height() * scaleY));
+    // Circles maintain 1:1 aspect ratio
+    if (isCircle) { newH = newW; }
     updateItemFields(item.id, { width: newW, height: newH });
-  }, [updateItemFields, item.id]);
+  }, [updateItemFields, item.id, isCircle]);
 
   return (
     <Group
@@ -173,6 +217,9 @@ function ShapeObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: Shape
           fill={item.color || '#e0f2fe'}
           stroke={isSelected ? '#8b5cf6' : 'rgba(0,0,0,0.1)'}
           strokeWidth={2}
+          shadowBlur={isSelected ? 8 : 3}
+          shadowColor={isSelected ? '#8b5cf6' : 'rgba(0,0,0,0.1)'}
+          shadowOpacity={0.3}
         />
       ) : (
         <KonvaRect
@@ -180,9 +227,12 @@ function ShapeObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: Shape
           height={item.height}
           fill={isText ? 'rgba(255,255,255,0.4)' : isAiCard ? theme.bg : item.color || '#ffffff'}
           stroke={isSelected ? '#8b5cf6' : isText ? '#9ca3af' : 'rgba(0,0,0,0.1)'}
-          strokeWidth={isSelected ? 2 : isText ? 1 : 1}
+          strokeWidth={isSelected ? 2 : 1}
           dash={isText && !isSelected ? [4, 4] : undefined}
           cornerRadius={16}
+          shadowBlur={isSelected ? 8 : 3}
+          shadowColor={isSelected ? '#8b5cf6' : 'rgba(0,0,0,0.1)'}
+          shadowOpacity={0.3}
         />
       )}
 
@@ -194,32 +244,36 @@ function ShapeObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: Shape
         </>
       )}
 
-      {/* Konva Text display */}
+      {/* Clipped text display — scrolls via textarea when editing, clips via Group when viewing */}
       {!isEditing && (
-        <KonvaText
-          x={12}
-          y={isAiCard ? 36 : 12}
-          width={Math.max(10, item.width - 24)}
-          height={Math.max(10, item.height - (isAiCard ? 48 : 24))}
-          text={item.content || ''}
-          fontSize={fontSize}
-          fontFamily={fontFamily}
-          fontStyle={item.isBold !== undefined ? (item.isBold ? 'bold' : 'normal') : 'bold'}
-          fill={textColor}
-          align={item.textAlign || 'left'}
-          lineHeight={1.4}
-          wrap="word"
-          listening={false}
-        />
+        <Group clipX={padX} clipY={padY} clipWidth={contentW} clipHeight={contentH}>
+          <KonvaText
+            x={padX}
+            y={padY}
+            width={contentW}
+            height={contentH}
+            text={item.content || ''}
+            fontSize={fontSize}
+            fontFamily={fontFamily}
+            fontStyle={item.isBold !== undefined ? (item.isBold ? 'bold' : 'normal') : 'bold'}
+            fill={textColor}
+            align={item.textAlign || 'left'}
+            lineHeight={1.4}
+            wrap="word"
+            listening={false}
+          />
+        </Group>
       )}
 
-      {/* Integrated HTML textarea for editing */}
+      {/* Integrated HTML textarea for editing — scrolls on overflow */}
       {isEditing && (
-        <Html groupProps={{ x: 12, y: isAiCard ? 36 : 12 }} divProps={{ style: { opacity: 1 } }}>
+        <Html groupProps={{ x: padX, y: padY }} divProps={{ style: { opacity: 1 } }}>
           <InlineShapeEditor
             initialContent={item.content}
-            tw={Math.max(10, item.width - 24)}
-            th={Math.max(10, item.height - (isAiCard ? 48 : 24))}
+            initialCursorStart={item.cursorStart}
+            initialCursorEnd={item.cursorEnd}
+            tw={contentW}
+            th={contentH}
             fontFamily={fontFamily}
             fontSize={fontSize}
             textColor={textColor}

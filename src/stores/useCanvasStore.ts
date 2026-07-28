@@ -33,6 +33,11 @@ export interface CanvasItem {
   startY?: number;
   endX?: number;
   endY?: number;
+  // Polish: cursor persistence
+  cursorStart?: number;
+  cursorEnd?: number;
+  // Polish: lock background mode
+  lockedBg?: boolean;
 }
 
 export const getAnchorCoords = (item: { x: number; y: number; width: number; height: number }, anchor: AnchorPosition): { x: number; y: number } => {
@@ -84,7 +89,7 @@ interface CanvasStoreState {
   setSelectedId: (id: string | null) => void;
   startEditing: (item: CanvasItem) => void;
   setEditingText: (text: string) => void;
-  commitEditing: (newText?: string) => void;
+  commitEditing: (newText?: string, cursorStart?: number, cursorEnd?: number) => void;
   setScale: (scale: number | ((prev: number) => number)) => void;
   setPan: (pan: { x: number; y: number }) => void;
   setGridSnap: (snap: boolean | ((prev: boolean) => boolean)) => void;
@@ -233,14 +238,20 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
     let newItem: CanvasItem = {
       id,
       type,
-      content: type === 'sticky' ? 'Type note here...' : type === 'text' ? 'Double click to edit text...' : '',
+      content: type === 'sticky' ? 'Type note here...'
+        : type === 'text' ? 'Double click to edit text...'
+        : type === 'shape' ? 'Double click to add notes...'
+        : '',
       x: centerX > 0 ? centerX : 100,
       y: centerY > 0 ? centerY : 100,
-      width: type === 'sticky' ? 280 : type === 'text' ? 240 : type === 'shape' && shapeType === 'circle' ? 160 : 200,
-      height: type === 'sticky' ? 280 : type === 'text' ? 120 : type === 'shape' && shapeType === 'circle' ? 160 : 120,
+      width: type === 'sticky' ? 280 : type === 'text' ? 240 : type === 'shape' && shapeType === 'circle' ? 180 : 220,
+      height: type === 'sticky' ? 280 : type === 'text' ? 120 : type === 'shape' && shapeType === 'circle' ? 180 : 160,
       color: type === 'shape' ? '#e0f2fe' : '#ffffff',
       bgAsset: type === 'sticky' ? defaultTemplate.image : undefined,
       shapeType,
+      fontSize: type === 'shape' ? 14 : undefined,
+      fontFamily: type === 'shape' ? "'Quicksand', 'Nunito', sans-serif" : undefined,
+      isBold: type === 'shape' ? true : undefined,
     };
 
     if (type === 'arrow') {
@@ -376,11 +387,16 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
   startEditing: (item) => set({ editingId: item.id, editingText: item.content }),
   setEditingText: (text) => set({ editingText: text }),
   
-  commitEditing: (newText?: string) => {
+  commitEditing: (newText?: string, cursorStart?: number, cursorEnd?: number) => {
     const { editingId, editingText, items, saveItems } = get();
     if (editingId) {
       const textToSave = newText !== undefined ? newText : editingText;
-      const next = items.map(i => i.id === editingId ? { ...i, content: textToSave } : i);
+      const next = items.map(i => i.id === editingId ? {
+        ...i,
+        content: textToSave,
+        cursorStart: cursorStart ?? textToSave.length,
+        cursorEnd: cursorEnd ?? textToSave.length,
+      } : i);
       saveItems(next, false);
       set({ editingId: null });
     }
