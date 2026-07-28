@@ -311,6 +311,7 @@ export async function GET(req: NextRequest) {
       
       const apiRes = await fetch(ytApiUrl, { headers: { 'Referer': referer } });
       const apiData = await apiRes.json();
+      console.log('[DEBUG] apiData:', JSON.stringify(apiData).substring(0, 300));
       
       if (apiData.items) {
         items = apiData.items.map((item: any) => ({
@@ -375,7 +376,10 @@ export async function GET(req: NextRequest) {
       const title = item.title || '';
 
       // Reject Shorts (< 60 seconds)
-      if (dur > 0 && dur < 60) return false;
+      if (dur > 0 && dur < 60) {
+        console.log('[DEBUG] Rejected as short:', title, dur);
+        return false;
+      }
 
       // For recommendation results (relatedToVideoId), apply strict content filtering
       if (relatedToVideoId) {

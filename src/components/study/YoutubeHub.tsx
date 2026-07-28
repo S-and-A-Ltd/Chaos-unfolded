@@ -389,7 +389,7 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
         {/* Sidebar content */}
         <div className="flex-1 bg-white/40 border-3 border-[#7c6a75] rounded-2xl shadow-inner flex flex-col overflow-hidden p-3 gap-3">
           {/* Unified search bar — always visible */}
-          <form onSubmit={handleSearchYoutube} className="flex gap-2 w-full items-center">
+          <div className="flex gap-2 w-full items-center">
             {/* Toggle arrow: visible when a video is playing (Video Mode), allows toggling sidebar content */}
             {hasActiveVideo && (
               <button
@@ -410,12 +410,18 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
               placeholder="Search YouTube..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSearchYoutube();
+                }
+              }}
               className="flex-1 min-w-0 bg-white/60 border-2 border-[#7c6a75]/20 rounded-xl px-3 py-1.5 text-xs text-[#5d5770] focus:outline-none focus:border-[#7181c8] font-bold"
             />
-            <Button variant="primary" type="submit" isLoading={isSearching} className="px-3 py-1.5 text-xs shrink-0">
+            <Button variant="primary" type="button" onClick={() => handleSearchYoutube()} isLoading={isSearching} className="px-3 py-1.5 text-xs shrink-0">
               🔍
             </Button>
-          </form>
+          </div>
 
           <div
             ref={scrollContainerRef}
