@@ -218,11 +218,57 @@ function WhiteboardStage() {
           transformerRef.current.getLayer()?.batchDraw();
         }
 
-        const dataURL = stageRef.current.toDataURL({ pixelRatio: 2, mimeType: 'image/png' });
-        const link = document.createElement('a');
-        link.download = customEvent.detail?.fileName || 'StudyCanvas.png';
-        link.href = dataURL;
-        link.click();
+        const format = customEvent.detail?.format || 'png';
+        const fileName = customEvent.detail?.fileName || 'StudyCanvas';
+        
+        const stage = stageRef.current;
+        const layer = stage.getLayers()[0];
+        
+        const clientRect = layer.getClientRect({ skipTransform: true });
+        
+        const dataURL = stage.toDataURL({ 
+          x: clientRect.x - 40,
+          y: clientRect.y - 40,
+          width: clientRect.width + 80,
+          height: clientRect.height + 80,
+          pixelRatio: 2, 
+          mimeType: 'image/png' 
+        });
+
+        if (format === 'pdf') {
+          import('jspdf').then(({ jsPDF }) => {
+            const pdf = new jsPDF({
+              orientation: 'landscape',
+              unit: 'px',
+              format: 'a4'
+            });
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            
+            const imgRatio = (clientRect.width + 80) / (clientRect.height + 80);
+            const pdfRatio = pdfWidth / pdfHeight;
+            
+            let renderWidth = pdfWidth - 40;
+            let renderHeight = pdfHeight - 40;
+            
+            if (imgRatio > pdfRatio) {
+              renderHeight = renderWidth / imgRatio;
+            } else {
+              renderWidth = renderHeight * imgRatio;
+            }
+            
+            const px = (pdfWidth - renderWidth) / 2;
+            const py = (pdfHeight - renderHeight) / 2;
+            
+            pdf.addImage(dataURL, 'PNG', px, py, renderWidth, renderHeight);
+            pdf.save(`${fileName}.pdf`);
+          });
+        } else {
+          const link = document.createElement('a');
+          link.download = `${fileName}.png`;
+          link.href = dataURL;
+          link.click();
+        }
 
         if (selectedId) {
           const node = stageRef.current.findOne(`#node_${selectedId}`);

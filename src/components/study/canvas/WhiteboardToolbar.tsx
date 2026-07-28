@@ -39,14 +39,15 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
   const connectorMode = useCanvasStore(state => state.connectorMode);
   const setConnectorMode = useCanvasStore(state => state.setConnectorMode);
 
-  const handleExportPng = useCallback((e: React.MouseEvent) => {
+  const handleExportFormat = useCallback((e: React.MouseEvent, format: 'png' | 'pdf') => {
     e.preventDefault();
     e.stopPropagation();
-    console.log("Toolbar export clicked");
+    console.log(`Toolbar export clicked: ${format}`);
+    const activeCanvasName = activeCanvas?.name || document.name || 'study-canvas';
     window.dispatchEvent(new CustomEvent('export-canvas', {
-      detail: { fileName: `${document.name || 'study-canvas'}-whiteboard.png` }
+      detail: { fileName: activeCanvasName, format }
     }));
-  }, [document.name]);
+  }, [document.name, activeCanvas]);
 
   const handleExportChaos = useCallback(() => {
     const data = JSON.stringify({
@@ -57,7 +58,8 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = window.document.createElement('a');
-    link.download = `${document.name || 'study-canvas'}.chaos`;
+    const activeCanvasName = activeCanvas?.name || document.name || 'CanvasName';
+    link.download = `${activeCanvasName}.chaos`;
     link.href = url;
     link.click();
     URL.revokeObjectURL(url);
@@ -264,14 +266,32 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
             <input type="file" accept="image/png, image/jpeg, image/webp" hidden onChange={handleInsertImage} />
           </label>
           
-          <button
-            type="button"
-            onClick={handleExportPng}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm"
-            title="Export PNG"
-          >
-            📸 PNG
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setActiveDropdown(activeDropdown === 'export' ? null : 'export')}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm flex items-center gap-1 transition-all"
+              title="Export Canvas"
+            >
+              <span>📤 Export</span>
+              <span>▾</span>
+            </button>
+            {activeDropdown === 'export' && (
+              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/40 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col min-w-[150px] text-gray-800 dark:text-gray-200 text-xs">
+                <button 
+                  onClick={(e) => { setActiveDropdown(null); handleExportFormat(e, 'png'); }} 
+                  className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2"
+                >
+                  📸 Export PNG
+                </button>
+                <button 
+                  onClick={(e) => { setActiveDropdown(null); handleExportFormat(e, 'pdf'); }} 
+                  className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2 text-red-600 dark:text-red-400"
+                >
+                  📄 Export PDF
+                </button>
+              </div>
+            )}
+          </div>
           
           <button
             type="button"

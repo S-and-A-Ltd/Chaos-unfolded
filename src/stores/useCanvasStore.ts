@@ -91,7 +91,7 @@ interface CanvasStoreState {
   canvases: CanvasInfo[];
   lastSaved: string;
   
-  activeDropdown: 'add' | 'ai' | 'canvas' | null;
+  activeDropdown: 'add' | 'ai' | 'canvas' | 'export' | null;
   showThemePicker: boolean;
   showTemplateEditor: boolean;
 
@@ -124,7 +124,7 @@ interface CanvasStoreState {
   setScale: (scale: number | ((prev: number) => number)) => void;
   setPan: (pan: { x: number; y: number }) => void;
   setGridSnap: (snap: boolean | ((prev: boolean) => boolean)) => void;
-  setActiveDropdown: (d: 'add' | 'ai' | 'canvas' | null) => void;
+  setActiveDropdown: (d: 'add' | 'ai' | 'canvas' | 'export' | null) => void;
   setShowThemePicker: (show: boolean) => void;
   setShowTemplateEditor: (show: boolean) => void;
   undo: () => void;
