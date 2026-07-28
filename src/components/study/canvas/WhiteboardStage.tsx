@@ -8,6 +8,7 @@ import StickyNoteObject from '@/components/study/canvas/StickyNoteObject';
 import ShapeObject from '@/components/study/canvas/ShapeObject';
 import ConnectorObject from '@/components/study/canvas/ConnectorObject';
 import ImageObject from '@/components/study/canvas/ImageObject';
+import { jsPDF } from 'jspdf';
 
 const GRID_SIZE = 20;
 const ZOOM_FACTOR = 1.08;
@@ -236,9 +237,9 @@ function WhiteboardStage() {
         });
 
         if (format === 'pdf') {
-          import('jspdf').then(({ jsPDF }) => {
-            const canvasWidth = clientRect.width + 80;
-            const canvasHeight = clientRect.height + 80;
+          try {
+            const canvasWidth = Math.max(1, clientRect.width + 80);
+            const canvasHeight = Math.max(1, clientRect.height + 80);
             
             const pdf = new jsPDF({
               orientation: canvasWidth > canvasHeight ? "landscape" : "portrait",
@@ -248,7 +249,9 @@ function WhiteboardStage() {
             
             pdf.addImage(dataURL, "PNG", 0, 0, canvasWidth, canvasHeight);
             pdf.save(`${fileName}.pdf`);
-          });
+          } catch (err) {
+            console.error("PDF export failed:", err);
+          }
         } else {
           const link = document.createElement('a');
           link.download = `${fileName}.png`;
