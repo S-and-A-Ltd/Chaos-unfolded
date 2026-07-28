@@ -46,59 +46,92 @@ export async function GET(req: NextRequest) {
     let items: any[] = [];
     let nextPageToken: string | undefined;
 
-    // 1. Fetch Related Videos Workaround
+    // 1. Fetch Related Videos Workaround (MULTI-SOURCE AGGREGATOR)
     if (relatedToVideoId) {
       // First, get the details of the requested video
       const vidUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${relatedToVideoId}&key=${apiKey}`;
       const vidRes = await fetch(vidUrl, { headers: { 'Referer': referer } });
       const vidData = await vidRes.json();
       
-      let searchQuery = '';
+      let searchQueries: string[] = [];
       let originalTitle = '';
+      let originalChannel = '';
 
       if (vidData.items && vidData.items.length > 0) {
         const snippet = vidData.items[0].snippet;
         const categoryId = snippet.categoryId;
         originalTitle = snippet.title.toLowerCase();
+        originalChannel = snippet.channelTitle.toLowerCase();
         
         const tags = snippet.tags || [];
         const cleanTags = tags.filter((t: string) => t.toLowerCase() !== originalTitle && t.length < 20);
 
         if (categoryId === '10') {
-          // MUSIC: Query by artist and tags, do NOT include title
-          searchQuery = `"${snippet.channelTitle}" OR "${cleanTags[0] || 'music'}" OR "${cleanTags[1] || 'song'}" music`;
+          // MUSIC: 3 distinct queries for massive diversity
+          searchQueries.push(`"${snippet.channelTitle}" music`); // Query 1: Exact artist
+          searchQueries.push(`"${cleanTags[0] || 'pop'}" OR "${cleanTags[1] || 'song'}" music`); // Query 2: Genre
+          searchQueries.push(`trending ${cleanTags[0] || 'music'} song`); // Query 3: Trending
         } else if (categoryId === '27' || categoryId === '28') {
-          // EDUCATION/SCIENCE: Query by topic and channel
-          searchQuery = `"${snippet.channelTitle}" ${cleanTags[0] || snippet.title.split('-')[0]}`;
+          // EDUCATION/SCIENCE: 3 distinct topic queries
+          const coreTopic = cleanTags[0] || snippet.title.split('-')[0].split('|')[0].trim();
+          searchQueries.push(`"${snippet.channelTitle}" ${coreTopic}`); // Query 1: Creator + Topic
+          searchQueries.push(`${coreTopic} tutorial OR course`); // Query 2: Broad Topic
+          searchQueries.push(`${cleanTags[1] || coreTopic} explained`); // Query 3: Related Concept
         } else {
-          // DEFAULT: Fallback to channel and first tag
-          searchQuery = `${snippet.channelTitle} ${cleanTags[0] || ''}`;
+          // DEFAULT
+          const coreTopic = cleanTags[0] || snippet.title.split(' ')[0];
+          searchQueries.push(`"${snippet.channelTitle}"`);
+          searchQueries.push(`${coreTopic} video`);
+          searchQueries.push(`trending ${coreTopic}`);
         }
       }
 
-      // If we couldn't build a query, fallback to generic
-      if (!searchQuery.trim()) {
-        searchQuery = 'study motivation';
+      if (searchQueries.length === 0) {
+        searchQueries.push('study motivation');
       }
 
-      // Search using that constructed query
-      let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=40&q=${encodeURIComponent(searchQuery)}&type=video&key=${apiKey}`;
-      if (pageToken) searchUrl += `&pageToken=${pageToken}`;
+      // Execute all searches concurrently (limit 15 per query to manage quota, yields up to 45 candidates)
+      const fetchPromises = searchQueries.map(q => {
+        let url = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=15&q=${encodeURIComponent(q)}&type=video&key=${apiKey}`;
+        if (pageToken) url += `&pageToken=${pageToken}`;
+        return fetch(url, { headers: { 'Referer': referer } }).then(res => res.json()).catch(() => ({ items: [] }));
+      });
 
-      const apiRes = await fetch(searchUrl, { headers: { 'Referer': referer } });
-      const apiData = await apiRes.json();
+      const rawResults = await Promise.all(fetchPromises);
+      
+      let mergedItems: any[] = [];
+      rawResults.forEach(data => {
+        if (data.items) {
+           mergedItems = [...mergedItems, ...data.items];
+           // Only grab token from the first query to paginate linearly
+           if (!nextPageToken) nextPageToken = data.nextPageToken;
+        }
+      });
 
-      if (apiData.items) {
-        // Filter out videos with highly similar titles to avoid duplicates/lyrics, and explicitly block shorts by keyword
-        items = apiData.items.filter((item: any) => {
+      // Filter merged pool
+      if (mergedItems.length > 0) {
+        // Shuffle the merged items slightly so we don't just process artist 1 completely then artist 2
+        for (let i = mergedItems.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [mergedItems[i], mergedItems[j]] = [mergedItems[j], mergedItems[i]];
+        }
+
+        const seenIds = new Set();
+        items = mergedItems.filter((item: any) => {
+          if (!item.id || !item.id.videoId) return false;
+          if (seenIds.has(item.id.videoId)) return false;
+          
           const itemTitle = item.snippet.title.toLowerCase();
           const channelTitle = item.snippet.channelTitle.toLowerCase();
           
           // Block shorts by keyword
           if (itemTitle.includes('shorts') || itemTitle.includes('#shorts') || channelTitle.includes('shorts')) return false;
 
+          // Block highly similar original videos
           if (originalTitle && itemTitle.includes(originalTitle)) return false;
           if (originalTitle && originalTitle.includes(itemTitle)) return false;
+          
+          seenIds.add(item.id.videoId);
           return true;
         }).map((item: any) => ({
           type: 'video',
@@ -109,22 +142,9 @@ export async function GET(req: NextRequest) {
           author: { name: item.snippet.channelTitle },
         }));
         
-        // We might filter out too many. If so, just fallback to whatever we got, but STILL exclude shorts by keyword
-        if (items.length === 0) {
-          items = apiData.items.filter((item: any) => {
-             const titleLower = item.snippet.title.toLowerCase();
-             return !titleLower.includes('shorts') && !titleLower.includes('#shorts');
-          }).map((item: any) => ({
-            type: 'video',
-            videoId: item.id.videoId,
-            title: item.snippet.title,
-            url: `https://youtube.com/watch?v=${item.id.videoId}`,
-            thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
-            author: { name: item.snippet.channelTitle },
-          }));
-        }
+        // Take at most 40 to avoid massive payload
+        items = items.slice(0, 40);
       }
-      nextPageToken = apiData.nextPageToken;
     }
 
     // 2. Fetch Playlist
