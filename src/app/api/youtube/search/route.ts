@@ -96,66 +96,95 @@ export async function GET(req: NextRequest) {
 
         const tags = snippet.tags || [];
 
-        // Extract genre keywords from topicDetails (Wikipedia categories like "Pop music", "Electronic music")
+        // ─── GENRE EXTRACTION ───
+        // Primary source: topicDetails Wikipedia categories (cleanest signal)
         const topicGenres: string[] = [];
         if (topicDetails?.topicCategories) {
           topicDetails.topicCategories.forEach((url: string) => {
             const match = url.match(/wikipedia\.org\/wiki\/(.+)/);
             if (match) {
               const genre = decodeURIComponent(match[1]).replace(/_/g, ' ');
-              if (genre.toLowerCase() !== 'music' && genre.toLowerCase() !== 'entertainment') {
+              // Exclude overly generic categories
+              if (!['music', 'entertainment', 'song', 'single'].includes(genre.toLowerCase())) {
                 topicGenres.push(genre);
               }
             }
           });
         }
 
-        // Extract pure genre/mood tags — EXCLUDE the artist name and song title
-        const artistLower = snippet.channelTitle.toLowerCase();
-        const titleWords = originalTitle.split(/[\s\-–|()\[\]]+/).filter((w: string) => w.length > 2);
+        // Secondary source: tags, but ONLY if they match known genre/mood vocabulary
+        const GENRE_VOCABULARY = new Set([
+          'pop', 'rock', 'hip hop', 'rap', 'r&b', 'rnb', 'country', 'jazz', 'blues',
+          'soul', 'funk', 'reggae', 'reggaeton', 'latin', 'k-pop', 'kpop', 'j-pop',
+          'electronic', 'edm', 'house', 'techno', 'trance', 'dubstep', 'dnb', 'drum and bass',
+          'indie', 'alternative', 'punk', 'metal', 'classical', 'folk', 'acoustic',
+          'lo-fi', 'lofi', 'chill', 'ambient', 'trap', 'drill', 'afrobeat', 'afrobeats',
+          'dancehall', 'disco', 'grunge', 'emo', 'goth', 'shoegaze', 'synthwave',
+          'vaporwave', 'new wave', 'post-punk', 'psychedelic', 'progressive',
+          'romantic', 'sad', 'happy', 'upbeat', 'melancholy', 'dark', 'dreamy',
+          'energetic', 'mellow', 'aggressive', 'emotional', 'nostalgic', 'summer',
+          'love', 'heartbreak', 'party', 'workout', 'study', 'sleep', 'relax',
+          'ballad', 'anthem', 'banger', 'viral', 'trending', 'hit', 'top',
+          'singer songwriter', 'singer-songwriter', 'vocal', 'a cappella',
+          'contemporary', 'modern', 'classic', 'retro', '80s', '90s', '2000s', '2010s', '2020s',
+          'hindi', 'bollywood', 'spanish', 'french', 'german', 'portuguese', 'korean', 'japanese',
+          'arabic', 'turkish', 'mandarin', 'cantonese', 'tamil', 'telugu', 'punjabi', 'bengali',
+        ]);
 
-        const genreTags = tags.filter((t: string) => {
-          const tLower = t.toLowerCase();
-          // Exclude if tag IS the artist name or closely matches it
-          if (tLower === artistLower) return false;
-          if (artistLower.includes(tLower) || tLower.includes(artistLower)) return false;
-          // Exclude if tag IS any significant word from the title
-          if (titleWords.some((w: string) => tLower === w.toLowerCase())) return false;
-          // Exclude very short or very long tags
-          if (t.length < 3 || t.length > 25) return false;
-          return true;
-        });
+        const genreFromTags: string[] = [];
+        for (const tag of tags) {
+          const tLower = tag.toLowerCase().trim();
+          if (GENRE_VOCABULARY.has(tLower)) {
+            genreFromTags.push(tLower);
+          }
+        }
 
         if (categoryId === '10') {
           // ─── MUSIC ───
-          // Build queries from pure genre/mood signals. NEVER include artist name.
-          const g1 = topicGenres[0] || genreTags[0] || 'pop';
-          const g2 = topicGenres[1] || genreTags[1] || 'hits';
-          const g3 = genreTags[2] || 'viral';
+          // Build queries ONLY from genre/mood. Artist name is NEVER used.
+          const allGenres = [...topicGenres, ...genreFromTags];
+          
+          // Pick distinct genre keywords, with hardcoded fallbacks
+          const g1 = allGenres[0] || 'pop';
+          const g2 = allGenres[1] || (g1 === 'pop' ? 'hits' : 'pop');
+          const g3 = allGenres[2] || 'trending';
+          const g4 = genreFromTags.find(g => !g.includes(g1.toLowerCase())) || 'viral';
 
           searchQueries = [
-            `${g1} music official`,                    // Genre search 1
-            `${g2} songs`,                             // Genre search 2
-            `top ${g1} hits`,                          // Popular in genre
-            `trending ${g3} music ${new Date().getFullYear()}`, // Trending
-            `${g1} ${g2} mix`,                         // Mix / radio style
+            `${g1} music official video`,
+            `top ${g2} songs`,
+            `best ${g1} ${g2} playlist`,
+            `${g3} music ${new Date().getFullYear()}`,
+            `${g4} songs popular`,
           ];
         } else if (categoryId === '27' || categoryId === '28') {
           // ─── EDUCATION / SCIENCE ───
-          // Extract the core subject from tags and title, NEVER the channel name
-          const subject = genreTags[0] || tags[0] || snippet.title.split(/[\-|:]/)[0].trim();
-          const subtopics = genreTags.slice(1, 5);
+          // Extract topic from tags and title, NEVER the channel name
+          const artistLower = snippet.channelTitle.toLowerCase();
+          const safeSubject = tags.find((t: string) => {
+            const tl = t.toLowerCase();
+            return tl !== artistLower && !artistLower.includes(tl) && !tl.includes(artistLower) && t.length > 2 && t.length < 25;
+          }) || snippet.title.split(/[-|:]/)[0].trim();
+          
+          const otherTopics = tags.filter((t: string) => {
+            const tl = t.toLowerCase();
+            return tl !== artistLower && !artistLower.includes(tl) && !tl.includes(artistLower) && tl !== safeSubject.toLowerCase() && t.length > 2 && t.length < 25;
+          });
 
           searchQueries = [
-            `${subject} tutorial`,
-            `${subject} course`,
-            `${subtopics[0] || subject} explained`,
-            `${subtopics[1] || subject} for beginners`,
-            `learn ${subject}`,
+            `${safeSubject} tutorial`,
+            `${safeSubject} course`,
+            `${otherTopics[0] || safeSubject} explained`,
+            `${otherTopics[1] || safeSubject} for beginners`,
+            `learn ${safeSubject}`,
           ];
         } else {
           // ─── DEFAULT ───
-          const topic = genreTags[0] || tags[0] || snippet.title.split(' ').slice(0, 3).join(' ');
+          const artistLower = snippet.channelTitle.toLowerCase();
+          const topic = tags.find((t: string) => {
+            const tl = t.toLowerCase();
+            return tl !== artistLower && !artistLower.includes(tl) && !tl.includes(artistLower) && t.length > 2;
+          }) || snippet.title.split(' ').slice(0, 3).join(' ');
           searchQueries = [
             `${topic}`,
             `${topic} explained`,
@@ -186,7 +215,7 @@ export async function GET(req: NextRequest) {
 
       // STEP 3: Deduplicate by videoId, remove Shorts keywords, remove title variants
       const seenIds = new Set<string>();
-      const titleVariantPattern = buildTitleVariantPattern(originalTitle);
+      const titleVariantPattern = buildTitleVariantPattern(originalTitle.toLowerCase());
 
       let candidates = pool.filter((item: any) => {
         if (!item.id?.videoId) return false;
@@ -206,37 +235,26 @@ export async function GET(req: NextRequest) {
         return true;
       });
 
-      // STEP 4: Diversity scoring — max 1 video per channel in first pass
+      // STEP 4: Diversity — max 1 from current artist, max 1 per any other channel
+      const currentArtistLower = originalChannel.toLowerCase();
       const channelCounts: Record<string, number> = {};
       const diverse: any[] = [];
-      const overflow: any[] = [];
 
       for (const item of candidates) {
         const ch = item.snippet.channelTitle.toLowerCase();
         channelCounts[ch] = (channelCounts[ch] || 0) + 1;
 
-        if (channelCounts[ch] <= 1) {
-          diverse.push(item);
-        } else {
-          overflow.push(item);
-        }
-      }
-
-      // Fill gaps from overflow if diverse pool is too small (allow max 2 per channel)
-      if (diverse.length < 20) {
-        const channelCounts2: Record<string, number> = {};
-        diverse.forEach(item => {
-          const ch = item.snippet.channelTitle.toLowerCase();
-          channelCounts2[ch] = (channelCounts2[ch] || 0) + 1;
-        });
-        for (const item of overflow) {
-          if (diverse.length >= 40) break;
-          const ch = item.snippet.channelTitle.toLowerCase();
-          channelCounts2[ch] = (channelCounts2[ch] || 0);
-          if (channelCounts2[ch] < 2) {
-            channelCounts2[ch]++;
+        // Current artist: allow exactly 1
+        if (ch === currentArtistLower) {
+          if (channelCounts[ch] <= 1) {
             diverse.push(item);
           }
+          continue;
+        }
+
+        // All other channels: max 1 each
+        if (channelCounts[ch] <= 1) {
+          diverse.push(item);
         }
       }
 

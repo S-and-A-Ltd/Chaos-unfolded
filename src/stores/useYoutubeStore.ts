@@ -176,28 +176,21 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
           return true;
         });
 
-        // 3. Diversity enforcement: max 1 per artist in first 15, max 2 total
-        // Also count artists already in the queue
-        const existingArtistCounts: Record<string, number> = {};
+        // 3. Diversity enforcement: max 1 per artist across the ENTIRE queue
+        const existingArtists = new Set<string>();
         state.upNextQueue.forEach(v => {
-          const a = (v.author?.name || '').toLowerCase();
-          existingArtistCounts[a] = (existingArtistCounts[a] || 0) + 1;
+          existingArtists.add((v.author?.name || '').toLowerCase());
         });
 
         const accepted: YoutubeVideo[] = [];
-        const batchArtistCounts: Record<string, number> = {};
 
         for (const v of nextVideos) {
           const artist = (v.author?.name || 'unknown').toLowerCase();
-          const totalForArtist = (existingArtistCounts[artist] || 0) + (batchArtistCounts[artist] || 0);
 
-          // Hard limit: never more than 2 total from one artist across entire queue
-          if (totalForArtist >= 2) continue;
+          // Hard rule: if this artist is already in the queue OR already accepted, skip
+          if (existingArtists.has(artist)) continue;
 
-          // Soft limit: in the first 15 of THIS batch, max 1 per artist
-          if (accepted.length < 15 && (batchArtistCounts[artist] || 0) >= 1) continue;
-
-          batchArtistCounts[artist] = (batchArtistCounts[artist] || 0) + 1;
+          existingArtists.add(artist);
           accepted.push(v);
         }
 
