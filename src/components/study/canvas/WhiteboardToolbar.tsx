@@ -39,45 +39,14 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
   const connectorMode = useCanvasStore(state => state.connectorMode);
   const setConnectorMode = useCanvasStore(state => state.setConnectorMode);
 
-  const handleExportFormat = useCallback((e: React.MouseEvent, format: 'png' | 'pdf') => {
+  const handleSave = useCallback((e: React.MouseEvent, format: 'png' | 'pdf') => {
     e.preventDefault();
     e.stopPropagation();
-    console.log(`Toolbar export clicked: ${format}`);
-    const activeCanvasName = activeCanvas?.name || document.name || 'study-canvas';
+    const activeCanvasName = activeCanvas?.name || document.name || 'StudyCanvas';
     window.dispatchEvent(new CustomEvent('export-canvas', {
       detail: { fileName: activeCanvasName, format }
     }));
   }, [document.name, activeCanvas]);
-
-  const handleSaveProject = useCallback(() => {
-    const data = JSON.stringify({
-      items: useCanvasStore.getState().items,
-      pan: useCanvasStore.getState().pan,
-      scale: useCanvasStore.getState().scale,
-    }, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = window.document.createElement('a');
-    const activeCanvasName = activeCanvas?.name || document.name || 'CanvasName';
-    link.download = `${activeCanvasName}.json`;
-    link.href = url;
-    link.click();
-    URL.revokeObjectURL(url);
-  }, [document.name, activeCanvas]);
-
-  const handleLoadProject = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result;
-      if (typeof result === 'string') {
-        useCanvasStore.getState().loadProject(result);
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  }, []);
 
   const handleInsertImage = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -269,43 +238,29 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
           <div className="relative">
             <button
               onClick={() => setActiveDropdown(activeDropdown === 'export' ? null : 'export')}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm flex items-center gap-1 transition-all"
-              title="Export Canvas"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm flex items-center gap-1 transition-all"
+              title="Save canvas as PNG or PDF"
             >
-              <span>📤 Export</span>
+              <span>💾 Save</span>
               <span>▾</span>
             </button>
             {activeDropdown === 'export' && (
-              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/40 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col min-w-[150px] text-gray-800 dark:text-gray-200 text-xs">
+              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/40 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col min-w-[160px] text-gray-800 dark:text-gray-200 text-xs">
                 <button 
-                  onClick={(e) => { setActiveDropdown(null); handleExportFormat(e, 'png'); }} 
+                  onClick={(e) => { setActiveDropdown(null); handleSave(e, 'png'); }} 
                   className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2"
                 >
-                  📸 Export PNG
+                  📸 Save as PNG
                 </button>
                 <button 
-                  onClick={(e) => { setActiveDropdown(null); handleExportFormat(e, 'pdf'); }} 
-                  className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2 text-red-600 dark:text-red-400"
+                  onClick={(e) => { setActiveDropdown(null); handleSave(e, 'pdf'); }} 
+                  className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2"
                 >
-                  📄 Export PDF
+                  📄 Save as PDF
                 </button>
               </div>
             )}
           </div>
-          
-          <button
-            type="button"
-            onClick={handleSaveProject}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm"
-            title="Save Project (.json)"
-          >
-            💾 Save Project
-          </button>
-          
-          <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm" title="Load Project (.json)">
-            📂 Load Project
-            <input type="file" accept=".json,application/json" hidden onChange={handleLoadProject} />
-          </label>
 
           <button
             type="button"

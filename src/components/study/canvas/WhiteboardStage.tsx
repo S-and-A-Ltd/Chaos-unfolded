@@ -231,7 +231,7 @@ function WhiteboardStage() {
           y: clientRect.y - 40,
           width: clientRect.width + 80,
           height: clientRect.height + 80,
-          pixelRatio: 2, 
+          pixelRatio: 3, 
           mimeType: 'image/png' 
         });
 
