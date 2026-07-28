@@ -215,8 +215,10 @@ function ShapeObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: Shape
           y={item.height / 2}
           radius={item.width / 2}
           fill={item.color || '#e0f2fe'}
-          stroke={isSelected ? '#8b5cf6' : 'rgba(0,0,0,0.1)'}
-          strokeWidth={2}
+          stroke={isSelected ? '#8b5cf6' : (item.borderColor || 'rgba(0,0,0,0.1)')}
+          strokeWidth={item.borderWidth ?? 2}
+          dash={item.borderStyle === 'dashed' ? [8, 4] : undefined}
+          opacity={item.opacity ?? 1}
           shadowBlur={isSelected ? 8 : 3}
           shadowColor={isSelected ? '#8b5cf6' : 'rgba(0,0,0,0.1)'}
           shadowOpacity={0.3}
@@ -226,10 +228,11 @@ function ShapeObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: Shape
           width={item.width}
           height={item.height}
           fill={isText ? 'rgba(255,255,255,0.4)' : isAiCard ? theme.bg : item.color || '#ffffff'}
-          stroke={isSelected ? '#8b5cf6' : isText ? '#9ca3af' : 'rgba(0,0,0,0.1)'}
-          strokeWidth={isSelected ? 2 : 1}
-          dash={isText && !isSelected ? [4, 4] : undefined}
-          cornerRadius={16}
+          stroke={isSelected ? '#8b5cf6' : isText ? '#9ca3af' : (item.borderColor || 'rgba(0,0,0,0.1)')}
+          strokeWidth={isSelected ? 2 : (item.borderWidth ?? 1)}
+          dash={isText && !isSelected ? [4, 4] : item.borderStyle === 'dashed' ? [8, 4] : undefined}
+          cornerRadius={item.cornerRadius ?? 16}
+          opacity={item.opacity ?? 1}
           shadowBlur={isSelected ? 8 : 3}
           shadowColor={isSelected ? '#8b5cf6' : 'rgba(0,0,0,0.1)'}
           shadowOpacity={0.3}

@@ -12,15 +12,21 @@ function WhiteboardFormattingToolbar() {
   const deleteItem = useCanvasStore(state => state.deleteItem);
   const duplicateItem = useCanvasStore(state => state.duplicateItem);
   const setShowThemePicker = useCanvasStore(state => state.setShowThemePicker);
-  
+  const moveToFront = useCanvasStore(state => state.moveToFront);
+  const moveToBack = useCanvasStore(state => state.moveToBack);
+  const moveForward = useCanvasStore(state => state.moveForward);
+  const moveBackward = useCanvasStore(state => state.moveBackward);
+
   if (!selectedId || editingId) return null;
   const selectedItem = items.find(i => i.id === selectedId);
   if (!selectedItem) return null;
 
   const isArrow = selectedItem.type === 'arrow';
+  const isImage = selectedItem.type === 'image';
+  const isShape = selectedItem.type === 'shape';
 
   return (
-    <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-[#232130] text-white border-2 border-purple-500 rounded-2xl px-3 py-1.5 shadow-2xl z-40 flex items-center gap-2 whitespace-nowrap text-xs font-bold animate-fadeIn">
+    <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-[#232130] text-white border-2 border-purple-500 rounded-2xl px-3 py-1.5 shadow-2xl z-40 flex items-center gap-2 whitespace-nowrap text-xs font-bold animate-fadeIn max-w-[95vw] overflow-x-auto">
       {isArrow ? (
         <>
           <span className="text-purple-300">➔ Style:</span>
@@ -47,7 +53,41 @@ function WhiteboardFormattingToolbar() {
             />
             <span className="w-3.5 h-3.5 rounded-full border border-white/40" style={{ backgroundColor: selectedItem.color || '#8b5cf6' }} />
           </label>
+          <div className="w-px h-4 bg-white/20 my-auto mx-1" />
+
+          {/* Connector thickness */}
+          <select
+            value={selectedItem.borderWidth || 3}
+            onChange={(e) => updateItemField(selectedItem.id, 'borderWidth', Number(e.target.value))}
+            className="bg-white/10 hover:bg-white/20 px-1.5 py-0.5 rounded text-xs border border-white/20 text-white focus:outline-none w-14"
+            title="Thickness"
+          >
+            {[1, 2, 3, 4, 5, 6, 8].map(w => (
+              <option key={w} value={w} className="text-black">{w}px</option>
+            ))}
+          </select>
+
+          {/* Connector dash style */}
+          <button
+            onClick={() => updateItemField(selectedItem.id, 'borderStyle', selectedItem.borderStyle === 'dashed' ? 'solid' : 'dashed')}
+            className={`px-2 py-0.5 rounded ${selectedItem.borderStyle === 'dashed' ? 'bg-purple-600 text-white' : 'bg-white/10 text-white/60'}`}
+            title="Toggle dashed line"
+          >
+            {selectedItem.borderStyle === 'dashed' ? '┈ Dash' : '─ Solid'}
+          </button>
+
+          {/* Arrowhead toggle */}
+          <button
+            onClick={() => updateItemField(selectedItem.id, 'arrowhead', selectedItem.arrowhead === 'none' ? 'arrow' : 'none')}
+            className={`px-2 py-0.5 rounded ${selectedItem.arrowhead === 'none' ? 'bg-white/10 text-white/60' : 'bg-purple-600 text-white'}`}
+            title="Toggle arrowhead"
+          >
+            {selectedItem.arrowhead === 'none' ? '─ No Arrow' : '➔ Arrow'}
+          </button>
         </>
+      ) : isImage ? (
+        /* Image toolbar — minimal, just layer + delete */
+        <span className="text-purple-300">🖼️ Image</span>
       ) : (
         <>
           <select
@@ -116,18 +156,73 @@ function WhiteboardFormattingToolbar() {
             {selectedItem.textAlign === 'center' ? '☰ Center' : selectedItem.textAlign === 'right' ? '☷ Right' : '≡ Left'}
           </button>
 
-          {selectedItem.type === 'shape' && (
+          {/* Shape-specific: fill, border, radius, opacity */}
+          {isShape && (
             <>
               <div className="w-px h-4 bg-white/20 my-auto ml-1" />
-              <label className="cursor-pointer bg-white/10 hover:bg-white/20 p-1 rounded border border-white/20 flex items-center justify-center w-6 h-6 ml-1" title="Shape Fill Color">
+              {/* Fill color */}
+              <label className="cursor-pointer bg-white/10 hover:bg-white/20 p-1 rounded border border-white/20 flex items-center justify-center w-6 h-6" title="Fill Color">
                 <input
                   type="color"
-                  value={selectedItem.color || '#ffffff'}
+                  value={selectedItem.color || '#e0f2fe'}
                   onChange={(e) => updateItemField(selectedItem.id, 'color', e.target.value)}
                   className="opacity-0 absolute w-0 h-0"
                 />
-                <span className="w-3.5 h-3.5 rounded-full border border-white/40" style={{ backgroundColor: selectedItem.color || '#ffffff' }} />
+                <span className="w-3.5 h-3.5 rounded-full border border-white/40" style={{ backgroundColor: selectedItem.color || '#e0f2fe' }} />
               </label>
+              {/* Border color */}
+              <label className="cursor-pointer bg-white/10 hover:bg-white/20 p-1 rounded border border-white/20 flex items-center justify-center w-6 h-6" title="Border Color">
+                <input
+                  type="color"
+                  value={selectedItem.borderColor || '#000000'}
+                  onChange={(e) => updateItemField(selectedItem.id, 'borderColor', e.target.value)}
+                  className="opacity-0 absolute w-0 h-0"
+                />
+                <span className="w-3.5 h-3.5 rounded border-2 border-white/40" style={{ borderColor: selectedItem.borderColor || '#000000' }} />
+              </label>
+              {/* Border width */}
+              <select
+                value={selectedItem.borderWidth || 1}
+                onChange={(e) => updateItemField(selectedItem.id, 'borderWidth', Number(e.target.value))}
+                className="bg-white/10 hover:bg-white/20 px-1 py-0.5 rounded text-xs border border-white/20 text-white focus:outline-none w-12"
+                title="Border Width"
+              >
+                {[0, 1, 2, 3, 4, 5, 6].map(w => (
+                  <option key={w} value={w} className="text-black">{w}px</option>
+                ))}
+              </select>
+              {/* Border dashed/solid */}
+              <button
+                onClick={() => updateItemField(selectedItem.id, 'borderStyle', selectedItem.borderStyle === 'dashed' ? 'solid' : 'dashed')}
+                className={`px-1.5 py-0.5 rounded text-[10px] ${selectedItem.borderStyle === 'dashed' ? 'bg-purple-600 text-white' : 'bg-white/10 text-white/60'}`}
+                title="Border style"
+              >
+                {selectedItem.borderStyle === 'dashed' ? '┈' : '─'}
+              </button>
+              {/* Corner radius (rectangle only) */}
+              {selectedItem.shapeType !== 'circle' && (
+                <select
+                  value={selectedItem.cornerRadius ?? 16}
+                  onChange={(e) => updateItemField(selectedItem.id, 'cornerRadius', Number(e.target.value))}
+                  className="bg-white/10 hover:bg-white/20 px-1 py-0.5 rounded text-xs border border-white/20 text-white focus:outline-none w-12"
+                  title="Corner Radius"
+                >
+                  {[0, 4, 8, 12, 16, 24, 32].map(r => (
+                    <option key={r} value={r} className="text-black">R{r}</option>
+                  ))}
+                </select>
+              )}
+              {/* Opacity */}
+              <input
+                type="range"
+                min={10}
+                max={100}
+                step={5}
+                value={(selectedItem.opacity ?? 1) * 100}
+                onChange={(e) => updateItemField(selectedItem.id, 'opacity', Number(e.target.value) / 100)}
+                className="w-12 h-3 accent-purple-500"
+                title={`Opacity: ${Math.round((selectedItem.opacity ?? 1) * 100)}%`}
+              />
             </>
           )}
 
@@ -156,6 +251,16 @@ function WhiteboardFormattingToolbar() {
           )}
         </>
       )}
+
+      <div className="w-px h-4 bg-white/20 my-auto mx-1" />
+
+      {/* Layer management */}
+      <div className="flex items-center gap-0.5">
+        <button onClick={() => moveToFront(selectedItem.id)} className="bg-white/10 hover:bg-white/20 px-1.5 py-0.5 rounded text-[10px]" title="Bring to Front">⬆⬆</button>
+        <button onClick={() => moveForward(selectedItem.id)} className="bg-white/10 hover:bg-white/20 px-1.5 py-0.5 rounded text-[10px]" title="Bring Forward">⬆</button>
+        <button onClick={() => moveBackward(selectedItem.id)} className="bg-white/10 hover:bg-white/20 px-1.5 py-0.5 rounded text-[10px]" title="Send Backward">⬇</button>
+        <button onClick={() => moveToBack(selectedItem.id)} className="bg-white/10 hover:bg-white/20 px-1.5 py-0.5 rounded text-[10px]" title="Send to Back">⬇⬇</button>
+      </div>
 
       <div className="w-px h-4 bg-white/20 my-auto mx-1" />
 

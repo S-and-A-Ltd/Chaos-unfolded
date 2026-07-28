@@ -35,6 +35,53 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
     }));
   }, [document.name]);
 
+  const handleExportChaos = useCallback(() => {
+    const data = JSON.stringify({
+      items: useCanvasStore.getState().items,
+      pan: useCanvasStore.getState().pan,
+      scale: useCanvasStore.getState().scale,
+    }, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = window.document.createElement('a');
+    link.download = `${document.name || 'study-canvas'}.chaos`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [document.name]);
+
+  const handleImportChaos = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result;
+      if (typeof result === 'string') {
+        useCanvasStore.getState().loadProject(result);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }, []);
+
+  const handleInsertImage = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        const img = new Image();
+        img.onload = () => {
+          addItem('image', undefined, { imageUrl: dataUrl, width: img.width, height: img.height });
+        };
+        img.src = dataUrl;
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }, [addItem]);
+
   return (
     <div className="bg-[#7c6a75] dark:bg-[#342e48] text-white px-5 py-2.5 flex flex-wrap items-center justify-between shadow-md z-30 gap-2">
       <div className="flex items-center gap-3">
@@ -85,6 +132,10 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
               <button onClick={() => addItem('arrow')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">➔ Snapping Arrow Connector</button>
               <button onClick={() => addItem('shape', 'rectangle')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">🔲 Rectangle Box</button>
               <button onClick={() => addItem('shape', 'circle')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">⚪ Circle / Concept</button>
+              <label className="cursor-pointer text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">
+                🖼️ Insert Image
+                <input type="file" accept="image/*" hidden onChange={handleInsertImage} />
+              </label>
             </div>
           )}
         </div>
@@ -134,14 +185,30 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
           📐 Grid Snap: {gridSnap ? 'ON' : 'OFF'}
         </button>
 
-        <button
-          type="button"
-          onClick={handleExportPng}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm"
-          title="Export PNG"
-        >
-          📸 Export PNG
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleExportPng}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm"
+            title="Export PNG"
+          >
+            📸 PNG
+          </button>
+          
+          <button
+            type="button"
+            onClick={handleExportChaos}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm"
+            title="Save Project (.chaos)"
+          >
+            💾 Save
+          </button>
+          
+          <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm" title="Load Project (.chaos)">
+            📂 Load
+            <input type="file" accept=".chaos,application/json" hidden onChange={handleImportChaos} />
+          </label>
+        </div>
 
         <div className="flex items-center gap-1 bg-black/30 px-2 py-0.5 rounded-lg text-xs font-bold">
           <button onClick={() => setScale(s => Math.max(0.5, s - 0.1))} className="hover:text-amber-300 px-1">➖</button>

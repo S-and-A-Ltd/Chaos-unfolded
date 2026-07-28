@@ -1,14 +1,18 @@
 'use client';
 
-import React, { useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { Stage, Layer, Rect as KonvaRect, Transformer } from 'react-konva';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import { useShallow } from 'zustand/react/shallow';
 import StickyNoteObject from '@/components/study/canvas/StickyNoteObject';
 import ShapeObject from '@/components/study/canvas/ShapeObject';
 import ConnectorObject from '@/components/study/canvas/ConnectorObject';
+import ImageObject from '@/components/study/canvas/ImageObject';
 
 const GRID_SIZE = 20;
+const ZOOM_FACTOR = 1.08;
+const MIN_SCALE = 0.2;
+const MAX_SCALE = 5;
 
 function WhiteboardStage() {
   const items = useCanvasStore(useShallow(state => state.items));
@@ -18,13 +22,17 @@ function WhiteboardStage() {
   const pan = useCanvasStore(useShallow(state => state.pan));
   const gridSnap = useCanvasStore(state => state.gridSnap);
   const setPan = useCanvasStore(state => state.setPan);
+  const setScale = useCanvasStore(state => state.setScale);
   const setSelectedId = useCanvasStore(state => state.setSelectedId);
   const commitEditing = useCanvasStore(state => state.commitEditing);
   const deleteItem = useCanvasStore(state => state.deleteItem);
   const duplicateItem = useCanvasStore(state => state.duplicateItem);
+  const updateItemFields = useCanvasStore(state => state.updateItemFields);
 
   const stageRef = useRef<any>(null);
   const transformerRef = useRef<any>(null);
+  const [clipboard, setClipboard] = useState<any>(null);
+  const [spaceHeld, setSpaceHeld] = useState(false);
 
   // Attach Konva Transformer to selected item
   useEffect(() => {
@@ -40,26 +48,127 @@ function WhiteboardStage() {
     }
   }, [selectedId, items]);
 
-  // Keyboard Shortcuts (Delete, Duplicate)
+  // Ghost Node Cleanup (Fix orphaned objects)
+  useEffect(() => {
+    if (!stageRef.current) return;
+    const stage = stageRef.current;
+    const allNodes = stage.find('Group, Text');
+    let needsRedraw = false;
+
+    allNodes.forEach((node: any) => {
+      const id = node.id();
+      if (id && id.startsWith('node_')) {
+        const itemId = id.replace('node_', '');
+        if (!items.find((i: any) => i.id === itemId)) {
+          console.warn(`Cleaning up orphaned node: ${id}`);
+          node.destroy();
+          needsRedraw = true;
+        }
+      }
+    });
+
+    if (needsRedraw) {
+      stage.getLayers().forEach((layer: any) => layer.batchDraw());
+    }
+  }, [items]);
+
+  // Expanded Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
         return;
       }
-      if (selectedId && !editingId) {
-        if (e.key === 'Delete' || e.key === 'Backspace') {
-          e.preventDefault();
-          deleteItem(selectedId);
-        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
-          e.preventDefault();
-          duplicateItem(selectedId);
+
+      // Space for pan mode
+      if (e.key === ' ' && !e.repeat) {
+        e.preventDefault();
+        setSpaceHeld(true);
+        return;
+      }
+
+      // Escape to deselect
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (editingId) {
+          commitEditing();
         }
+        setSelectedId(null);
+        return;
+      }
+
+      // Ctrl+Z / Ctrl+Y for undo/redo
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        useCanvasStore.getState().undo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+        e.preventDefault();
+        useCanvasStore.getState().redo();
+        return;
+      }
+
+      if (!selectedId || editingId) return;
+
+      // Delete
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        deleteItem(selectedId);
+        return;
+      }
+
+      // Ctrl+D → Duplicate
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        duplicateItem(selectedId);
+        return;
+      }
+
+      // Ctrl+C → Copy
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        const item = items.find((i: any) => i.id === selectedId);
+        if (item) {
+          setClipboard({ ...item });
+        }
+        return;
+      }
+
+      // Ctrl+V → Paste
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        if (clipboard) {
+          const newId = `item_${Date.now()}`;
+          const newItem = { ...clipboard, id: newId, x: clipboard.x + 30, y: clipboard.y + 30 };
+          const { items: currentItems, saveItems } = useCanvasStore.getState();
+          saveItems([...currentItems, newItem]);
+          setSelectedId(newId);
+        }
+        return;
+      }
+
+      // Arrow keys → Move 1px (Shift → 10px)
+      const step = e.shiftKey ? 10 : 1;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); updateItemFields(selectedId, { x: (items.find((i: any) => i.id === selectedId)?.x || 0) - step }); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); updateItemFields(selectedId, { x: (items.find((i: any) => i.id === selectedId)?.x || 0) + step }); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); updateItemFields(selectedId, { y: (items.find((i: any) => i.id === selectedId)?.y || 0) - step }); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); updateItemFields(selectedId, { y: (items.find((i: any) => i.id === selectedId)?.y || 0) + step }); }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === ' ') {
+        setSpaceHeld(false);
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedId, editingId, deleteItem, duplicateItem]);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [selectedId, editingId, deleteItem, duplicateItem, updateItemFields, items, clipboard, commitEditing, setSelectedId]);
 
   // Export PNG listener
   useEffect(() => {
@@ -67,19 +176,17 @@ function WhiteboardStage() {
       console.log("Received export event");
       const customEvent = e as CustomEvent;
       if (stageRef.current) {
-        // Hide transformer before export to avoid capturing resize handles
         if (transformerRef.current) {
           transformerRef.current.nodes([]);
           transformerRef.current.getLayer()?.batchDraw();
         }
-        
+
         const dataURL = stageRef.current.toDataURL({ pixelRatio: 2, mimeType: 'image/png' });
         const link = document.createElement('a');
         link.download = customEvent.detail?.fileName || 'StudyCanvas.png';
         link.href = dataURL;
         link.click();
-        
-        // Restore transformer if needed
+
         if (selectedId) {
           const node = stageRef.current.findOne(`#node_${selectedId}`);
           if (node && transformerRef.current) {
@@ -110,8 +217,35 @@ function WhiteboardStage() {
     }
   }, [setSelectedId, editingId, commitEditing]);
 
-  const arrowItems = useMemo(() => items.filter(i => i.type === 'arrow'), [items]);
-  const nonArrowItems = useMemo(() => items.filter(i => i.type !== 'arrow'), [items]);
+  // Wheel zoom at cursor position
+  const handleWheel = useCallback((e: any) => {
+    e.evt.preventDefault();
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const oldScale = stage.scaleX();
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+
+    const mousePointTo = {
+      x: (pointer.x - stage.x()) / oldScale,
+      y: (pointer.y - stage.y()) / oldScale,
+    };
+
+    const direction = e.evt.deltaY > 0 ? -1 : 1;
+    const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, direction > 0 ? oldScale * ZOOM_FACTOR : oldScale / ZOOM_FACTOR));
+
+    const newPos = {
+      x: pointer.x - mousePointTo.x * newScale,
+      y: pointer.y - mousePointTo.y * newScale,
+    };
+
+    setScale(newScale);
+    setPan(newPos);
+  }, [setScale, setPan]);
+
+  const arrowItems = useMemo(() => items.filter((i: any) => i.type === 'arrow'), [items]);
+  const nonArrowItems = useMemo(() => items.filter((i: any) => i.type !== 'arrow'), [items]);
 
   const gridPattern = useMemo(() => {
     if (typeof window === 'undefined') return undefined;
@@ -133,8 +267,14 @@ function WhiteboardStage() {
     return canvas;
   }, []);
 
+  // Determine if stage should be draggable (space held OR empty canvas click)
+  const isDraggable = spaceHeld || (!selectedId && !editingId);
+
   return (
-    <div className="flex-1 overflow-hidden relative canvas-container" style={{ backgroundColor: '#f7f5fa' }}>
+    <div
+      className="flex-1 overflow-hidden relative canvas-container"
+      style={{ backgroundColor: '#f7f5fa', cursor: spaceHeld ? 'grab' : 'default' }}
+    >
       <Stage
         ref={stageRef}
         width={width}
@@ -143,9 +283,10 @@ function WhiteboardStage() {
         scaleY={scale}
         x={pan.x}
         y={pan.y}
-        draggable={!selectedId && !editingId}
+        draggable={isDraggable}
         onDragEnd={handleDragEnd}
         onMouseDown={handleMouseDown}
+        onWheel={handleWheel}
       >
         <Layer>
           {/* Background grid */}
@@ -162,7 +303,7 @@ function WhiteboardStage() {
           )}
 
           {/* Connectors (rendered underneath cards) */}
-          {arrowItems.map(arrow => (
+          {arrowItems.map((arrow: any) => (
             <ConnectorObject
               key={arrow.id}
               arrow={arrow}
@@ -170,35 +311,48 @@ function WhiteboardStage() {
             />
           ))}
 
-          {/* Sticky notes, textboxes, shapes, AI cards */}
-          {nonArrowItems.map(item => {
-            const isSelected = selectedId === item.id;
+          {/* Sticky notes, textboxes, shapes, images, AI cards */}
+          {nonArrowItems.map((item: any) => {
+            const isItemSelected = selectedId === item.id;
             const isEditing = editingId === item.id;
-            const isSticky = item.type === 'sticky' || item.bgAsset !== undefined;
+            const isSticky = item.type === 'sticky' || (item.bgAsset !== undefined && item.type !== 'image');
+            const isImage = item.type === 'image';
+
+            if (isImage) {
+              return (
+                <ImageObject
+                  key={item.id}
+                  item={item}
+                  isSelected={isItemSelected}
+                  gridSnap={gridSnap}
+                  GRID_SIZE={GRID_SIZE}
+                />
+              );
+            }
 
             if (isSticky) {
               return (
                 <StickyNoteObject
                   key={item.id}
                   item={item}
-                  isSelected={isSelected}
-                  isEditing={isEditing}
-                  gridSnap={gridSnap}
-                  GRID_SIZE={GRID_SIZE}
-                />
-              );
-            } else {
-              return (
-                <ShapeObject
-                  key={item.id}
-                  item={item}
-                  isSelected={isSelected}
+                  isSelected={isItemSelected}
                   isEditing={isEditing}
                   gridSnap={gridSnap}
                   GRID_SIZE={GRID_SIZE}
                 />
               );
             }
+
+            return (
+              <ShapeObject
+                key={item.id}
+                item={item}
+                isSelected={isItemSelected}
+                isEditing={isEditing}
+                gridSnap={gridSnap}
+                GRID_SIZE={GRID_SIZE}
+              />
+            );
           })}
 
           {/* Konva Transformer for resizing */}

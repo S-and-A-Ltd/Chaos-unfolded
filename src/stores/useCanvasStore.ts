@@ -24,6 +24,15 @@ export interface CanvasItem {
   isItalic?: boolean;
   isUnderline?: boolean;
   textAlign?: 'left' | 'center' | 'right' | 'justify';
+  
+  // New shape/image/connector properties
+  imageUrl?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderStyle?: 'solid' | 'dashed';
+  cornerRadius?: number;
+  opacity?: number;
+  arrowhead?: 'none' | 'arrow' | 'triangle';
   isAiCard?: boolean;
   fromId?: string;
   fromAnchor?: AnchorPosition;
@@ -78,7 +87,7 @@ interface CanvasStoreState {
   // Actions
   initCanvas: (docId: string, docName: string) => void;
   saveItems: (newItems: CanvasItem[], addToHistory?: boolean) => void;
-  addItem: (type: CanvasItem['type'], shapeType?: CanvasItem['shapeType']) => void;
+  addItem: (type: CanvasItem['type'], shapeType?: CanvasItem['shapeType'], extraParams?: any) => void;
   addStickyNoteAsset: (assetUrl: string) => void;
   insertAiCard: (title: string, text: string, themeBg?: string) => void;
   deleteItem: (id: string) => void;
@@ -100,6 +109,11 @@ interface CanvasStoreState {
   redo: () => void;
   saveNow: () => void;
   spawnArrowFromAnchor: (fromItem: CanvasItem, anchor: AnchorPosition) => void;
+  loadProject: (dataStr: string) => void;
+  moveToFront: (id: string) => void;
+  moveToBack: (id: string) => void;
+  moveForward: (id: string) => void;
+  moveBackward: (id: string) => void;
 }
 
 const GRID_SIZE = 20;
@@ -226,7 +240,74 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
     }
   },
 
-  addItem: (type, shapeType) => {
+  loadProject: (dataStr: string) => {
+    try {
+      const data = JSON.parse(dataStr);
+      if (data && data.items && Array.isArray(data.items)) {
+        set({
+          items: data.items,
+          pan: data.pan || { x: 0, y: 0 },
+          scale: data.scale || 1,
+          history: [data.items],
+          historyIdx: 0,
+          selectedId: null,
+          editingId: null,
+          lastSaved: 'Loaded Project',
+        });
+      }
+    } catch (e) {
+      console.error('Failed to load project:', e);
+      alert('Invalid project file.');
+    }
+  },
+
+  moveToFront: (id: string) => {
+    const { items, saveItems } = get();
+    const idx = items.findIndex(i => i.id === id);
+    if (idx !== -1) {
+      const newItems = [...items];
+      const [item] = newItems.splice(idx, 1);
+      newItems.push(item);
+      saveItems(newItems);
+    }
+  },
+  
+  moveToBack: (id: string) => {
+    const { items, saveItems } = get();
+    const idx = items.findIndex(i => i.id === id);
+    if (idx !== -1) {
+      const newItems = [...items];
+      const [item] = newItems.splice(idx, 1);
+      newItems.unshift(item);
+      saveItems(newItems);
+    }
+  },
+
+  moveForward: (id: string) => {
+    const { items, saveItems } = get();
+    const idx = items.findIndex(i => i.id === id);
+    if (idx !== -1 && idx < items.length - 1) {
+      const newItems = [...items];
+      const temp = newItems[idx + 1];
+      newItems[idx + 1] = newItems[idx];
+      newItems[idx] = temp;
+      saveItems(newItems);
+    }
+  },
+
+  moveBackward: (id: string) => {
+    const { items, saveItems } = get();
+    const idx = items.findIndex(i => i.id === id);
+    if (idx > 0) {
+      const newItems = [...items];
+      const temp = newItems[idx - 1];
+      newItems[idx - 1] = newItems[idx];
+      newItems[idx] = temp;
+      saveItems(newItems);
+    }
+  },
+
+  addItem: (type, shapeType, extraParams) => {
     const { pan, scale, items, saveItems } = get();
     const id = `item_${Date.now()}`;
     const centerX = Math.round((-pan.x + 200) / scale / GRID_SIZE) * GRID_SIZE;
@@ -241,13 +322,15 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
       content: type === 'sticky' ? 'Type note here...'
         : type === 'text' ? 'Double click to edit text...'
         : type === 'shape' ? 'Double click to add notes...'
+        : type === 'image' ? ''
         : '',
       x: centerX > 0 ? centerX : 100,
       y: centerY > 0 ? centerY : 100,
-      width: type === 'sticky' ? 280 : type === 'text' ? 240 : type === 'shape' && shapeType === 'circle' ? 180 : 220,
-      height: type === 'sticky' ? 280 : type === 'text' ? 120 : type === 'shape' && shapeType === 'circle' ? 180 : 160,
-      color: type === 'shape' ? '#e0f2fe' : '#ffffff',
+      width: type === 'sticky' ? 280 : type === 'text' ? 240 : type === 'shape' && shapeType === 'circle' ? 180 : type === 'image' && extraParams?.width ? extraParams.width : 220,
+      height: type === 'sticky' ? 280 : type === 'text' ? 120 : type === 'shape' && shapeType === 'circle' ? 180 : type === 'image' && extraParams?.height ? extraParams.height : 160,
+      color: type === 'shape' ? '#e0f2fe' : type === 'text' ? 'transparent' : '#ffffff',
       bgAsset: type === 'sticky' ? defaultTemplate.image : undefined,
+      imageUrl: type === 'image' && extraParams?.imageUrl ? extraParams.imageUrl : undefined,
       shapeType,
       fontSize: type === 'shape' ? 14 : undefined,
       fontFamily: type === 'shape' ? "'Quicksand', 'Nunito', sans-serif" : undefined,

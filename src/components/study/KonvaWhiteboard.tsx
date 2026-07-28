@@ -27,6 +27,24 @@ function KonvaWhiteboard({ document, onClose }: KonvaWhiteboardProps) {
     initCanvas(document.id, document.name);
   }, [document.id, document.name, initCanvas]);
 
+  // Auto-save every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      useCanvasStore.getState().saveNow();
+    }, 30000);
+
+    // Save on unload for crash recovery
+    const handleUnload = () => {
+      useCanvasStore.getState().saveNow();
+    };
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleUnload);
+    };
+  }, []);
+
   return (
     <div className="fixed inset-0 z-[999999] bg-[#0f0e17]/85 backdrop-blur-2xl flex items-center justify-center p-2 md:p-6 select-none">
       <div className="bg-[#faf8fc] dark:bg-[#181622] border-4 border-[#7c6a75] dark:border-[#a78bfa] rounded-3xl shadow-[0_20px_70px_rgba(0,0,0,0.9)] w-full h-[96vh] flex flex-col overflow-hidden relative">
