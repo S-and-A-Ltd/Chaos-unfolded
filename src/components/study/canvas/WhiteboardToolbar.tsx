@@ -25,6 +25,17 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
   const scale = useCanvasStore(state => state.scale);
   const setScale = useCanvasStore(state => state.setScale);
   const setPan = useCanvasStore(state => state.setPan);
+  
+  const canvases = useCanvasStore(state => state.canvases);
+  const activeCanvasId = useCanvasStore(state => state.activeCanvasId);
+  const activeCanvas = canvases.find(c => c.id === activeCanvasId);
+  const switchCanvas = useCanvasStore(state => state.switchCanvas);
+  const createCanvas = useCanvasStore(state => state.createCanvas);
+  const renameCanvas = useCanvasStore(state => state.renameCanvas);
+  const duplicateCanvas = useCanvasStore(state => state.duplicateCanvas);
+  const deleteCanvas = useCanvasStore(state => state.deleteCanvas);
+  const clearCanvas = useCanvasStore(state => state.clearCanvas);
+  const saveNow = useCanvasStore(state => state.saveNow);
 
   const handleExportPng = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -115,6 +126,57 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
         >
           <span>🛠️ Template Editor</span>
         </button>
+
+        {/* Canvas Manager */}
+        <div className="relative ml-2">
+          <button
+            onClick={() => setActiveDropdown(activeDropdown === 'canvas' ? null : 'canvas')}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-3 py-1.5 rounded-xl text-xs shadow-sm flex items-center gap-1.5 transition-all hover:scale-105"
+          >
+            <span>📄 {activeCanvas ? activeCanvas.name : 'Canvas'}</span>
+            <span>▾</span>
+          </button>
+          {activeDropdown === 'canvas' && (
+            <div className="absolute left-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/40 rounded-xl shadow-2xl p-2 z-[60] flex flex-col min-w-[220px] text-gray-800 dark:text-gray-200 text-xs">
+              <div className="font-bold text-[#7c6a75] mb-2 px-2">Your Canvases</div>
+              <div className="max-h-[200px] overflow-y-auto mb-2 space-y-1">
+                {canvases.map(c => (
+                  <div key={c.id} className="flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded">
+                    <button
+                      onClick={() => switchCanvas(c.id)}
+                      className={`flex-1 text-left truncate font-bold ${c.id === activeCanvasId ? 'text-indigo-600 dark:text-indigo-400' : ''}`}
+                    >
+                      {c.id === activeCanvasId && '✓ '}{c.name}
+                    </button>
+                    {c.id === activeCanvasId && (
+                      <div className="flex items-center gap-1 opacity-70 hover:opacity-100">
+                        <button onClick={() => {
+                          const newName = prompt('Rename canvas:', c.name);
+                          if (newName) renameCanvas(c.id, newName);
+                        }} title="Rename">✏️</button>
+                        <button onClick={() => duplicateCanvas(c.id)} title="Duplicate">📑</button>
+                        <button onClick={() => {
+                          if (canvases.length > 1 && confirm(`Delete canvas "${c.name}"?`)) {
+                            deleteCanvas(c.id);
+                          }
+                        }} title="Delete" disabled={canvases.length <= 1}>🗑️</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => {
+                  const name = prompt('New canvas name:', 'New Canvas');
+                  if (name) createCanvas(name);
+                }}
+                className="w-full text-center bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-bold py-1.5 rounded hover:bg-indigo-500/30"
+              >
+                + New Canvas
+              </button>
+            </div>
+          )}
+        </div>
 
         <div className="relative">
           <button
@@ -209,6 +271,19 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
             📂 Load
             <input type="file" accept=".chaos,application/json" hidden onChange={handleImportChaos} />
           </label>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm("Clear this canvas? This cannot be undone.")) {
+                clearCanvas();
+              }
+            }}
+            className="bg-red-600 hover:bg-red-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm ml-1"
+            title="Clear Canvas"
+          >
+            🗑️ Clear
+          </button>
         </div>
 
         <div className="flex items-center gap-1 bg-black/30 px-2 py-0.5 rounded-lg text-xs font-bold">

@@ -68,6 +68,12 @@ const findBestAnchor = (fromItem: CanvasItem, toItem: CanvasItem): { from: Ancho
   }
 };
 
+export interface CanvasInfo {
+  id: string;
+  name: string;
+  updatedAt: number;
+}
+
 interface CanvasStoreState {
   items: CanvasItem[];
   selectedId: string | null;
@@ -78,9 +84,14 @@ interface CanvasStoreState {
   gridSnap: boolean;
   history: CanvasItem[][];
   historyIdx: number;
+  
+  // Document and Canvas Management
   documentId: string | null;
+  activeCanvasId: string | null;
+  canvases: CanvasInfo[];
   lastSaved: string;
-  activeDropdown: 'add' | 'ai' | null;
+  
+  activeDropdown: 'add' | 'ai' | 'canvas' | null;
   showThemePicker: boolean;
   showTemplateEditor: boolean;
 
@@ -102,7 +113,7 @@ interface CanvasStoreState {
   setScale: (scale: number | ((prev: number) => number)) => void;
   setPan: (pan: { x: number; y: number }) => void;
   setGridSnap: (snap: boolean | ((prev: boolean) => boolean)) => void;
-  setActiveDropdown: (d: 'add' | 'ai' | null) => void;
+  setActiveDropdown: (d: 'add' | 'ai' | 'canvas' | null) => void;
   setShowThemePicker: (show: boolean) => void;
   setShowTemplateEditor: (show: boolean) => void;
   undo: () => void;
@@ -114,6 +125,14 @@ interface CanvasStoreState {
   moveToBack: (id: string) => void;
   moveForward: (id: string) => void;
   moveBackward: (id: string) => void;
+
+  // Multiple Canvases Actions
+  createCanvas: (name: string) => void;
+  renameCanvas: (id: string, newName: string) => void;
+  duplicateCanvas: (id: string) => void;
+  deleteCanvas: (id: string) => void;
+  switchCanvas: (id: string) => void;
+  clearCanvas: () => void;
 }
 
 const GRID_SIZE = 20;
@@ -134,90 +153,119 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
   showThemePicker: false,
   showTemplateEditor: false,
 
+  activeCanvasId: null,
+  canvases: [],
+
   initCanvas: (docId, docName) => {
     const all = getStickyTemplates();
     const store = get();
-    if (store.documentId === docId && store.items.length > 0) return;
+    // Allow re-initialization if docId changes, else keep current
+    if (store.documentId === docId && store.canvases.length > 0) return;
+
+    let initialCanvases: CanvasInfo[] = [];
+    let initialActiveId = `default_${docId}`;
+    let loadedItems: CanvasItem[] | null = null;
+    let loadedPan = { x: 0, y: 0 };
+    let loadedScale = 1;
 
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem(`dazai_canvas_${docId}`);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            set({
-              items: parsed,
-              history: [parsed],
-              historyIdx: 0,
-              documentId: docId,
-              lastSaved: localStorage.getItem(`dazai_canvas_time_${docId}`) || 'Earlier',
-            });
-            return;
+        const listStr = localStorage.getItem(`dazai_canvas_list_${docId}`);
+        if (listStr) {
+          initialCanvases = JSON.parse(listStr);
+        }
+        
+        if (initialCanvases.length > 0) {
+          const lastActive = localStorage.getItem(`dazai_canvas_active_${docId}`);
+          if (lastActive && initialCanvases.some(c => c.id === lastActive)) {
+            initialActiveId = lastActive;
+          } else {
+            initialActiveId = initialCanvases[0].id;
+          }
+        } else {
+          initialCanvases = [{ id: initialActiveId, name: 'Main Canvas', updatedAt: Date.now() }];
+          localStorage.setItem(`dazai_canvas_list_${docId}`, JSON.stringify(initialCanvases));
+        }
+
+        const savedData = localStorage.getItem(`dazai_canvas_data_${initialActiveId}`);
+        if (savedData) {
+          const parsed = JSON.parse(savedData);
+          if (parsed && Array.isArray(parsed.items)) {
+            loadedItems = parsed.items;
+            if (parsed.pan) loadedPan = parsed.pan;
+            if (parsed.scale) loadedScale = parsed.scale;
           }
         }
       } catch (e) {
-        console.error('Failed to load canvas items', e);
+        console.error('Failed to load canvas data', e);
       }
     }
 
-    const initial: CanvasItem[] = [
-      {
-        id: 'welcome_1',
-        type: 'sticky',
-        content: 'Welcome to Study Canvas!\nDouble click to edit me.\n• Drag me around\n• Resize any side\n• Connect ideas with arrows\n• Make it your own',
-        x: 100,
-        y: 80,
-        width: 300,
-        height: 300,
-        bgAsset: all[0].image,
-        fontSize: 15,
-        fontFamily: "'Quicksand', 'Nunito', sans-serif",
-        isBold: true,
-        textColor: '#3A3A3A',
-      },
-      {
-        id: 'welcome_2',
-        type: 'ai-card',
-        title: '🤖 Study Subject',
-        content: `Document: ${docName}\n\nUse this space to build mind maps, flowcharts, and visual summaries!`,
-        x: 480,
-        y: 100,
-        width: 280,
-        height: 220,
-        color: '#f8f5ff',
-        isAiCard: true,
-      },
-      {
-        id: 'welcome_arrow',
-        type: 'arrow',
-        content: 'Connects to ➔',
-        x: 400,
-        y: 200,
-        width: 80,
-        height: 20,
-        color: '#8b5cf6',
-        connectorStyle: 'orthogonal',
-        fromId: 'welcome_1',
-        fromAnchor: 'right',
-        toId: 'welcome_2',
-        toAnchor: 'left',
-      },
-    ];
+    if (!loadedItems) {
+      loadedItems = [
+        {
+          id: 'welcome_1',
+          type: 'sticky',
+          content: 'Welcome to Study Canvas!\nDouble click to edit me.\n• Drag me around\n• Resize any side\n• Connect ideas with arrows\n• Make it your own',
+          x: 100,
+          y: 80,
+          width: 300,
+          height: 300,
+          bgAsset: all[0].image,
+          fontSize: 15,
+          fontFamily: "'Quicksand', 'Nunito', sans-serif",
+          isBold: true,
+          textColor: '#3A3A3A',
+        },
+        {
+          id: 'welcome_2',
+          type: 'ai-card',
+          title: '🤖 Study Subject',
+          content: `Document: ${docName}\n\nUse this space to build mind maps, flowcharts, and visual summaries!`,
+          x: 480,
+          y: 100,
+          width: 280,
+          height: 220,
+          color: '#f8f5ff',
+          isAiCard: true,
+        },
+        {
+          id: 'welcome_arrow',
+          type: 'arrow',
+          content: 'Connects to ➔',
+          x: 400,
+          y: 200,
+          width: 80,
+          height: 20,
+          color: '#8b5cf6',
+          connectorStyle: 'orthogonal',
+          fromId: 'welcome_1',
+          fromAnchor: 'right',
+          toId: 'welcome_2',
+          toAnchor: 'left',
+        },
+      ];
+    }
 
     set({
-      items: initial,
-      history: [initial],
+      items: loadedItems,
+      history: [loadedItems],
       historyIdx: 0,
+      pan: loadedPan,
+      scale: loadedScale,
       documentId: docId,
+      activeCanvasId: initialActiveId,
+      canvases: initialCanvases,
       lastSaved: 'Just now',
     });
+    
     if (typeof window !== 'undefined') {
-      localStorage.setItem(`dazai_canvas_${docId}`, JSON.stringify(initial));
+      localStorage.setItem(`dazai_canvas_active_${docId}`, initialActiveId);
     }
   },
 
   saveItems: (newItems, addToHistory = true) => {
-    const { history, historyIdx, documentId } = get();
+    const { history, historyIdx, documentId, activeCanvasId, pan, scale } = get();
     let nextHistory = history;
     let nextIdx = historyIdx;
 
@@ -234,9 +282,17 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
       lastSaved: now,
     });
 
-    if (typeof window !== 'undefined' && documentId) {
-      localStorage.setItem(`dazai_canvas_${documentId}`, JSON.stringify(newItems));
-      localStorage.setItem(`dazai_canvas_time_${documentId}`, now);
+    if (typeof window !== 'undefined' && documentId && activeCanvasId) {
+      localStorage.setItem(`dazai_canvas_data_${activeCanvasId}`, JSON.stringify({
+        items: newItems,
+        pan,
+        scale
+      }));
+      // Update canvas list timestamp
+      const canvases = get().canvases;
+      const updatedCanvases = canvases.map(c => c.id === activeCanvasId ? { ...c, updatedAt: Date.now() } : c);
+      set({ canvases: updatedCanvases });
+      localStorage.setItem(`dazai_canvas_list_${documentId}`, JSON.stringify(updatedCanvases));
     }
   },
 
@@ -244,16 +300,19 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
     try {
       const data = JSON.parse(dataStr);
       if (data && data.items && Array.isArray(data.items)) {
+        const loadedPan = data.pan || { x: 0, y: 0 };
+        const loadedScale = data.scale || 1;
         set({
           items: data.items,
-          pan: data.pan || { x: 0, y: 0 },
-          scale: data.scale || 1,
+          pan: loadedPan,
+          scale: loadedScale,
           history: [data.items],
           historyIdx: 0,
           selectedId: null,
           editingId: null,
           lastSaved: 'Loaded Project',
         });
+        get().saveNow();
       }
     } catch (e) {
       console.error('Failed to load project:', e);
@@ -516,9 +575,147 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
     }
   },
 
-  saveNow: () => {
-    const { items, saveItems } = get();
-    saveItems(items, false);
+  saveNow: () => get().saveItems(get().items, false),
+
+  clearCanvas: () => {
+    const { saveItems } = get();
+    // clear items, keep pan/scale as-is
+    set({
+      items: [],
+      history: [[]],
+      historyIdx: 0,
+      selectedId: null,
+      editingId: null,
+    });
+    saveItems([], false);
+  },
+
+  createCanvas: (name) => {
+    const { documentId, canvases, saveNow } = get();
+    if (!documentId) return;
+    saveNow(); // save current before switching
+    const newId = `canvas_${Date.now()}`;
+    const newCanvas = { id: newId, name, updatedAt: Date.now() };
+    const nextCanvases = [...canvases, newCanvas];
+    set({
+      canvases: nextCanvases,
+      activeCanvasId: newId,
+      items: [],
+      history: [[]],
+      historyIdx: 0,
+      pan: { x: 0, y: 0 },
+      scale: 1,
+      selectedId: null,
+      editingId: null,
+      activeDropdown: null,
+    });
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`dazai_canvas_list_${documentId}`, JSON.stringify(nextCanvases));
+      localStorage.setItem(`dazai_canvas_active_${documentId}`, newId);
+      localStorage.setItem(`dazai_canvas_data_${newId}`, JSON.stringify({ items: [], pan: { x: 0, y: 0 }, scale: 1 }));
+    }
+  },
+
+  renameCanvas: (id, newName) => {
+    const { documentId, canvases } = get();
+    if (!documentId) return;
+    const nextCanvases = canvases.map(c => c.id === id ? { ...c, name: newName } : c);
+    set({ canvases: nextCanvases });
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`dazai_canvas_list_${documentId}`, JSON.stringify(nextCanvases));
+    }
+  },
+
+  duplicateCanvas: (id) => {
+    const { documentId, canvases, saveNow } = get();
+    if (!documentId) return;
+    saveNow(); // save current before duplicating if it's the active one
+    const original = canvases.find(c => c.id === id);
+    if (!original) return;
+
+    let originalData = { items: [], pan: { x: 0, y: 0 }, scale: 1 };
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(`dazai_canvas_data_${id}`);
+      if (stored) {
+        try { originalData = JSON.parse(stored); } catch (e) {}
+      }
+    }
+    
+    // Assign new IDs to all items to prevent ID collisions
+    const newItems = originalData.items.map((i: any) => ({ ...i, id: `item_${Date.now()}_${Math.random().toString(36).substr(2,9)}` }));
+    
+    const newId = `canvas_${Date.now()}`;
+    const newCanvas = { id: newId, name: `${original.name} (Copy)`, updatedAt: Date.now() };
+    const nextCanvases = [...canvases, newCanvas];
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`dazai_canvas_data_${newId}`, JSON.stringify({ ...originalData, items: newItems }));
+      localStorage.setItem(`dazai_canvas_list_${documentId}`, JSON.stringify(nextCanvases));
+    }
+    
+    set({ canvases: nextCanvases, activeDropdown: null });
+    get().switchCanvas(newId);
+  },
+
+  deleteCanvas: (id) => {
+    const { documentId, canvases, activeCanvasId, saveNow } = get();
+    if (!documentId || canvases.length <= 1) return; // Must have at least 1 canvas
+    
+    const nextCanvases = canvases.filter(c => c.id !== id);
+    let nextActiveId = activeCanvasId;
+    
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(`dazai_canvas_data_${id}`);
+      localStorage.setItem(`dazai_canvas_list_${documentId}`, JSON.stringify(nextCanvases));
+    }
+
+    if (activeCanvasId === id) {
+      nextActiveId = nextCanvases[0].id;
+      set({ canvases: nextCanvases, activeDropdown: null });
+      get().switchCanvas(nextActiveId);
+    } else {
+      set({ canvases: nextCanvases, activeDropdown: null });
+    }
+  },
+
+  switchCanvas: (id) => {
+    const { documentId, canvases, activeCanvasId, saveNow } = get();
+    if (!documentId || id === activeCanvasId) return;
+    
+    saveNow(); // Save the canvas we are leaving
+    
+    let loadedItems: CanvasItem[] = [];
+    let loadedPan = { x: 0, y: 0 };
+    let loadedScale = 1;
+
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(`dazai_canvas_data_${id}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && Array.isArray(parsed.items)) {
+            loadedItems = parsed.items;
+            if (parsed.pan) loadedPan = parsed.pan;
+            if (parsed.scale) loadedScale = parsed.scale;
+          }
+        }
+        localStorage.setItem(`dazai_canvas_active_${documentId}`, id);
+      } catch (e) {
+        console.error('Failed to load canvas data', e);
+      }
+    }
+
+    set({
+      activeCanvasId: id,
+      items: loadedItems,
+      history: [loadedItems],
+      historyIdx: 0,
+      pan: loadedPan,
+      scale: loadedScale,
+      selectedId: null,
+      editingId: null,
+      activeDropdown: null,
+    });
   },
 
   spawnArrowFromAnchor: (fromItem, anchor) => {
