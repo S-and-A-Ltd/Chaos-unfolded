@@ -233,7 +233,8 @@ function WhiteboardStage() {
           width: clientRect.width + 80,
           height: clientRect.height + 80,
           pixelRatio: 3, 
-          mimeType: 'image/png' 
+          mimeType: format === 'pdf' ? 'image/jpeg' : 'image/png',
+          quality: 1 
         });
 
         if (format === 'pdf') {
@@ -247,7 +248,7 @@ function WhiteboardStage() {
               format: [canvasWidth, canvasHeight],
             });
             
-            pdf.addImage(dataURL, "PNG", 0, 0, canvasWidth, canvasHeight);
+            pdf.addImage(dataURL, "JPEG", 0, 0, canvasWidth, canvasHeight);
             pdf.save(`${fileName}.pdf`);
           } catch (err) {
             console.error("PDF export failed:", err);
@@ -425,6 +426,15 @@ function WhiteboardStage() {
         onWheel={handleWheel}
       >
         <Layer>
+          {/* Solid Background to prevent black JPEG export */}
+          <KonvaRect
+            x={-5000}
+            y={-5000}
+            width={10000}
+            height={10000}
+            fill="#f7f5fa"
+            listening={false}
+          />
           {/* Background grid */}
           {gridSnap && gridPattern && (
             <KonvaRect
