@@ -284,7 +284,37 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
 
       processAndSetRecommendations(itemsToProcess, data.nextPageToken);
 
-    } catch {
+      // Print strict diagnostic logs for verification
+      if (!isNextPage && data._debug) {
+        const d = data._debug;
+        
+        let logStr = `\n==========================\nCURRENT VIDEO\n==========================\n`;
+        logStr += `Title: ${d.currentVideo.title}\n`;
+        logStr += `Channel: ${d.currentVideo.channel}\n`;
+        logStr += `Category: ${d.currentVideo.category}\n`;
+        logStr += `Tags: ${(d.currentVideo.tags || []).join(', ')}\n\n`;
+
+        logStr += `==========================\nGENERATED SEARCH QUERIES\n==========================\n`;
+        d.searchQueries.forEach((q: string, i: number) => {
+          logStr += `Query ${i + 1}: ${q}\n`;
+        });
+        logStr += `\n`;
+
+        logStr += `==========================\nYOUTUBE API RESPONSE\n==========================\n`;
+        logStr += `First 10 returned channels\n\n`;
+        d.rawResponses.forEach((r: any, i: number) => {
+          logStr += `${i + 1}.\nTitle: ${r.title}\nChannel: ${r.channel}\n\n`;
+        });
+
+        logStr += `==========================\nFINAL UP NEXT\n==========================\n`;
+        get().upNextQueue.slice(0, 15).forEach((v) => {
+          logStr += `${v.title}\n${v.author?.name}\n\n`;
+        });
+
+        console.log(logStr);
+      }
+
+    } catch (err) {
       // ignore silently, upNext remains what it was
     } finally {
       set({ isFetchingUpNext: false });

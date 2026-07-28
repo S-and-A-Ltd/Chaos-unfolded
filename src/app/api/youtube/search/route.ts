@@ -70,6 +70,7 @@ export async function GET(req: NextRequest) {
 
     let items: any[] = [];
     let nextPageToken: string | undefined;
+    let _debug: any = null;
 
     // 1. Recommendation Pipeline (YouTube Mix style)
     if (relatedToVideoId) {
@@ -80,14 +81,18 @@ export async function GET(req: NextRequest) {
 
       let originalTitle = '';
       let originalChannel = '';
+      let originalCategory = '';
+      let originalTags: string[] = [];
       let searchQueries: string[] = [];
 
       if (vidData.items && vidData.items.length > 0) {
         const snippet = vidData.items[0].snippet;
         const topicDetails = vidData.items[0].topicDetails;
         const categoryId = snippet.categoryId;
-        originalTitle = snippet.title.toLowerCase();
-        originalChannel = snippet.channelTitle.toLowerCase();
+        originalTitle = snippet.title;
+        originalChannel = snippet.channelTitle;
+        originalCategory = categoryId;
+        originalTags = snippet.tags || [];
 
         const tags = snippet.tags || [];
 
@@ -244,6 +249,23 @@ export async function GET(req: NextRequest) {
         thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
         author: { name: item.snippet.channelTitle },
       }));
+
+      // STEP 6: Package Debug Info
+      if (!pageToken) {
+        _debug = {
+          currentVideo: {
+            title: originalTitle,
+            channel: originalChannel,
+            category: originalCategory,
+            tags: originalTags,
+          },
+          searchQueries,
+          rawResponses: pool.slice(0, 10).map((i: any) => ({
+            title: i.snippet.title,
+            channel: i.snippet.channelTitle,
+          })),
+        };
+      }
     }
 
     // 2. Fetch Playlist
@@ -332,7 +354,10 @@ export async function GET(req: NextRequest) {
       return true;
     });
 
-    return NextResponse.json({ items: enhancedItems, nextPageToken });
+    const responsePayload: any = { items: enhancedItems, nextPageToken };
+    if (_debug) responsePayload._debug = _debug;
+
+    return NextResponse.json(responsePayload);
   } catch (error: any) {
     console.error('YouTube search error:', error);
     return NextResponse.json(
