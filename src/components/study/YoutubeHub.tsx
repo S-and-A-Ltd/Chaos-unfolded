@@ -133,17 +133,26 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
 
   /* ---------- Infinite Scrolling ---------- */
   const handleScroll = useCallback(() => {
-    if (mode !== 'search') return;
     const container = scrollContainerRef.current;
     if (!container) return;
 
     const { scrollTop, scrollHeight, clientHeight } = container;
     if (scrollHeight - scrollTop - clientHeight < 100) {
-      if (searchNextPageToken && !isFetchingNextPage && !isSearching) {
-        fetchNextSearchPage();
+      if (mode === 'search') {
+        if (searchNextPageToken && !isFetchingNextPage && !isSearching) {
+          fetchNextSearchPage();
+        }
+      } else if (mode === 'watch') {
+        const upNextNextPageToken = useYoutubeStore.getState().upNextNextPageToken;
+        if (upNextNextPageToken && !isFetchingUpNext) {
+          const videoId = extractVideoId(currentVideoUrl);
+          if (videoId) {
+            useYoutubeStore.getState().fetchUpNext(videoId, true);
+          }
+        }
       }
     }
-  }, [mode, searchNextPageToken, isFetchingNextPage, isSearching, fetchNextSearchPage]);
+  }, [mode, searchNextPageToken, isFetchingNextPage, isSearching, fetchNextSearchPage, isFetchingUpNext, currentVideoUrl, extractVideoId]);
 
   /* ---------- YT.Player lifecycle ---------- */
   const createOrUpdatePlayer = useCallback(
@@ -440,24 +449,9 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
             {/* Content Lists */}
             <div className={isSearching && searchResults.length > 0 ? 'opacity-60 pointer-events-none' : ''}>
               
-              {/* WATCH MODE: Active Video & Up Next */}
+              {/* WATCH MODE: Up Next */}
               {mode === 'watch' && (
                 <>
-                  {/* Active Video */}
-                  {currentVideoUrl && (() => {
-                    const currentVideo = [...searchResults, ...upNextQueue].find(v => v.url === currentVideoUrl) 
-                      || { url: currentVideoUrl, title: 'Current Video', type: 'video' as const, thumbnail: `https://img.youtube.com/vi/${extractVideoId(currentVideoUrl)}/default.jpg` };
-                    
-                    return (
-                      <div className="mb-4">
-                        <div className="flex items-center gap-2 mb-2 text-[#7c6a75] font-black text-xs border-b-2 border-[#7c6a75]/10 pb-1">
-                          <span>▶ Currently Playing</span>
-                        </div>
-                        {renderVideoItem(currentVideo, 9999, true)}
-                      </div>
-                    );
-                  })()}
-
                   {/* Up Next Queue */}
                   <div className="mb-4">
                     <div className="flex items-center gap-2 mb-2 text-[#7c6a75] font-black text-xs border-b-2 border-[#7c6a75]/10 pb-1">

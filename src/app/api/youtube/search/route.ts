@@ -54,24 +54,48 @@ export async function GET(req: NextRequest) {
       const vidData = await vidRes.json();
       
       let searchQuery = '';
+      let originalTitle = '';
+
       if (vidData.items && vidData.items.length > 0) {
         const snippet = vidData.items[0].snippet;
-        const tags = snippet.tags ? snippet.tags.slice(0, 3).join('|') : '';
-        searchQuery = `${snippet.channelTitle} ${tags} ${snippet.title}`.trim();
+        const categoryId = snippet.categoryId;
+        originalTitle = snippet.title.toLowerCase();
+        
+        const tags = snippet.tags || [];
+        const cleanTags = tags.filter((t: string) => t.toLowerCase() !== originalTitle && t.length < 20);
+
+        if (categoryId === '10') {
+          // MUSIC: Query by artist and tags, do NOT include title
+          searchQuery = `"${snippet.channelTitle}" OR "${cleanTags[0] || 'music'}" OR "${cleanTags[1] || 'song'}" music`;
+        } else if (categoryId === '27' || categoryId === '28') {
+          // EDUCATION/SCIENCE: Query by topic and channel
+          searchQuery = `"${snippet.channelTitle}" ${cleanTags[0] || snippet.title.split('-')[0]}`;
+        } else {
+          // DEFAULT: Fallback to channel and first tag
+          searchQuery = `${snippet.channelTitle} ${cleanTags[0] || ''}`;
+        }
       }
 
       // If we couldn't build a query, fallback to generic
-      if (!searchQuery) {
+      if (!searchQuery.trim()) {
         searchQuery = 'study motivation';
       }
 
       // Search using that constructed query
-      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=20&q=${encodeURIComponent(searchQuery)}&type=video&key=${apiKey}`;
+      let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=25&q=${encodeURIComponent(searchQuery)}&type=video&key=${apiKey}`;
+      if (pageToken) searchUrl += `&pageToken=${pageToken}`;
+
       const apiRes = await fetch(searchUrl, { headers: { 'Referer': referer } });
       const apiData = await apiRes.json();
 
       if (apiData.items) {
-        items = apiData.items.map((item: any) => ({
+        // Filter out videos with highly similar titles to avoid duplicates/lyrics
+        items = apiData.items.filter((item: any) => {
+          const itemTitle = item.snippet.title.toLowerCase();
+          if (originalTitle && itemTitle.includes(originalTitle)) return false;
+          if (originalTitle && originalTitle.includes(itemTitle)) return false;
+          return true;
+        }).map((item: any) => ({
           type: 'video',
           videoId: item.id.videoId,
           title: item.snippet.title,
@@ -79,7 +103,20 @@ export async function GET(req: NextRequest) {
           thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
           author: { name: item.snippet.channelTitle },
         }));
+        
+        // We might filter out too many. If so, just fallback to whatever we got
+        if (items.length === 0) {
+          items = apiData.items.map((item: any) => ({
+            type: 'video',
+            videoId: item.id.videoId,
+            title: item.snippet.title,
+            url: `https://youtube.com/watch?v=${item.id.videoId}`,
+            thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
+            author: { name: item.snippet.channelTitle },
+          }));
+        }
       }
+      nextPageToken = apiData.nextPageToken;
     }
 
     // 2. Fetch Playlist

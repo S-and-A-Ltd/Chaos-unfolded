@@ -18,6 +18,7 @@ interface YoutubeState {
   searchResults: YoutubeVideo[];
   searchNextPageToken: string | null;
   upNextQueue: YoutubeVideo[];
+  upNextNextPageToken: string | null;
   watchHistory: string[];
   recommendationCache: Record<string, YoutubeVideo[]>;
   currentVideoUrl: string;
@@ -41,7 +42,7 @@ interface YoutubeState {
   toggleAutoplay: () => void;
   selectVideo: (url: string) => void;
   exitWatchMode: () => void;
-  fetchUpNext: (videoId: string) => Promise<void>;
+  fetchUpNext: (videoId: string, isNextPage?: boolean) => Promise<void>;
   playNext: () => boolean;
   clearSearch: () => void;
   persistToStorage: () => void;
@@ -57,6 +58,7 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
   searchResults: [],
   searchNextPageToken: null,
   upNextQueue: [],
+  upNextNextPageToken: null,
   watchHistory: [],
   recommendationCache: {},
   currentVideoUrl: '',
@@ -135,7 +137,7 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
     });
     
     get().persistToStorage();
-    get().fetchUpNext(videoId);
+    get().fetchUpNext(videoId, false);
   },
 
   exitWatchMode: () => {
@@ -143,10 +145,13 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
     get().persistToStorage();
   },
 
-  fetchUpNext: async (videoId: string) => {
-    const { recommendationCache, watchHistory, searchResults, searchQuery } = get();
+  fetchUpNext: async (videoId: string, isNextPage = false) => {
+    const { recommendationCache, watchHistory, searchResults, searchQuery, upNextNextPageToken, isFetchingUpNext } = get();
 
-    const processAndSetRecommendations = (items: YoutubeVideo[]) => {
+    if (isFetchingUpNext) return;
+    if (isNextPage && !upNextNextPageToken) return;
+
+    const processAndSetRecommendations = (items: YoutubeVideo[], newPageToken?: string) => {
       set((state) => {
         // Filter out already watched videos and the currently playing video
         let nextVideos = items.filter(v => {
@@ -158,57 +163,66 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
         const existingIds = new Set(state.upNextQueue.map(v => get().extractVideoId(v.url)));
         nextVideos = nextVideos.filter(v => !existingIds.has(v.videoId || get().extractVideoId(v.url)));
 
-        let finalQueue = [...state.upNextQueue, ...nextVideos];
+        let finalQueue = isNextPage ? [...state.upNextQueue, ...nextVideos] : [...state.upNextQueue, ...nextVideos];
 
-        // If the queue is entirely empty after filtering, relax the watchHistory constraint, 
-        // but never include the currently playing video.
-        if (finalQueue.length === 0) {
+        // If the queue is entirely empty after filtering (and this is page 1), relax the watchHistory constraint
+        if (!isNextPage && finalQueue.length === 0) {
           finalQueue = items.filter(v => {
              const id = v.videoId || get().extractVideoId(v.url);
              return id !== videoId;
           });
         }
 
-        return { upNextQueue: finalQueue };
+        return { 
+          upNextQueue: finalQueue,
+          upNextNextPageToken: newPageToken || null
+        };
       });
       get().persistToStorage();
     };
 
-    // 1. Check cache first
-    if (recommendationCache[videoId]) {
-      processAndSetRecommendations(recommendationCache[videoId]);
+    // 1. Check cache first (only for first page)
+    if (!isNextPage && recommendationCache[videoId]) {
+      processAndSetRecommendations(recommendationCache[videoId], undefined);
       return;
     }
 
     set({ isFetchingUpNext: true });
 
     try {
-      const res = await fetch(`/api/youtube/search?relatedToVideoId=${videoId}`);
+      let url = `/api/youtube/search?relatedToVideoId=${videoId}`;
+      if (isNextPage && upNextNextPageToken) {
+        url += `&pageToken=${upNextNextPageToken}`;
+      }
+
+      const res = await fetch(url);
       const data = await res.json();
       
       let itemsToProcess: YoutubeVideo[] = data.items || [];
 
-      // 2. Fallback to search results if endpoint returns nothing
-      if (itemsToProcess.length === 0) {
+      // 2. Fallback to search results if endpoint returns nothing and it's the first page
+      if (!isNextPage && itemsToProcess.length === 0) {
         itemsToProcess = searchResults.filter(v => v.type === 'video');
       }
 
       // 3. Last resort fallback: Generic search query related to previous search
-      if (itemsToProcess.length === 0) {
+      if (!isNextPage && itemsToProcess.length === 0) {
          const fallbackRes = await fetch(`/api/youtube/search?q=${encodeURIComponent(searchQuery || 'study motivation')}`);
          const fallbackData = await fallbackRes.json();
          itemsToProcess = fallbackData.items || [];
       }
 
-      // Update cache
-      set((state) => ({
-        recommendationCache: {
-          ...state.recommendationCache,
-          [videoId]: itemsToProcess
-        }
-      }));
+      // Update cache only if it's the first page
+      if (!isNextPage) {
+        set((state) => ({
+          recommendationCache: {
+            ...state.recommendationCache,
+            [videoId]: itemsToProcess
+          }
+        }));
+      }
 
-      processAndSetRecommendations(itemsToProcess);
+      processAndSetRecommendations(itemsToProcess, data.nextPageToken);
 
     } catch {
       // ignore silently, upNext remains what it was
@@ -238,6 +252,7 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
       playlistTitle: '',
       currentVideoUrl: '',
       upNextQueue: [],
+      upNextNextPageToken: null,
       mode: 'search'
     });
     get().persistToStorage();
@@ -261,6 +276,7 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
       searchResults: state.searchResults,
       searchNextPageToken: state.searchNextPageToken,
       upNextQueue: state.upNextQueue,
+      upNextNextPageToken: state.upNextNextPageToken,
       watchHistory: state.watchHistory,
       currentVideoUrl: state.currentVideoUrl,
       playlistTitle: state.playlistTitle,
@@ -283,6 +299,7 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
         searchResults: data.searchResults || [],
         searchNextPageToken: data.searchNextPageToken || null,
         upNextQueue: data.upNextQueue || [],
+        upNextNextPageToken: data.upNextNextPageToken || null,
         watchHistory: data.watchHistory || [],
         currentVideoUrl: data.currentVideoUrl || '',
         playlistTitle: data.playlistTitle || '',
