@@ -217,21 +217,8 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
         </button>
 
         <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setConnectorMode(!connectorMode)}
-            className={`font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm flex items-center gap-1 transition-all ${
-              connectorMode
-                ? 'bg-purple-500 text-white ring-2 ring-purple-300 animate-pulse'
-                : 'bg-purple-600 hover:bg-purple-700 text-white'
-            }`}
-            title="Connector Creation Mode (Click object/anchor to draw)"
-          >
-            <span>➔ Connector</span>
-          </button>
-
           <label className="cursor-pointer bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm" title="Insert Image">
-            🖼️ Image
+            🖼️ Insert Image
             <input type="file" accept="image/png, image/jpeg, image/webp" hidden onChange={handleInsertImage} />
           </label>
           
