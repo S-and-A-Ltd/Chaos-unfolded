@@ -35,6 +35,30 @@ function loadYoutubeApi(): Promise<void> {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Formatters                                                         */
+/* ------------------------------------------------------------------ */
+function formatDuration(isoStr?: string) {
+  if (!isoStr) return '';
+  const match = isoStr.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+  if (!match) return '';
+  const h = match[1] ? parseInt(match[1]) : 0;
+  const m = match[2] ? parseInt(match[2]) : 0;
+  const s = match[3] ? parseInt(match[3]) : 0;
+  
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function formatViewCount(views?: string) {
+  if (!views) return '';
+  const num = parseInt(views);
+  if (isNaN(num)) return '';
+  if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M views';
+  if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K views';
+  return num.toString() + ' views';
+}
+
+/* ------------------------------------------------------------------ */
 /*  Skeleton card for loading state                                    */
 /* ------------------------------------------------------------------ */
 function SkeletonCard() {
@@ -68,6 +92,7 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
   const message = useYoutubeStore((s) => s.message);
   const isSearching = useYoutubeStore((s) => s.isSearching);
   const isFetchingNextPage = useYoutubeStore((s) => s.isFetchingNextPage);
+  const isFetchingUpNext = useYoutubeStore((s) => s.isFetchingUpNext);
   const isProcessing = useYoutubeStore((s) => s.isProcessing);
   const autoplay = useYoutubeStore((s) => s.autoplay);
   const searchNextPageToken = useYoutubeStore((s) => s.searchNextPageToken);
@@ -113,7 +138,6 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
     if (!container) return;
 
     const { scrollTop, scrollHeight, clientHeight } = container;
-    // Trigger if within 100px of the bottom
     if (scrollHeight - scrollTop - clientHeight < 100) {
       if (searchNextPageToken && !isFetchingNextPage && !isSearching) {
         fetchNextSearchPage();
@@ -131,20 +155,17 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
       const YT = (window as any).YT;
       if (!YT?.Player) return;
 
-      // If player already exists, just load the new video
       if (playerRef.current && typeof playerRef.current.loadVideoById === 'function') {
         currentVideoIdRef.current = videoId;
         playerRef.current.loadVideoById(videoId);
         return;
       }
 
-      // Destroy stale player if it somehow exists
       if (playerRef.current && typeof playerRef.current.destroy === 'function') {
         try { playerRef.current.destroy(); } catch { /* ignore */ }
         playerRef.current = null;
       }
 
-      // Need a fresh div inside the container
       if (playerContainerRef.current) {
         playerContainerRef.current.innerHTML = '';
         const el = document.createElement('div');
@@ -168,8 +189,7 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
             event.target.playVideo();
           },
           onStateChange: (event: any) => {
-            // YT.PlayerState.ENDED === 0
-            if (event.data === 0) {
+            if (event.data === 0) { // ENDED
               const state = useYoutubeStore.getState();
               if (state.autoplay) {
                 const advanced = state.playNext();
@@ -190,7 +210,6 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
     []
   );
 
-  /* ---------- React to video URL changes ---------- */
   useEffect(() => {
     if (!currentVideoUrl) {
       if (playerRef.current && typeof playerRef.current.destroy === 'function') {
@@ -200,15 +219,12 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
       }
       return;
     }
-    
-    // Always ensure the player container is visible if there is a video
     const videoId = extractVideoId(currentVideoUrl);
     if (videoId) {
       createOrUpdatePlayer(videoId);
     }
   }, [currentVideoUrl, extractVideoId, createOrUpdatePlayer]);
 
-  /* ---------- Destroy player on unmount ---------- */
   useEffect(() => {
     return () => {
       if (playerRef.current && typeof playerRef.current.destroy === 'function') {
@@ -227,7 +243,6 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
     setIsSearching(true);
     setPlaylistTitle('');
     setMessage('');
-    // Any new search forcefully exits watch mode
     useYoutubeStore.setState({ currentVideoUrl: '', mode: 'search', upNextQueue: [] });
 
     try {
@@ -244,7 +259,6 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
     }
   };
 
-  /* ---------- fetch playlist ---------- */
   const handleFetchPlaylist = async (listId: string, title: string) => {
     setIsSearching(true);
     setPlaylistTitle(`Playlist: ${title}`);
@@ -268,6 +282,8 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
   /* ---------- render video item ---------- */
   const renderVideoItem = (item: YoutubeVideo, idx: number, isQueue: boolean) => {
     const isActive = item.url === currentVideoUrl;
+    const durationStr = formatDuration(item.duration);
+    const viewsStr = formatViewCount(item.viewCount);
 
     return (
       <div
@@ -280,17 +296,25 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
             selectVideo(item.url);
           }
         }}
-        className={`flex gap-2 p-1.5 rounded-lg cursor-pointer transition-colors border-2 group ${
+        className={`flex gap-2 p-1.5 rounded-lg cursor-pointer transition-colors border-2 group relative ${
           isActive
             ? 'bg-[#7181c8]/15 border-[#7181c8]/50 shadow-sm border-l-4 border-l-[#7181c8]'
             : 'border-transparent hover:bg-white/70 hover:border-[#7c6a75]/30'
         }`}
       >
-        <div className="relative shrink-0 w-[80px] h-[45px] rounded overflow-hidden bg-black/10">
+        <div className="relative shrink-0 w-[100px] h-[56px] rounded overflow-hidden bg-black/10">
           <img src={item.thumbnail} alt="thumb" className="w-full h-full object-cover" />
+          
           {item.type === 'list' && (
             <div className="absolute right-0 bottom-0 bg-black/70 text-white text-[7px] font-bold px-1 m-0.5 rounded">LIST</div>
           )}
+          
+          {durationStr && !isActive && (
+            <div className="absolute right-0 bottom-0 bg-black/70 text-white text-[9px] font-bold px-1 m-0.5 rounded tracking-wider">
+              {durationStr}
+            </div>
+          )}
+
           {isActive && (
             <div className="absolute inset-0 bg-[#7181c8]/30 flex items-center justify-center">
               <span className="text-white text-lg drop-shadow-md">▶</span>
@@ -298,10 +322,13 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
           )}
         </div>
         <div className="flex flex-col overflow-hidden justify-center flex-1">
-          <span className={`text-[10px] font-bold leading-tight line-clamp-2 ${isActive ? 'text-[#7181c8]' : 'text-[#5d5770]'}`}>
+          <span className={`text-[11px] font-bold leading-tight line-clamp-2 ${isActive ? 'text-[#7181c8]' : 'text-[#5d5770]'}`}>
             {item.title}
           </span>
-          <span className="text-[9px] text-[#5d5770]/70 truncate mt-0.5">{item.author?.name}</span>
+          <span className="text-[10px] text-[#5d5770]/70 truncate mt-1 font-semibold">{item.author?.name}</span>
+          {viewsStr && (
+            <span className="text-[9px] text-[#5d5770]/50 truncate mt-0.5">{viewsStr}</span>
+          )}
         </div>
       </div>
     );
@@ -418,18 +445,17 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
                 <>
                   {/* Active Video */}
                   {currentVideoUrl && (() => {
-                    const currentVideo = [...searchResults, ...upNextQueue].find(v => v.url === currentVideoUrl);
-                    if (currentVideo) {
-                      return (
-                        <div className="mb-4">
-                          <div className="flex items-center gap-2 mb-2 text-[#7c6a75] font-black text-xs border-b-2 border-[#7c6a75]/10 pb-1">
-                            <span>▶ Currently Playing</span>
-                          </div>
-                          {renderVideoItem(currentVideo, 9999, true)}
+                    const currentVideo = [...searchResults, ...upNextQueue].find(v => v.url === currentVideoUrl) 
+                      || { url: currentVideoUrl, title: 'Current Video', type: 'video' as const, thumbnail: `https://img.youtube.com/vi/${extractVideoId(currentVideoUrl)}/default.jpg` };
+                    
+                    return (
+                      <div className="mb-4">
+                        <div className="flex items-center gap-2 mb-2 text-[#7c6a75] font-black text-xs border-b-2 border-[#7c6a75]/10 pb-1">
+                          <span>▶ Currently Playing</span>
                         </div>
-                      );
-                    }
-                    return null;
+                        {renderVideoItem(currentVideo, 9999, true)}
+                      </div>
+                    );
                   })()}
 
                   {/* Up Next Queue */}
@@ -437,13 +463,30 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
                     <div className="flex items-center gap-2 mb-2 text-[#7c6a75] font-black text-xs border-b-2 border-[#7c6a75]/10 pb-1">
                       <span>▶ Up Next</span>
                     </div>
-                    {upNextQueue.length === 0 && !currentVideoUrl ? (
+
+                    {/* Skeletons while fetching related videos */}
+                    {isFetchingUpNext && upNextQueue.length === 0 && (
+                       <>
+                         <SkeletonCard />
+                         <SkeletonCard />
+                         <SkeletonCard />
+                       </>
+                    )}
+
+                    {!isFetchingUpNext && upNextQueue.length === 0 && !currentVideoUrl ? (
                       <div className="text-xs text-[#5d5770]/60 text-center py-4 font-bold">No recommendations available.</div>
                     ) : (
                       upNextQueue.map((item, idx) => {
                         if (item.url === currentVideoUrl) return null;
                         return renderVideoItem(item, idx, true);
                       })
+                    )}
+                    
+                    {/* Skeletons appending at the bottom if fetching more while queue exists */}
+                    {isFetchingUpNext && upNextQueue.length > 0 && (
+                      <div className="mt-2 opacity-50">
+                        <SkeletonCard />
+                      </div>
                     )}
                   </div>
                 </>
