@@ -153,19 +153,63 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
 
     const processAndSetRecommendations = (items: YoutubeVideo[], newPageToken?: string) => {
       set((state) => {
-        // Filter out already watched videos and the currently playing video
+        // 1. Initial Filtering: Remove watched videos, current video, and known duplicates
         let nextVideos = items.filter(v => {
           const id = v.videoId || get().extractVideoId(v.url);
           return id !== videoId && !state.watchHistory.includes(id);
         });
 
-        // Ensure we don't duplicate items already in the queue
+        // 2. Strict Deduplication across the ENTIRE existing queue
         const existingIds = new Set(state.upNextQueue.map(v => get().extractVideoId(v.url)));
-        nextVideos = nextVideos.filter(v => !existingIds.has(v.videoId || get().extractVideoId(v.url)));
+        const existingTitles = new Set(state.upNextQueue.map(v => v.title.toLowerCase()));
 
-        let finalQueue = isNextPage ? [...state.upNextQueue, ...nextVideos] : [...state.upNextQueue, ...nextVideos];
+        nextVideos = nextVideos.filter(v => {
+          const id = v.videoId || get().extractVideoId(v.url);
+          const titleLower = v.title.toLowerCase();
+          
+          if (existingIds.has(id)) return false;
+          if (existingTitles.has(titleLower)) return false;
 
-        // If the queue is entirely empty after filtering (and this is page 1), relax the watchHistory constraint
+          // Double check shorts here just in case API missed it
+          if (titleLower.includes('shorts') || titleLower.includes('#shorts')) return false;
+
+          existingIds.add(id);
+          existingTitles.add(titleLower);
+          return true;
+        });
+
+        // 3. Artist / Channel Limiting (Max 2 per artist per batch)
+        const balancedNextVideos: YoutubeVideo[] = [];
+        const artistCounts: Record<string, number> = {};
+
+        for (const v of nextVideos) {
+          const artistName = (v.author?.name || 'unknown').toLowerCase();
+          if (!artistCounts[artistName]) artistCounts[artistName] = 0;
+
+          if (artistCounts[artistName] < 2) {
+            artistCounts[artistName]++;
+            balancedNextVideos.push(v);
+          }
+        }
+
+        // 4. Intelligent Shuffle
+        // We want the first item to remain the absolute most relevant (as decided by YT API),
+        // but we shuffle the rest to ensure artists transition naturally.
+        let finalBatch = [...balancedNextVideos];
+        if (finalBatch.length > 2) {
+          const topItem = finalBatch.shift()!;
+          // Fisher-Yates shuffle on the rest
+          for (let i = finalBatch.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [finalBatch[i], finalBatch[j]] = [finalBatch[j], finalBatch[i]];
+          }
+          finalBatch.unshift(topItem);
+        }
+
+        let finalQueue = isNextPage ? [...state.upNextQueue, ...finalBatch] : [...state.upNextQueue, ...finalBatch];
+
+        // If the queue is completely empty after aggressive filtering (and this is page 1),
+        // we must fallback to the raw items just to guarantee we have SOMETHING.
         if (!isNextPage && finalQueue.length === 0) {
           finalQueue = items.filter(v => {
              const id = v.videoId || get().extractVideoId(v.url);

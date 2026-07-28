@@ -82,16 +82,21 @@ export async function GET(req: NextRequest) {
       }
 
       // Search using that constructed query
-      let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=25&q=${encodeURIComponent(searchQuery)}&type=video&key=${apiKey}`;
+      let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=40&q=${encodeURIComponent(searchQuery)}&type=video&key=${apiKey}`;
       if (pageToken) searchUrl += `&pageToken=${pageToken}`;
 
       const apiRes = await fetch(searchUrl, { headers: { 'Referer': referer } });
       const apiData = await apiRes.json();
 
       if (apiData.items) {
-        // Filter out videos with highly similar titles to avoid duplicates/lyrics
+        // Filter out videos with highly similar titles to avoid duplicates/lyrics, and explicitly block shorts by keyword
         items = apiData.items.filter((item: any) => {
           const itemTitle = item.snippet.title.toLowerCase();
+          const channelTitle = item.snippet.channelTitle.toLowerCase();
+          
+          // Block shorts by keyword
+          if (itemTitle.includes('shorts') || itemTitle.includes('#shorts') || channelTitle.includes('shorts')) return false;
+
           if (originalTitle && itemTitle.includes(originalTitle)) return false;
           if (originalTitle && originalTitle.includes(itemTitle)) return false;
           return true;
@@ -104,9 +109,12 @@ export async function GET(req: NextRequest) {
           author: { name: item.snippet.channelTitle },
         }));
         
-        // We might filter out too many. If so, just fallback to whatever we got
+        // We might filter out too many. If so, just fallback to whatever we got, but STILL exclude shorts by keyword
         if (items.length === 0) {
-          items = apiData.items.map((item: any) => ({
+          items = apiData.items.filter((item: any) => {
+             const titleLower = item.snippet.title.toLowerCase();
+             return !titleLower.includes('shorts') && !titleLower.includes('#shorts');
+          }).map((item: any) => ({
             type: 'video',
             videoId: item.id.videoId,
             title: item.snippet.title,
@@ -139,7 +147,7 @@ export async function GET(req: NextRequest) {
 
     // 3. Regular Search
     else if (query) {
-      let ytApiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=15&q=${encodeURIComponent(query)}&type=${type === 'all' ? 'video,playlist' : type}&key=${apiKey}`;
+      let ytApiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=20&q=${encodeURIComponent(query)}&type=${type === 'all' ? 'video,playlist' : type}&key=${apiKey}`;
       if (pageToken) ytApiUrl += `&pageToken=${pageToken}`;
       
       const apiRes = await fetch(ytApiUrl, { headers: { 'Referer': referer } });
@@ -174,18 +182,38 @@ export async function GET(req: NextRequest) {
       Object.assign(metadata, chunkMetadata);
     }
 
-    items = items.map(item => {
+    // Parse duration helper
+    const getDurationSeconds = (isoStr?: string) => {
+      if (!isoStr) return 0;
+      const match = isoStr.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+      if (!match) return 0;
+      const h = match[1] ? parseInt(match[1]) : 0;
+      const m = match[2] ? parseInt(match[2]) : 0;
+      const s = match[3] ? parseInt(match[3]) : 0;
+      return (h * 3600) + (m * 60) + s;
+    };
+
+    let enhancedItems = items.map(item => {
       if (item.type === 'video' && item.videoId && metadata[item.videoId]) {
         return {
           ...item,
           duration: metadata[item.videoId].duration,
-          viewCount: metadata[item.videoId].viewCount
+          viewCount: metadata[item.videoId].viewCount,
+          durationSeconds: getDurationSeconds(metadata[item.videoId].duration)
         };
       }
-      return item;
+      return { ...item, durationSeconds: 999 }; // Assume playlists/unknown are long enough
     });
 
-    return NextResponse.json({ items, nextPageToken });
+    // Final filter: If it's a related search (Up Next) or general, absolutely drop any video shorter than 60s to kill Shorts
+    enhancedItems = enhancedItems.filter(item => {
+      if (item.type === 'video' && item.durationSeconds < 60) {
+        return false;
+      }
+      return true;
+    });
+
+    return NextResponse.json({ items: enhancedItems, nextPageToken });
   } catch (error: any) {
     console.error('YouTube search error:', error);
     return NextResponse.json(
