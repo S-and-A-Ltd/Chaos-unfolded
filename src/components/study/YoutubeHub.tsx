@@ -390,15 +390,19 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
         <div className="flex-1 bg-white/40 border-3 border-[#7c6a75] rounded-2xl shadow-inner flex flex-col overflow-hidden p-3 gap-3">
           {/* Unified search bar — always visible */}
           <form onSubmit={handleSearchYoutube} className="flex gap-2 w-full items-center">
-            {/* Back arrow: only when viewing Up Next AND a video is playing */}
-            {sidebarView === 'upnext' && hasActiveVideo && (
+            {/* Toggle arrow: visible when a video is playing (Video Mode), allows toggling sidebar content */}
+            {hasActiveVideo && (
               <button
                 type="button"
-                onClick={showSearchSidebar}
+                onClick={() => {
+                  useYoutubeStore.setState((s) => ({
+                    sidebarView: s.sidebarView === 'upnext' ? 'search' : 'upnext'
+                  }));
+                }}
                 className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-white/60 hover:bg-[#7181c8]/10 border border-[#7c6a75]/20 text-[#5d5770] text-sm font-bold transition-colors"
-                title="Back to search results"
+                title={sidebarView === 'upnext' ? 'Back to search results' : 'Go to Up Next'}
               >
-                ←
+                {sidebarView === 'upnext' ? '←' : '→'}
               </button>
             )}
             <input

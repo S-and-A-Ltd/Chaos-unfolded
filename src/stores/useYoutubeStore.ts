@@ -125,14 +125,13 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
       // Add to watch history, keeping only the last 20
       const history = [...state.watchHistory.filter(id => id !== videoId), videoId].slice(-20);
       
-      // If the selected video is in the Up Next queue, remove it from the queue
-      const updatedQueue = state.upNextQueue.filter(v => get().extractVideoId(v.url) !== videoId);
-
       return { 
         currentVideoUrl: url,
         watchHistory: history,
         sidebarView: 'upnext' as const,
-        upNextQueue: updatedQueue
+        upNextQueue: [],
+        upNextNextPageToken: null,
+        recommendationCache: {}
       };
     });
     
@@ -221,7 +220,7 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
 
         const finalQueue = isNextPage
           ? [...state.upNextQueue, ...interleaved]
-          : [...state.upNextQueue, ...interleaved];
+          : [...interleaved];
 
         // Emergency fallback: if the queue is completely empty after all filtering
         if (!isNextPage && finalQueue.length === 0 && items.length > 0) {
