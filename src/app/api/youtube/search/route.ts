@@ -16,6 +16,29 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'YouTube API key is missing. Please add YOUTUBE_API_KEY to your Vercel Environment Variables.' }, { status: 500 });
     }
 
+    const relatedToVideoId = searchParams.get('relatedToVideoId');
+
+    // If relatedToVideoId is provided, fetch related videos
+    if (relatedToVideoId) {
+      const ytApiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=15&relatedToVideoId=${relatedToVideoId}&type=video&key=${apiKey}`;
+      const referer = req.headers.get('referer') || 'https://dazai-study-companion.vercel.app/';
+      const apiRes = await fetch(ytApiUrl, { headers: { 'Referer': referer } });
+      const apiData = await apiRes.json();
+
+      let items: any[] = [];
+      if (apiData.items) {
+        items = apiData.items.map((item: any) => ({
+          type: 'video',
+          videoId: item.id.videoId,
+          title: item.snippet.title,
+          url: `https://youtube.com/watch?v=${item.id.videoId}`,
+          thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
+          author: { name: item.snippet.channelTitle },
+        }));
+      }
+      return NextResponse.json({ items });
+    }
+
     // If listId is provided, we fetch playlist videos
     if (listId) {
       const playlistApiUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${listId}&key=${apiKey}`;

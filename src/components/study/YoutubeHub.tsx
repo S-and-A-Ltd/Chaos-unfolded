@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Button from '@/components/ui/Button';
-import { useYoutubeStore } from '@/stores/useYoutubeStore';
+import { useYoutubeStore, YoutubeVideo } from '@/stores/useYoutubeStore';
 
 /* ------------------------------------------------------------------ */
 /*  Global YouTube IFrame API loader                                   */
@@ -61,8 +61,8 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
   /* ---------- store selectors ---------- */
   const searchQuery = useYoutubeStore((s) => s.searchQuery);
   const searchResults = useYoutubeStore((s) => s.searchResults);
+  const upNextQueue = useYoutubeStore((s) => s.upNextQueue);
   const currentVideoUrl = useYoutubeStore((s) => s.currentVideoUrl);
-  const currentVideoIndex = useYoutubeStore((s) => s.currentVideoIndex);
   const playlistTitle = useYoutubeStore((s) => s.playlistTitle);
   const message = useYoutubeStore((s) => s.message);
   const isSearching = useYoutubeStore((s) => s.isSearching);
@@ -98,7 +98,7 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
     if (activeItemRef.current) {
       activeItemRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [currentVideoIndex]);
+  }, [currentVideoUrl]);
 
   /* ---------- YT.Player lifecycle ---------- */
   const createOrUpdatePlayer = useCallback(
@@ -234,13 +234,46 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
     }
   };
 
-  /* ---------- video index helper ---------- */
-  const getVideoIndex = (idx: number) => {
-    let videoCount = -1;
-    for (let i = 0; i <= idx; i++) {
-      if (searchResults[i]?.type !== 'list') videoCount++;
-    }
-    return videoCount;
+  /* ---------- render video item ---------- */
+  const renderVideoItem = (item: YoutubeVideo, idx: number, isQueue: boolean) => {
+    const isActive = item.url === currentVideoUrl;
+
+    return (
+      <div
+        key={`${isQueue ? 'q' : 's'}-${idx}`}
+        ref={isActive ? activeItemRef : null}
+        onClick={() => {
+          if (item.type === 'list') {
+            handleFetchPlaylist(item.listId!, item.title);
+          } else {
+            selectVideo(item.url);
+          }
+        }}
+        className={`flex gap-2 p-1.5 rounded-lg cursor-pointer transition-colors border-2 group ${
+          isActive
+            ? 'bg-[#7181c8]/15 border-[#7181c8]/50 shadow-sm border-l-4 border-l-[#7181c8]'
+            : 'border-transparent hover:bg-white/70 hover:border-[#7c6a75]/30'
+        }`}
+      >
+        <div className="relative shrink-0 w-[80px] h-[45px] rounded overflow-hidden bg-black/10">
+          <img src={item.thumbnail} alt="thumb" className="w-full h-full object-cover" />
+          {item.type === 'list' && (
+            <div className="absolute right-0 bottom-0 bg-black/70 text-white text-[7px] font-bold px-1 m-0.5 rounded">LIST</div>
+          )}
+          {isActive && (
+            <div className="absolute inset-0 bg-[#7181c8]/30 flex items-center justify-center">
+              <span className="text-white text-lg drop-shadow-md">▶</span>
+            </div>
+          )}
+        </div>
+        <div className="flex flex-col overflow-hidden justify-center flex-1">
+          <span className={`text-[10px] font-bold leading-tight line-clamp-2 ${isActive ? 'text-[#7181c8]' : 'text-[#5d5770]'}`}>
+            {item.title}
+          </span>
+          <span className="text-[9px] text-[#5d5770]/70 truncate mt-0.5">{item.author?.name}</span>
+        </div>
+      </div>
+    );
   };
 
   /* ---------------------------------------------------------------- */
@@ -304,7 +337,7 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
             </Button>
           </form>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
+          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pb-10">
             {playlistTitle && (
               <div className="bg-[#7c6a75]/10 px-2 py-1.5 rounded-lg flex justify-between items-center mb-2">
                 <span className="text-[9px] font-black uppercase truncate text-[#5d5770]">{playlistTitle}</span>
@@ -325,49 +358,52 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
               </>
             )}
 
-            {/* Results — dim during re-search */}
+            {/* Content Lists */}
             <div className={isSearching && searchResults.length > 0 ? 'opacity-60 pointer-events-none' : ''}>
-              {searchResults.map((item, idx) => {
-                const isActive = item.type !== 'list' && item.url === currentVideoUrl;
-                const videoIdx = item.type !== 'list' ? getVideoIndex(idx) : -1;
+              
+              {/* Active Video */}
+              {currentVideoUrl && (() => {
+                const currentVideo = [...searchResults, ...upNextQueue].find(v => v.url === currentVideoUrl);
+                if (currentVideo) {
+                  return (
+                    <div className="mb-4">
+                      <div className="flex items-center gap-2 mb-2 text-[#7c6a75] font-black text-xs border-b-2 border-[#7c6a75]/10 pb-1">
+                        <span>▶ Currently Playing</span>
+                      </div>
+                      {renderVideoItem(currentVideo, 9999, true)}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
-                return (
-                  <div
-                    key={idx}
-                    ref={isActive ? activeItemRef : null}
-                    onClick={() => {
-                      if (item.type === 'list') {
-                        handleFetchPlaylist(item.listId!, item.title);
-                      } else {
-                        selectVideo(item.url, videoIdx);
-                      }
-                    }}
-                    className={`flex gap-2 p-1.5 rounded-lg cursor-pointer transition-colors border-2 group ${
-                      isActive
-                        ? 'bg-[#7181c8]/15 border-[#7181c8]/50 shadow-sm'
-                        : 'border-transparent hover:bg-white/70 hover:border-[#7c6a75]/30'
-                    }`}
-                  >
-                    <div className="relative shrink-0 w-[80px] h-[45px] rounded overflow-hidden bg-black/10">
-                      <img src={item.thumbnail} alt="thumb" className="w-full h-full object-cover" />
-                      {item.type === 'list' && (
-                        <div className="absolute right-0 bottom-0 bg-black/70 text-white text-[7px] font-bold px-1 m-0.5 rounded">LIST</div>
-                      )}
-                      {isActive && (
-                        <div className="absolute inset-0 bg-[#7181c8]/30 flex items-center justify-center">
-                          <span className="text-white text-lg">▶</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-col overflow-hidden justify-center flex-1">
-                      <span className={`text-[10px] font-bold leading-tight line-clamp-2 ${isActive ? 'text-[#7181c8]' : 'text-[#5d5770]'}`}>
-                        {item.title}
-                      </span>
-                      <span className="text-[9px] text-[#5d5770]/70 truncate mt-0.5">{item.author?.name}</span>
-                    </div>
+              {/* Up Next Queue */}
+              {upNextQueue.length > 0 && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-2 text-[#7c6a75] font-black text-xs border-b-2 border-[#7c6a75]/10 pb-1">
+                    <span>▶ Up Next</span>
                   </div>
-                );
-              })}
+                  {upNextQueue.map((item, idx) => {
+                    // Skip rendering it again if it's currently playing
+                    if (item.url === currentVideoUrl) return null;
+                    return renderVideoItem(item, idx, true);
+                  })}
+                </div>
+              )}
+
+              {/* Search Results */}
+              {searchResults.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2 text-[#7c6a75] font-black text-xs border-b-2 border-[#7c6a75]/10 pb-1">
+                    <span>🔍 Search Results</span>
+                  </div>
+                  {searchResults.map((item, idx) => {
+                    if (item.url === currentVideoUrl) return null;
+                    return renderVideoItem(item, idx, false);
+                  })}
+                </div>
+              )}
+
             </div>
           </div>
         </div>

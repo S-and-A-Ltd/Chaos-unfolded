@@ -1,19 +1,21 @@
 import { create } from 'zustand';
 
-interface YoutubeVideo {
+export interface YoutubeVideo {
   url: string;
   title: string;
   thumbnail: string;
   type: 'video' | 'list';
   listId?: string;
   author?: { name: string };
+  videoId?: string;
 }
 
 interface YoutubeState {
   searchQuery: string;
   searchResults: YoutubeVideo[];
+  upNextQueue: YoutubeVideo[];
+  watchHistory: string[];
   currentVideoUrl: string;
-  currentVideoIndex: number;
   playlistTitle: string;
   message: string;
   isSearching: boolean;
@@ -23,14 +25,14 @@ interface YoutubeState {
   setSearchQuery: (query: string) => void;
   setSearchResults: (results: YoutubeVideo[]) => void;
   setCurrentVideoUrl: (url: string) => void;
-  setCurrentVideoIndex: (index: number) => void;
   setPlaylistTitle: (title: string) => void;
   setMessage: (msg: string) => void;
   setIsSearching: (val: boolean) => void;
   setIsProcessing: (val: boolean) => void;
   setAutoplay: (val: boolean) => void;
   toggleAutoplay: () => void;
-  selectVideo: (url: string, index: number) => void;
+  selectVideo: (url: string) => void;
+  fetchUpNext: (videoId: string) => Promise<void>;
   playNext: () => boolean;
   clearSearch: () => void;
   persistToStorage: () => void;
@@ -43,8 +45,9 @@ const STORAGE_KEY = 'dazai_youtube_state';
 export const useYoutubeStore = create<YoutubeState>((set, get) => ({
   searchQuery: '',
   searchResults: [],
+  upNextQueue: [],
+  watchHistory: [],
   currentVideoUrl: '',
-  currentVideoIndex: -1,
   playlistTitle: '',
   message: '',
   isSearching: false,
@@ -60,7 +63,6 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
     set({ currentVideoUrl: url });
     get().persistToStorage();
   },
-  setCurrentVideoIndex: (index) => set({ currentVideoIndex: index }),
   setPlaylistTitle: (title) => set({ playlistTitle: title }),
   setMessage: (msg) => set({ message: msg }),
   setIsSearching: (val) => set({ isSearching: val }),
@@ -74,21 +76,69 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
     get().persistToStorage();
   },
 
-  selectVideo: (url, index) => {
-    set({ currentVideoUrl: url, currentVideoIndex: index });
+  selectVideo: (url) => {
+    const videoId = get().extractVideoId(url);
+    if (!videoId) return;
+
+    set((state) => {
+      // Add to watch history, keeping only the last 20
+      const history = [...state.watchHistory.filter(id => id !== videoId), videoId].slice(-20);
+      return { 
+        currentVideoUrl: url,
+        watchHistory: history 
+      };
+    });
+    
     get().persistToStorage();
+    get().fetchUpNext(videoId);
+  },
+
+  fetchUpNext: async (videoId: string) => {
+    try {
+      const res = await fetch(`/api/youtube/search?relatedToVideoId=${videoId}`);
+      const data = await res.json();
+      if (data.items) {
+        set((state) => {
+          // Filter out already watched videos
+          let nextVideos = (data.items as YoutubeVideo[]).filter(v => {
+            const id = v.videoId || get().extractVideoId(v.url);
+            return !state.watchHistory.includes(id);
+          });
+
+          // If everything was filtered out, just use all of them as fallback
+          if (nextVideos.length === 0) {
+            nextVideos = data.items;
+          }
+
+          return { upNextQueue: nextVideos };
+        });
+        get().persistToStorage();
+      }
+    } catch {
+      // ignore silently, upNext remains what it was or empty
+    }
   },
 
   playNext: () => {
     const state = get();
-    const videoResults = state.searchResults.filter((r) => r.type !== 'list');
-    const nextIndex = state.currentVideoIndex + 1;
-    if (nextIndex < videoResults.length) {
-      const nextVideo = videoResults[nextIndex];
-      set({ currentVideoUrl: nextVideo.url, currentVideoIndex: nextIndex });
-      get().persistToStorage();
+    
+    // 1. Try Up Next Queue first
+    if (state.upNextQueue.length > 0) {
+      const nextVideo = state.upNextQueue[0];
+      get().selectVideo(nextVideo.url);
       return true;
     }
+
+    // 2. Fallback to search results if Up Next is empty
+    const videoResults = state.searchResults.filter((r) => r.type !== 'list');
+    const currentIndex = videoResults.findIndex(v => v.url === state.currentVideoUrl);
+    
+    if (currentIndex >= 0 && currentIndex + 1 < videoResults.length) {
+      const nextVideo = videoResults[currentIndex + 1];
+      get().selectVideo(nextVideo.url);
+      return true;
+    }
+
     return false;
   },
 
@@ -98,7 +148,7 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
       searchResults: [],
       playlistTitle: '',
       currentVideoUrl: '',
-      currentVideoIndex: -1,
+      upNextQueue: [],
     });
     get().persistToStorage();
   },
@@ -118,8 +168,9 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
     const data = {
       searchQuery: state.searchQuery,
       searchResults: state.searchResults,
+      upNextQueue: state.upNextQueue,
+      watchHistory: state.watchHistory,
       currentVideoUrl: state.currentVideoUrl,
-      currentVideoIndex: state.currentVideoIndex,
       playlistTitle: state.playlistTitle,
       autoplay: state.autoplay,
     };
@@ -137,8 +188,9 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
       set({
         searchQuery: data.searchQuery || '',
         searchResults: data.searchResults || [],
+        upNextQueue: data.upNextQueue || [],
+        watchHistory: data.watchHistory || [],
         currentVideoUrl: data.currentVideoUrl || '',
-        currentVideoIndex: data.currentVideoIndex ?? -1,
         playlistTitle: data.playlistTitle || '',
         autoplay: data.autoplay ?? true,
       });
