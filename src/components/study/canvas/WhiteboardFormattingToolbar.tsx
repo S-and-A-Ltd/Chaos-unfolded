@@ -116,6 +116,21 @@ function WhiteboardFormattingToolbar() {
             {selectedItem.textAlign === 'center' ? '☰ Center' : selectedItem.textAlign === 'right' ? '☷ Right' : '≡ Left'}
           </button>
 
+          {selectedItem.type === 'shape' && (
+            <>
+              <div className="w-px h-4 bg-white/20 my-auto ml-1" />
+              <label className="cursor-pointer bg-white/10 hover:bg-white/20 p-1 rounded border border-white/20 flex items-center justify-center w-6 h-6 ml-1" title="Shape Fill Color">
+                <input
+                  type="color"
+                  value={selectedItem.color || '#ffffff'}
+                  onChange={(e) => updateItemField(selectedItem.id, 'color', e.target.value)}
+                  className="opacity-0 absolute w-0 h-0"
+                />
+                <span className="w-3.5 h-3.5 rounded-full border border-white/40" style={{ backgroundColor: selectedItem.color || '#ffffff' }} />
+              </label>
+            </>
+          )}
+
           {(selectedItem.type === 'sticky' || selectedItem.bgAsset) && (
             <>
               <button

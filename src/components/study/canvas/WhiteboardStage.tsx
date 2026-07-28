@@ -61,6 +61,37 @@ function WhiteboardStage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedId, editingId, deleteItem, duplicateItem]);
 
+  // Export PNG listener
+  useEffect(() => {
+    const handleExport = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (stageRef.current) {
+        // Hide transformer before export to avoid capturing resize handles
+        if (transformerRef.current) {
+          transformerRef.current.nodes([]);
+          transformerRef.current.getLayer()?.batchDraw();
+        }
+        
+        const dataURL = stageRef.current.toDataURL({ pixelRatio: 2, mimeType: 'image/png' });
+        const link = document.createElement('a');
+        link.download = customEvent.detail?.fileName || 'StudyCanvas.png';
+        link.href = dataURL;
+        link.click();
+        
+        // Restore transformer if needed
+        if (selectedId) {
+          const node = stageRef.current.findOne(`#node_${selectedId}`);
+          if (node && transformerRef.current) {
+            transformerRef.current.nodes([node]);
+            transformerRef.current.getLayer()?.batchDraw();
+          }
+        }
+      }
+    };
+    window.addEventListener('export-canvas', handleExport);
+    return () => window.removeEventListener('export-canvas', handleExport);
+  }, [selectedId]);
+
   const width = typeof window !== 'undefined' ? window.innerWidth : 1200;
   const height = typeof window !== 'undefined' ? window.innerHeight - 100 : 800;
 
@@ -81,6 +112,26 @@ function WhiteboardStage() {
   const arrowItems = useMemo(() => items.filter(i => i.type === 'arrow'), [items]);
   const nonArrowItems = useMemo(() => items.filter(i => i.type !== 'arrow'), [items]);
 
+  const gridPattern = useMemo(() => {
+    if (typeof window === 'undefined') return undefined;
+    const canvas = document.createElement('canvas');
+    canvas.width = GRID_SIZE;
+    canvas.height = GRID_SIZE;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#f7f5fa';
+      ctx.fillRect(0, 0, GRID_SIZE, GRID_SIZE);
+      ctx.strokeStyle = '#e5e1eb';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(GRID_SIZE, 0);
+      ctx.lineTo(GRID_SIZE, GRID_SIZE);
+      ctx.lineTo(0, GRID_SIZE);
+      ctx.stroke();
+    }
+    return canvas;
+  }, []);
+
   return (
     <div className="flex-1 overflow-hidden relative canvas-container" style={{ backgroundColor: '#f7f5fa' }}>
       <Stage
@@ -97,13 +148,14 @@ function WhiteboardStage() {
       >
         <Layer>
           {/* Background grid */}
-          {gridSnap && (
+          {gridSnap && gridPattern && (
             <KonvaRect
               x={-5000}
               y={-5000}
               width={10000}
               height={10000}
-              fill="#f7f5fa"
+              fillPatternImage={gridPattern}
+              fillPatternRepeat="repeat"
               listening={false}
             />
           )}

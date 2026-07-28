@@ -3,7 +3,6 @@
 import React, { useCallback } from 'react';
 import { useCanvasStore } from '@/stores/useCanvasStore';
 import { StudyDocument } from '@/types';
-import html2canvas from 'html2canvas';
 
 interface WhiteboardToolbarProps {
   document: StudyDocument;
@@ -27,19 +26,10 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
   const setScale = useCanvasStore(state => state.setScale);
   const setPan = useCanvasStore(state => state.setPan);
 
-  const handleExportPng = useCallback(async () => {
-    const container = window.document.querySelector('.canvas-container') as HTMLElement;
-    if (!container) return;
-    try {
-      const canvas = await html2canvas(container, { backgroundColor: '#f7f5fa', scale: 2 });
-      const link = window.document.createElement('a');
-      link.download = `${document.name || 'study-canvas'}-whiteboard.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    } catch (e) {
-      console.error('Export failed:', e);
-      alert('Failed to export whiteboard PNG.');
-    }
+  const handleExportPng = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('export-canvas', {
+      detail: { fileName: `${document.name || 'study-canvas'}-whiteboard.png` }
+    }));
   }, [document.name]);
 
   return (
