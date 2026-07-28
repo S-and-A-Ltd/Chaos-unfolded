@@ -95,6 +95,17 @@ interface CanvasStoreState {
   showThemePicker: boolean;
   showTemplateEditor: boolean;
 
+  // Connector Creation Mode
+  connectorMode: boolean;
+  drawingConnector: {
+    fromId?: string;
+    fromAnchor?: AnchorPosition;
+    startX?: number;
+    startY?: number;
+    currentX: number;
+    currentY: number;
+  } | null;
+
   // Actions
   initCanvas: (docId: string, docName: string) => void;
   saveItems: (newItems: CanvasItem[], addToHistory?: boolean) => void;
@@ -133,6 +144,13 @@ interface CanvasStoreState {
   deleteCanvas: (id: string) => void;
   switchCanvas: (id: string) => void;
   clearCanvas: () => void;
+
+  // Connector Creation Mode Actions
+  setConnectorMode: (active: boolean) => void;
+  startConnectorDraw: (fromId?: string, fromAnchor?: AnchorPosition, x?: number, y?: number) => void;
+  updateConnectorDraw: (x: number, y: number) => void;
+  finishConnectorDraw: (toId?: string, toAnchor?: AnchorPosition, endX?: number, endY?: number) => void;
+  cancelConnectorDraw: () => void;
 }
 
 const GRID_SIZE = 20;
@@ -152,6 +170,9 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
   activeDropdown: null,
   showThemePicker: false,
   showTemplateEditor: false,
+
+  connectorMode: false,
+  drawingConnector: null,
 
   activeCanvasId: null,
   canvases: [],
@@ -750,11 +771,80 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
       fromAnchor: anchor,
       toId: bestTarget?.id,
       toAnchor: bestTarget ? findBestAnchor(fromItem, bestTarget).to : targetAnchor,
-      endX: bestTarget ? getAnchorCoords(bestTarget, targetAnchor).x : startCoords.x + 100,
+      endX: bestTarget ? getAnchorCoords(bestTarget, targetAnchor).y : startCoords.x + 100,
       endY: bestTarget ? getAnchorCoords(bestTarget, targetAnchor).y : startCoords.y + 50,
     };
 
     saveItems([...items, newItem], true);
     set({ selectedId: id });
+  },
+
+  setConnectorMode: (active) => {
+    set({ connectorMode: active, drawingConnector: null, activeDropdown: null });
+  },
+
+  startConnectorDraw: (fromId, fromAnchor, x = 0, y = 0) => {
+    set({
+      connectorMode: true,
+      drawingConnector: {
+        fromId,
+        fromAnchor,
+        startX: x,
+        startY: y,
+        currentX: x,
+        currentY: y,
+      },
+    });
+  },
+
+  updateConnectorDraw: (x, y) => {
+    const { drawingConnector } = get();
+    if (!drawingConnector) return;
+    set({
+      drawingConnector: {
+        ...drawingConnector,
+        currentX: x,
+        currentY: y,
+      },
+    });
+  },
+
+  finishConnectorDraw: (toId, toAnchor, endX, endY) => {
+    const { drawingConnector, items, saveItems } = get();
+    if (!drawingConnector) {
+      set({ connectorMode: false, drawingConnector: null });
+      return;
+    }
+
+    const id = `arrow_${Date.now()}`;
+    const newArrow: CanvasItem = {
+      id,
+      type: 'arrow',
+      title: '➔ Connector Arrow',
+      content: 'Connects to ➔',
+      width: 100,
+      height: 50,
+      color: '#8b5cf6',
+      connectorStyle: 'orthogonal',
+      fromId: drawingConnector.fromId,
+      fromAnchor: drawingConnector.fromAnchor,
+      toId,
+      toAnchor,
+      startX: drawingConnector.startX,
+      startY: drawingConnector.startY,
+      endX,
+      endY,
+    };
+
+    saveItems([...items, newArrow], true);
+    set({
+      selectedId: id,
+      connectorMode: false,
+      drawingConnector: null,
+    });
+  },
+
+  cancelConnectorDraw: () => {
+    set({ connectorMode: false, drawingConnector: null });
   },
 }));

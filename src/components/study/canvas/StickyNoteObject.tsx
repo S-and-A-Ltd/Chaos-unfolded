@@ -230,10 +230,36 @@ function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: 
   const tw = (primaryReg.width / 100) * item.width;
   const th = (primaryReg.height / 100) * item.height;
 
+  const connectorMode = useCanvasStore(state => state.connectorMode);
+  const drawingConnector = useCanvasStore(state => state.drawingConnector);
+
   const handleClick = useCallback((e: any) => {
     e.cancelBubble = true;
+    const store = useCanvasStore.getState();
+    if (store.connectorMode) {
+      const pos = e.target.getStage()?.getPointerPosition();
+      let anchorPos: AnchorPosition = 'right';
+      if (pos) {
+        const stage = e.target.getStage();
+        const worldX = (pos.x - stage.x()) / stage.scaleX();
+        const worldY = (pos.y - stage.y()) / stage.scaleY();
+        const relX = worldX - item.x;
+        const relY = worldY - item.y;
+        const dx = relX - item.width / 2;
+        const dy = relY - item.height / 2;
+        anchorPos = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'bottom' : 'top');
+      }
+      const coords = getAnchorCoords(item, anchorPos);
+
+      if (!store.drawingConnector) {
+        store.startConnectorDraw(item.id, anchorPos, coords.x, coords.y);
+      } else if (store.drawingConnector.fromId !== item.id) {
+        store.finishConnectorDraw(item.id, anchorPos);
+      }
+      return;
+    }
     setSelectedId(item.id);
-  }, [setSelectedId, item.id]);
+  }, [setSelectedId, item]);
 
   const handleDblClick = useCallback((e: any) => {
     e.cancelBubble = true;
@@ -344,21 +370,28 @@ function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: 
       )}
 
       {/* Anchor handles on edges for connectors */}
-      {isSelected && (['top', 'right', 'bottom', 'left'] as AnchorPosition[]).map((anchorPos) => {
+      {(isSelected || connectorMode || drawingConnector !== null) && (['top', 'right', 'bottom', 'left'] as AnchorPosition[]).map((anchorPos) => {
         const coords = getAnchorCoords({ ...item, x: 0, y: 0 }, anchorPos);
+        const isFromAnchor = drawingConnector?.fromId === item.id && drawingConnector?.fromAnchor === anchorPos;
         return (
           <KonvaCircle
             key={anchorPos}
             x={coords.x}
             y={coords.y}
-            radius={6}
-            fill="#8b5cf6"
+            radius={isFromAnchor ? 8 : (connectorMode || drawingConnector) ? 7 : 6}
+            fill={isFromAnchor ? '#22c55e' : (connectorMode || drawingConnector) ? '#a855f7' : '#8b5cf6'}
             stroke="#ffffff"
             strokeWidth={2}
             cursor="pointer"
             onClick={(e: any) => {
               e.cancelBubble = true;
-              spawnArrowFromAnchor(item, anchorPos);
+              const store = useCanvasStore.getState();
+              const absoluteCoords = getAnchorCoords(item, anchorPos);
+              if (!store.drawingConnector) {
+                store.startConnectorDraw(item.id, anchorPos, absoluteCoords.x, absoluteCoords.y);
+              } else if (store.drawingConnector.fromId !== item.id) {
+                store.finishConnectorDraw(item.id, anchorPos);
+              }
             }}
             onMouseEnter={(e: any) => { e.target.scale({ x: 1.5, y: 1.5 }); e.target.getLayer()?.batchDraw(); }}
             onMouseLeave={(e: any) => { e.target.scale({ x: 1, y: 1 }); e.target.getLayer()?.batchDraw(); }}

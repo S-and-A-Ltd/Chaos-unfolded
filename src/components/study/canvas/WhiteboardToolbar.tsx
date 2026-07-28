@@ -36,6 +36,8 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
   const deleteCanvas = useCanvasStore(state => state.deleteCanvas);
   const clearCanvas = useCanvasStore(state => state.clearCanvas);
   const saveNow = useCanvasStore(state => state.saveNow);
+  const connectorMode = useCanvasStore(state => state.connectorMode);
+  const setConnectorMode = useCanvasStore(state => state.setConnectorMode);
 
   const handleExportPng = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -191,7 +193,7 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
               <button onClick={() => { setActiveDropdown(null); setShowThemePicker(true); }} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">📌 Sticky Note Theme Picker...</button>
               <button onClick={() => { setActiveDropdown(null); setShowTemplateEditor(true); }} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2 text-amber-600 dark:text-amber-400">🛠️ Template Editor (Calibrate)...</button>
               <button onClick={() => addItem('text')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">📝 Transparent Text Box</button>
-              <button onClick={() => addItem('arrow')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">➔ Snapping Arrow Connector</button>
+              <button onClick={() => { setActiveDropdown(null); setConnectorMode(true); }} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2 text-purple-600 dark:text-purple-400 font-black">➔ Connector Arrow Mode</button>
               <button onClick={() => addItem('shape', 'rectangle')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">🔲 Rectangle Box</button>
               <button onClick={() => addItem('shape', 'circle')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">⚪ Circle / Concept</button>
             </div>
@@ -244,6 +246,19 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
         </button>
 
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setConnectorMode(!connectorMode)}
+            className={`font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm flex items-center gap-1 transition-all ${
+              connectorMode
+                ? 'bg-purple-500 text-white ring-2 ring-purple-300 animate-pulse'
+                : 'bg-purple-600 hover:bg-purple-700 text-white'
+            }`}
+            title="Connector Creation Mode (Click object/anchor to draw)"
+          >
+            <span>➔ Connector</span>
+          </button>
+
           <label className="cursor-pointer bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm" title="Insert Image">
             🖼️ Image
             <input type="file" accept="image/png, image/jpeg, image/webp" hidden onChange={handleInsertImage} />

@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
-import { Stage, Layer, Rect as KonvaRect, Transformer } from 'react-konva';
-import { useCanvasStore } from '@/stores/useCanvasStore';
+import { Stage, Layer, Rect as KonvaRect, Transformer, Line as KonvaLine, Circle as KonvaCircle, Group } from 'react-konva';
+import { useCanvasStore, getAnchorCoords } from '@/stores/useCanvasStore';
 import { useShallow } from 'zustand/react/shallow';
 import StickyNoteObject from '@/components/study/canvas/StickyNoteObject';
 import ShapeObject from '@/components/study/canvas/ShapeObject';
@@ -28,6 +28,12 @@ function WhiteboardStage() {
   const deleteItem = useCanvasStore(state => state.deleteItem);
   const duplicateItem = useCanvasStore(state => state.duplicateItem);
   const updateItemFields = useCanvasStore(state => state.updateItemFields);
+  
+  const connectorMode = useCanvasStore(state => state.connectorMode);
+  const drawingConnector = useCanvasStore(state => state.drawingConnector);
+  const setConnectorMode = useCanvasStore(state => state.setConnectorMode);
+  const updateConnectorDraw = useCanvasStore(state => state.updateConnectorDraw);
+  const cancelConnectorDraw = useCanvasStore(state => state.cancelConnectorDraw);
 
   const stageRef = useRef<any>(null);
   const transformerRef = useRef<any>(null);
@@ -242,11 +248,41 @@ function WhiteboardStage() {
 
   const handleMouseDown = useCallback((e: any) => {
     const clickedOnEmpty = e.target === stageRef.current;
+    const store = useCanvasStore.getState();
+
+    if (store.connectorMode) {
+      const stage = stageRef.current;
+      const pos = stage?.getPointerPosition();
+      if (pos && stage) {
+        const worldX = (pos.x - stage.x()) / stage.scaleX();
+        const worldY = (pos.y - stage.y()) / stage.scaleY();
+        if (!store.drawingConnector) {
+          store.startConnectorDraw(undefined, undefined, worldX, worldY);
+        } else {
+          store.finishConnectorDraw(undefined, undefined, worldX, worldY);
+        }
+      }
+      return;
+    }
+
     if (clickedOnEmpty) {
       setSelectedId(null);
       if (editingId) commitEditing();
     }
   }, [setSelectedId, editingId, commitEditing]);
+
+  const handleMouseMove = useCallback((e: any) => {
+    const store = useCanvasStore.getState();
+    if (store.connectorMode || store.drawingConnector) {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const pos = stage.getPointerPosition();
+      if (!pos) return;
+      const worldX = (pos.x - stage.x()) / stage.scaleX();
+      const worldY = (pos.y - stage.y()) / stage.scaleY();
+      store.updateConnectorDraw(worldX, worldY);
+    }
+  }, []);
 
   // Wheel zoom at cursor position
   const handleWheel = useCallback((e: any) => {
@@ -299,13 +335,46 @@ function WhiteboardStage() {
   }, []);
 
   // Determine if stage should be draggable (space held OR empty canvas click)
-  const isDraggable = spaceHeld || (!selectedId && !editingId);
+  const isDraggable = spaceHeld || (!connectorMode && !drawingConnector && !selectedId && !editingId);
+
+  const previewPoints = useMemo(() => {
+    if (!drawingConnector) return null;
+    let sx = drawingConnector.startX ?? 0;
+    let sy = drawingConnector.startY ?? 0;
+    if (drawingConnector.fromId) {
+      const fromItem = items.find((i: any) => i.id === drawingConnector.fromId);
+      if (fromItem && drawingConnector.fromAnchor) {
+        const c = getAnchorCoords(fromItem, drawingConnector.fromAnchor);
+        sx = c.x;
+        sy = c.y;
+      }
+    }
+    const ex = drawingConnector.currentX;
+    const ey = drawingConnector.currentY;
+    const midX = (sx + ex) / 2;
+    return { points: [sx, sy, midX, sy, midX, ey, ex, ey], sx, sy, ex, ey };
+  }, [drawingConnector, items]);
 
   return (
     <div
       className="flex-1 overflow-hidden relative canvas-container"
-      style={{ backgroundColor: '#f7f5fa', cursor: spaceHeld ? 'grab' : 'default' }}
+      style={{
+        backgroundColor: '#f7f5fa',
+        cursor: spaceHeld ? 'grab' : (connectorMode || drawingConnector) ? 'crosshair' : 'default'
+      }}
     >
+      {(connectorMode || drawingConnector) && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 bg-indigo-600/90 backdrop-blur-md text-white font-bold px-4 py-2 rounded-full shadow-2xl flex items-center gap-3 text-xs border border-indigo-400">
+          <span>➔ Connector Mode Active: {drawingConnector?.fromId ? 'Click target object or anchor point to finish' : 'Click any object or anchor point to start'}</span>
+          <button
+            onClick={() => cancelConnectorDraw()}
+            className="bg-white/20 hover:bg-white/30 text-white font-black px-2.5 py-0.5 rounded-full text-[10px]"
+          >
+            Cancel (Esc)
+          </button>
+        </div>
+      )}
+
       <Stage
         ref={stageRef}
         width={width}
@@ -317,6 +386,7 @@ function WhiteboardStage() {
         draggable={isDraggable}
         onDragEnd={handleDragEnd}
         onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
         onWheel={handleWheel}
       >
         <Layer>
@@ -385,6 +455,28 @@ function WhiteboardStage() {
               />
             );
           })}
+
+          {/* Live Preview Line during Connector Mode */}
+          {previewPoints && (
+            <Group>
+              <KonvaLine
+                points={previewPoints.points}
+                stroke="#a855f7"
+                strokeWidth={3}
+                dash={[8, 6]}
+                pointerLength={12}
+                pointerWidth={10}
+              />
+              <KonvaCircle
+                x={previewPoints.ex}
+                y={previewPoints.ey}
+                radius={6}
+                fill="#a855f7"
+                stroke="#ffffff"
+                strokeWidth={2}
+              />
+            </Group>
+          )}
 
           {/* Konva Transformer for resizing */}
           <Transformer
