@@ -49,7 +49,7 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
     }));
   }, [document.name, activeCanvas]);
 
-  const handleExportChaos = useCallback(() => {
+  const handleSaveProject = useCallback(() => {
     const data = JSON.stringify({
       items: useCanvasStore.getState().items,
       pan: useCanvasStore.getState().pan,
@@ -59,13 +59,13 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
     const url = URL.createObjectURL(blob);
     const link = window.document.createElement('a');
     const activeCanvasName = activeCanvas?.name || document.name || 'CanvasName';
-    link.download = `${activeCanvasName}.chaos`;
+    link.download = `${activeCanvasName}.json`;
     link.href = url;
     link.click();
     URL.revokeObjectURL(url);
-  }, [document.name]);
+  }, [document.name, activeCanvas]);
 
-  const handleImportChaos = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLoadProject = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
@@ -295,16 +295,16 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
           
           <button
             type="button"
-            onClick={handleExportChaos}
+            onClick={handleSaveProject}
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm"
-            title="Save Project (.chaos)"
+            title="Save Project (.json)"
           >
-            💾 Save
+            💾 Save Project
           </button>
           
-          <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm" title="Load Project (.chaos)">
-            📂 Load
-            <input type="file" accept=".chaos,application/json" hidden onChange={handleImportChaos} />
+          <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm" title="Load Project (.json)">
+            📂 Load Project
+            <input type="file" accept=".json,application/json" hidden onChange={handleLoadProject} />
           </label>
 
           <button
