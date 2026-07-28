@@ -83,7 +83,7 @@ interface YoutubeHubProps {
 
 export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
   /* ---------- store selectors ---------- */
-  const mode = useYoutubeStore((s) => s.mode);
+  const sidebarView = useYoutubeStore((s) => s.sidebarView);
   const searchQuery = useYoutubeStore((s) => s.searchQuery);
   const searchResults = useYoutubeStore((s) => s.searchResults);
   const upNextQueue = useYoutubeStore((s) => s.upNextQueue);
@@ -106,11 +106,13 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
   const setIsProcessing = useYoutubeStore((s) => s.setIsProcessing);
   const toggleAutoplay = useYoutubeStore((s) => s.toggleAutoplay);
   const selectVideo = useYoutubeStore((s) => s.selectVideo);
-  const exitWatchMode = useYoutubeStore((s) => s.exitWatchMode);
+  const showSearchSidebar = useYoutubeStore((s) => s.showSearchSidebar);
   const clearSearch = useYoutubeStore((s) => s.clearSearch);
   const restoreFromStorage = useYoutubeStore((s) => s.restoreFromStorage);
-  const persistToStorage = useYoutubeStore((s) => s.persistToStorage);
   const extractVideoId = useYoutubeStore((s) => s.extractVideoId);
+
+  // Derived: is a video currently playing?
+  const hasActiveVideo = !!currentVideoUrl;
 
   /* ---------- refs ---------- */
   const activeItemRef = useRef<HTMLDivElement>(null);
@@ -124,12 +126,12 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
     restoreFromStorage();
   }, [restoreFromStorage]);
 
-  /* ---------- scroll active item into view (Watch Mode) ---------- */
+  /* ---------- scroll active item into view ---------- */
   useEffect(() => {
-    if (mode === 'watch' && activeItemRef.current) {
+    if (sidebarView === 'upnext' && activeItemRef.current) {
       activeItemRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [currentVideoUrl, mode]);
+  }, [currentVideoUrl, sidebarView]);
 
   /* ---------- Infinite Scrolling ---------- */
   const handleScroll = useCallback(() => {
@@ -138,11 +140,11 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
 
     const { scrollTop, scrollHeight, clientHeight } = container;
     if (scrollHeight - scrollTop - clientHeight < 100) {
-      if (mode === 'search') {
+      if (sidebarView === 'search') {
         if (searchNextPageToken && !isFetchingNextPage && !isSearching) {
           fetchNextSearchPage();
         }
-      } else if (mode === 'watch') {
+      } else if (sidebarView === 'upnext') {
         const upNextNextPageToken = useYoutubeStore.getState().upNextNextPageToken;
         if (upNextNextPageToken && !isFetchingUpNext) {
           const videoId = extractVideoId(currentVideoUrl);
@@ -152,7 +154,7 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
         }
       }
     }
-  }, [mode, searchNextPageToken, isFetchingNextPage, isSearching, fetchNextSearchPage, isFetchingUpNext, currentVideoUrl, extractVideoId]);
+  }, [sidebarView, searchNextPageToken, isFetchingNextPage, isSearching, fetchNextSearchPage, isFetchingUpNext, currentVideoUrl, extractVideoId]);
 
   /* ---------- YT.Player lifecycle ---------- */
   const createOrUpdatePlayer = useCallback(
@@ -252,7 +254,8 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
     setIsSearching(true);
     setPlaylistTitle('');
     setMessage('');
-    useYoutubeStore.setState({ currentVideoUrl: '', mode: 'search', upNextQueue: [] });
+    // Switch sidebar to search results but DO NOT touch the player
+    useYoutubeStore.setState({ sidebarView: 'search' });
 
     try {
       const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(searchQuery)}`);
@@ -272,7 +275,7 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
     setIsSearching(true);
     setPlaylistTitle(`Playlist: ${title}`);
     setMessage('');
-    useYoutubeStore.setState({ currentVideoUrl: '', mode: 'search', upNextQueue: [] });
+    useYoutubeStore.setState({ sidebarView: 'search' });
 
     try {
       const res = await fetch(`/api/youtube/search?listId=${listId}`);
@@ -365,28 +368,8 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
 
       {/* LEFT COLUMN: Sidebar */}
       <div className="w-[320px] shrink-0 flex flex-col gap-4">
-        {/* Header row */}
-        <div className="flex items-center gap-2">
-          {mode === 'watch' ? (
-            <button
-              onClick={() => {
-                if (playerRef.current && typeof playerRef.current.pauseVideo === 'function') {
-                  playerRef.current.pauseVideo();
-                }
-                exitWatchMode();
-              }}
-              className="flex-1 py-1.5 rounded-xl text-xs font-black transition-all bg-white text-[#7181c8] hover:bg-[#7181c8]/10 shadow-sm border-2 border-[#7181c8]/30 flex items-center justify-center gap-2"
-            >
-              <span className="text-sm">←</span> Back to Results
-            </button>
-          ) : (
-            <div className="flex-1 flex bg-[#7c6a75]/10 p-1.5 rounded-xl border-2 border-[#7c6a75]/15">
-              <button className="flex-1 py-1.5 rounded-lg text-xs font-black uppercase transition-all bg-white text-[#7181c8] shadow-sm border border-[#7c6a75]/10 cursor-default">
-                📺 Web Search
-              </button>
-            </div>
-          )}
-          {/* Autoplay toggle */}
+        {/* Autoplay toggle */}
+        <div className="flex items-center justify-end">
           <button
             onClick={toggleAutoplay}
             className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase border-2 transition-all ${
@@ -405,20 +388,30 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
 
         {/* Sidebar content */}
         <div className="flex-1 bg-white/40 border-3 border-[#7c6a75] rounded-2xl shadow-inner flex flex-col overflow-hidden p-3 gap-3">
-          {mode === 'search' && (
-            <form onSubmit={handleSearchYoutube} className="flex gap-2 w-full">
-              <input
-                type="text"
-                placeholder="Search YouTube..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 min-w-0 bg-white/60 border-2 border-[#7c6a75]/20 rounded-xl px-3 py-1.5 text-xs text-[#5d5770] focus:outline-none focus:border-[#7181c8] font-bold"
-              />
-              <Button variant="primary" type="submit" isLoading={isSearching} className="px-3 py-1.5 text-xs shrink-0">
-                🔍
-              </Button>
-            </form>
-          )}
+          {/* Unified search bar — always visible */}
+          <form onSubmit={handleSearchYoutube} className="flex gap-2 w-full items-center">
+            {/* Back arrow: only when viewing Up Next AND a video is playing */}
+            {sidebarView === 'upnext' && hasActiveVideo && (
+              <button
+                type="button"
+                onClick={showSearchSidebar}
+                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-white/60 hover:bg-[#7181c8]/10 border border-[#7c6a75]/20 text-[#5d5770] text-sm font-bold transition-colors"
+                title="Back to search results"
+              >
+                ←
+              </button>
+            )}
+            <input
+              type="text"
+              placeholder="Search YouTube..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 min-w-0 bg-white/60 border-2 border-[#7c6a75]/20 rounded-xl px-3 py-1.5 text-xs text-[#5d5770] focus:outline-none focus:border-[#7181c8] font-bold"
+            />
+            <Button variant="primary" type="submit" isLoading={isSearching} className="px-3 py-1.5 text-xs shrink-0">
+              🔍
+            </Button>
+          </form>
 
           <div
             ref={scrollContainerRef}
@@ -426,7 +419,7 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
             className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pb-10"
           >
             {/* Playlist Title */}
-            {playlistTitle && mode === 'search' && (
+            {playlistTitle && sidebarView === 'search' && (
               <div className="bg-[#7c6a75]/10 px-2 py-1.5 rounded-lg flex justify-between items-center mb-2">
                 <span className="text-[9px] font-black uppercase truncate text-[#5d5770]">{playlistTitle}</span>
                 <button onClick={() => clearSearch()} className="text-[9px] text-blue-500 font-bold hover:underline shrink-0 ml-2">
@@ -449,10 +442,9 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
             {/* Content Lists */}
             <div className={isSearching && searchResults.length > 0 ? 'opacity-60 pointer-events-none' : ''}>
               
-              {/* WATCH MODE: Up Next */}
-              {mode === 'watch' && (
+              {/* UP NEXT sidebar view */}
+              {sidebarView === 'upnext' && (
                 <>
-                  {/* Up Next Queue */}
                   <div className="mb-4">
                     <div className="flex items-center gap-2 mb-2 text-[#7c6a75] font-black text-xs border-b-2 border-[#7c6a75]/10 pb-1">
                       <span>▶ Up Next</span>
@@ -486,8 +478,8 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
                 </>
               )}
 
-              {/* SEARCH MODE: Search Results */}
-              {mode === 'search' && searchResults.length > 0 && (
+              {/* SEARCH RESULTS sidebar view */}
+              {sidebarView === 'search' && searchResults.length > 0 && (
                 <div>
                   {searchResults.map((item, idx) => renderVideoItem(item, idx, false))}
                   
@@ -512,8 +504,8 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
 
       {/* CENTER COLUMN: YouTube Player */}
       <div className="flex-1 flex flex-col relative">
-        {/* Placeholder (Search Mode only) */}
-        <div className={`absolute inset-0 flex items-center justify-center border-3 border-[#7c6a75]/20 border-dashed rounded-2xl bg-white/20 transition-opacity ${mode === 'search' ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none -z-10'}`}>
+        {/* Placeholder (only when no video is playing) */}
+        <div className={`absolute inset-0 flex items-center justify-center border-3 border-[#7c6a75]/20 border-dashed rounded-2xl bg-white/20 transition-opacity ${!hasActiveVideo ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none -z-10'}`}>
           <div className="text-center">
             <span className="text-4xl opacity-50 block mb-2">📺</span>
             <p className="text-[#5d5770]/60 font-black uppercase tracking-widest text-sm">
@@ -522,8 +514,8 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
           </div>
         </div>
 
-        {/* Player Container (Always mounted, hidden in Search mode) */}
-        <div className={`flex-1 flex flex-col gap-3 h-full absolute inset-0 ${mode === 'watch' ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none -z-10'}`}>
+        {/* Player Container (visible whenever a video URL exists — completely independent of sidebar) */}
+        <div className={`flex-1 flex flex-col gap-3 h-full absolute inset-0 ${hasActiveVideo ? 'opacity-100 z-10' : 'opacity-0 pointer-events-none -z-10'}`}>
           <div
             ref={playerContainerRef}
             className="flex-1 bg-black rounded-2xl border-3 border-[#7c6a75] overflow-hidden relative shadow-inner"
@@ -533,7 +525,7 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
             variant="primary"
             isLoading={isProcessing}
             onClick={async () => {
-              if (mode === 'search' || !currentVideoUrl) return;
+              if (!currentVideoUrl) return;
               setIsProcessing(true);
               try {
                 await onAddYoutubeUrl(currentVideoUrl);

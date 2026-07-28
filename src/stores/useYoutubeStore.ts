@@ -13,7 +13,7 @@ export interface YoutubeVideo {
 }
 
 interface YoutubeState {
-  mode: 'search' | 'watch';
+  sidebarView: 'search' | 'upnext';
   searchQuery: string;
   searchResults: YoutubeVideo[];
   searchNextPageToken: string | null;
@@ -41,7 +41,7 @@ interface YoutubeState {
   setAutoplay: (val: boolean) => void;
   toggleAutoplay: () => void;
   selectVideo: (url: string) => void;
-  exitWatchMode: () => void;
+  showSearchSidebar: () => void;
   fetchUpNext: (videoId: string, isNextPage?: boolean) => Promise<void>;
   playNext: () => boolean;
   clearSearch: () => void;
@@ -53,7 +53,7 @@ interface YoutubeState {
 const STORAGE_KEY = 'dazai_youtube_state';
 
 export const useYoutubeStore = create<YoutubeState>((set, get) => ({
-  mode: 'search',
+  sidebarView: 'search',
   searchQuery: '',
   searchResults: [],
   searchNextPageToken: null,
@@ -73,7 +73,7 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
   setSearchQuery: (query) => set({ searchQuery: query }),
   
   setSearchResults: (results, nextPageToken = null) => {
-    set({ searchResults: results, searchNextPageToken: nextPageToken, mode: 'search' });
+    set({ searchResults: results, searchNextPageToken: nextPageToken, sidebarView: 'search' });
     get().persistToStorage();
   },
 
@@ -131,7 +131,7 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
       return { 
         currentVideoUrl: url,
         watchHistory: history,
-        mode: 'watch',
+        sidebarView: 'upnext' as const,
         upNextQueue: updatedQueue
       };
     });
@@ -140,8 +140,9 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
     get().fetchUpNext(videoId, false);
   },
 
-  exitWatchMode: () => {
-    set({ mode: 'search', currentVideoUrl: '', upNextQueue: [] });
+  showSearchSidebar: () => {
+    // Only switch the sidebar view. NEVER touch the player or currentVideoUrl.
+    set({ sidebarView: 'search' });
     get().persistToStorage();
   },
 
@@ -313,7 +314,7 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
       currentVideoUrl: '',
       upNextQueue: [],
       upNextNextPageToken: null,
-      mode: 'search'
+      sidebarView: 'search'
     });
     get().persistToStorage();
   },
@@ -331,7 +332,7 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
     if (typeof window === 'undefined') return;
     const state = get();
     const data = {
-      mode: state.mode,
+      sidebarView: state.sidebarView,
       searchQuery: state.searchQuery,
       searchResults: state.searchResults,
       searchNextPageToken: state.searchNextPageToken,
@@ -354,7 +355,7 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
       if (!raw) return;
       const data = JSON.parse(raw);
       set({
-        mode: data.mode || 'search',
+        sidebarView: data.sidebarView || data.mode || 'search',
         searchQuery: data.searchQuery || '',
         searchResults: data.searchResults || [],
         searchNextPageToken: data.searchNextPageToken || null,
