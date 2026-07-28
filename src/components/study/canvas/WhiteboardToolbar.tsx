@@ -26,7 +26,10 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
   const setScale = useCanvasStore(state => state.setScale);
   const setPan = useCanvasStore(state => state.setPan);
 
-  const handleExportPng = useCallback(() => {
+  const handleExportPng = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log("Toolbar export clicked");
     window.dispatchEvent(new CustomEvent('export-canvas', {
       detail: { fileName: `${document.name || 'study-canvas'}-whiteboard.png` }
     }));
@@ -132,9 +135,10 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
         </button>
 
         <button
+          type="button"
           onClick={handleExportPng}
           className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm"
-          title="Export PNG using html2canvas"
+          title="Export PNG"
         >
           📸 Export PNG
         </button>

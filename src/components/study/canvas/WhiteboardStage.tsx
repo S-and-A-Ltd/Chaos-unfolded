@@ -64,6 +64,7 @@ function WhiteboardStage() {
   // Export PNG listener
   useEffect(() => {
     const handleExport = (e: Event) => {
+      console.log("Received export event");
       const customEvent = e as CustomEvent;
       if (stageRef.current) {
         // Hide transformer before export to avoid capturing resize handles
