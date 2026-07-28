@@ -86,19 +86,15 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
   }, [addItem]);
 
   return (
-    <div className="bg-[#7c6a75] dark:bg-[#342e48] text-white px-5 py-2.5 flex flex-wrap items-center justify-between shadow-md z-30 gap-2">
-      <div className="flex items-center gap-3">
-        <span className="text-2xl">🎨</span>
-        <div>
-          <h2 className="font-black text-sm md:text-base tracking-wide flex items-center gap-2">
-            <span>Study Whiteboard Engine</span>
-            <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] uppercase font-bold">Zustand + Konva Html</span>
-          </h2>
-          <p className="text-[10px] text-white/80 hidden md:block">Excalidraw/FigJam clean architecture with stable zooming, multi-region text flow & anchor connectors</p>
-        </div>
+    <div className="bg-[#7c6a75] dark:bg-[#342e48] text-white flex flex-col shadow-md z-30">
+      <div className="px-5 py-2 border-b border-white/10 flex items-center gap-2">
+        <span className="text-lg">🎨</span>
+        <h2 className="font-black text-sm tracking-wide">
+          Study Whiteboard Engine
+        </h2>
       </div>
-
-      <div className="flex items-center gap-1.5 flex-wrap">
+      
+      <div className="px-5 py-2 flex items-center gap-1.5 flex-wrap">
         <div className="flex items-center gap-0.5 bg-black/20 p-1 rounded-lg">
           <button onClick={undo} disabled={historyIdx <= 0} className="px-2 py-1 hover:bg-white/20 disabled:opacity-40 rounded text-xs font-bold" title="Undo">↩ Undo</button>
           <button onClick={redo} disabled={historyIdx >= historyLength - 1} className="px-2 py-1 hover:bg-white/20 disabled:opacity-40 rounded text-xs font-bold" title="Redo">↪ Redo</button>
