@@ -237,30 +237,16 @@ function WhiteboardStage() {
 
         if (format === 'pdf') {
           import('jspdf').then(({ jsPDF }) => {
+            const canvasWidth = clientRect.width + 80;
+            const canvasHeight = clientRect.height + 80;
+            
             const pdf = new jsPDF({
-              orientation: 'landscape',
-              unit: 'px',
-              format: 'a4'
+              orientation: canvasWidth > canvasHeight ? "landscape" : "portrait",
+              unit: "px",
+              format: [canvasWidth, canvasHeight],
             });
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
             
-            const imgRatio = (clientRect.width + 80) / (clientRect.height + 80);
-            const pdfRatio = pdfWidth / pdfHeight;
-            
-            let renderWidth = pdfWidth - 40;
-            let renderHeight = pdfHeight - 40;
-            
-            if (imgRatio > pdfRatio) {
-              renderHeight = renderWidth / imgRatio;
-            } else {
-              renderWidth = renderHeight * imgRatio;
-            }
-            
-            const px = (pdfWidth - renderWidth) / 2;
-            const py = (pdfHeight - renderHeight) / 2;
-            
-            pdf.addImage(dataURL, 'PNG', px, py, renderWidth, renderHeight);
+            pdf.addImage(dataURL, "PNG", 0, 0, canvasWidth, canvasHeight);
             pdf.save(`${fileName}.pdf`);
           });
         } else {
