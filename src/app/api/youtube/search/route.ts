@@ -27,6 +27,31 @@ async function fetchVideoMetadata(videoIds: string[], apiKey: string, referer: s
   }
 }
 
+// Build a regex that matches lyric/remix/live/speed variants of the original song title
+function buildTitleVariantPattern(originalTitle: string): RegExp | null {
+  if (!originalTitle || originalTitle.length < 5) return null;
+
+  // Strip common suffixes to get the core song name
+  const coreName = originalTitle
+    .replace(/\(.*?\)/g, '')       // Remove parenthetical like (Official Video)
+    .replace(/\[.*?\]/g, '')       // Remove bracketed like [Official Audio]
+    .replace(/official\s*(video|audio|music\s*video|mv|visualizer)?/gi, '')
+    .replace(/\b(lyrics?|lyric\s*video|remix|live|acoustic|speed\s*up|slowed|reverb|nightcore|cover|instrumental|karaoke|clean|explicit|remaster(ed)?|4k|hd|hq)\b/gi, '')
+    .replace(/[-–|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (coreName.length < 4) return null;
+
+  // Escape for regex
+  const escaped = coreName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  try {
+    return new RegExp(escaped, 'i');
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -46,105 +71,179 @@ export async function GET(req: NextRequest) {
     let items: any[] = [];
     let nextPageToken: string | undefined;
 
-    // 1. Fetch Related Videos Workaround (MULTI-SOURCE AGGREGATOR)
+    // 1. Recommendation Pipeline (YouTube Mix style)
     if (relatedToVideoId) {
-      // First, get the details of the requested video
-      const vidUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${relatedToVideoId}&key=${apiKey}`;
+      // STEP 1: Extract metadata for the currently playing video
+      const vidUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,topicDetails&id=${relatedToVideoId}&key=${apiKey}`;
       const vidRes = await fetch(vidUrl, { headers: { 'Referer': referer } });
       const vidData = await vidRes.json();
-      
-      let searchQueries: string[] = [];
+
       let originalTitle = '';
       let originalChannel = '';
+      let searchQueries: string[] = [];
 
       if (vidData.items && vidData.items.length > 0) {
         const snippet = vidData.items[0].snippet;
+        const topicDetails = vidData.items[0].topicDetails;
         const categoryId = snippet.categoryId;
         originalTitle = snippet.title.toLowerCase();
         originalChannel = snippet.channelTitle.toLowerCase();
-        
+
         const tags = snippet.tags || [];
-        const cleanTags = tags.filter((t: string) => t.toLowerCase() !== originalTitle && t.length < 20);
+
+        // Extract genre keywords from topicDetails (Wikipedia categories like "Pop music", "Electronic music")
+        const topicGenres: string[] = [];
+        if (topicDetails?.topicCategories) {
+          topicDetails.topicCategories.forEach((url: string) => {
+            const match = url.match(/wikipedia\.org\/wiki\/(.+)/);
+            if (match) {
+              const genre = decodeURIComponent(match[1]).replace(/_/g, ' ');
+              if (genre.toLowerCase() !== 'music' && genre.toLowerCase() !== 'entertainment') {
+                topicGenres.push(genre);
+              }
+            }
+          });
+        }
+
+        // Extract pure genre/mood tags — EXCLUDE the artist name and song title
+        const artistLower = snippet.channelTitle.toLowerCase();
+        const titleWords = originalTitle.split(/[\s\-–|()\[\]]+/).filter((w: string) => w.length > 2);
+
+        const genreTags = tags.filter((t: string) => {
+          const tLower = t.toLowerCase();
+          // Exclude if tag IS the artist name or closely matches it
+          if (tLower === artistLower) return false;
+          if (artistLower.includes(tLower) || tLower.includes(artistLower)) return false;
+          // Exclude if tag IS any significant word from the title
+          if (titleWords.some((w: string) => tLower === w.toLowerCase())) return false;
+          // Exclude very short or very long tags
+          if (t.length < 3 || t.length > 25) return false;
+          return true;
+        });
 
         if (categoryId === '10') {
-          // MUSIC: 3 distinct queries for massive diversity
-          searchQueries.push(`"${snippet.channelTitle}" music`); // Query 1: Exact artist
-          searchQueries.push(`"${cleanTags[0] || 'pop'}" OR "${cleanTags[1] || 'song'}" music`); // Query 2: Genre
-          searchQueries.push(`trending ${cleanTags[0] || 'music'} song`); // Query 3: Trending
+          // ─── MUSIC ───
+          // Build queries from pure genre/mood signals. NEVER include artist name.
+          const g1 = topicGenres[0] || genreTags[0] || 'pop';
+          const g2 = topicGenres[1] || genreTags[1] || 'hits';
+          const g3 = genreTags[2] || 'viral';
+
+          searchQueries = [
+            `${g1} music official`,                    // Genre search 1
+            `${g2} songs`,                             // Genre search 2
+            `top ${g1} hits`,                          // Popular in genre
+            `trending ${g3} music ${new Date().getFullYear()}`, // Trending
+            `${g1} ${g2} mix`,                         // Mix / radio style
+          ];
         } else if (categoryId === '27' || categoryId === '28') {
-          // EDUCATION/SCIENCE: 3 distinct topic queries
-          const coreTopic = cleanTags[0] || snippet.title.split('-')[0].split('|')[0].trim();
-          searchQueries.push(`"${snippet.channelTitle}" ${coreTopic}`); // Query 1: Creator + Topic
-          searchQueries.push(`${coreTopic} tutorial OR course`); // Query 2: Broad Topic
-          searchQueries.push(`${cleanTags[1] || coreTopic} explained`); // Query 3: Related Concept
+          // ─── EDUCATION / SCIENCE ───
+          // Extract the core subject from tags and title, NEVER the channel name
+          const subject = genreTags[0] || tags[0] || snippet.title.split(/[\-|:]/)[0].trim();
+          const subtopics = genreTags.slice(1, 5);
+
+          searchQueries = [
+            `${subject} tutorial`,
+            `${subject} course`,
+            `${subtopics[0] || subject} explained`,
+            `${subtopics[1] || subject} for beginners`,
+            `learn ${subject}`,
+          ];
         } else {
-          // DEFAULT
-          const coreTopic = cleanTags[0] || snippet.title.split(' ')[0];
-          searchQueries.push(`"${snippet.channelTitle}"`);
-          searchQueries.push(`${coreTopic} video`);
-          searchQueries.push(`trending ${coreTopic}`);
+          // ─── DEFAULT ───
+          const topic = genreTags[0] || tags[0] || snippet.title.split(' ').slice(0, 3).join(' ');
+          searchQueries = [
+            `${topic}`,
+            `${topic} explained`,
+            `trending ${topic}`,
+          ];
         }
       }
 
       if (searchQueries.length === 0) {
-        searchQueries.push('study motivation');
+        searchQueries = ['trending music', 'popular songs', 'music mix'];
       }
 
-      // Execute all searches concurrently (limit 15 per query to manage quota, yields up to 45 candidates)
+      // STEP 2: Fire all queries concurrently (20 results each → up to 100 candidates)
       const fetchPromises = searchQueries.map(q => {
-        let url = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=15&q=${encodeURIComponent(q)}&type=video&key=${apiKey}`;
+        let url = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=20&q=${encodeURIComponent(q)}&type=video&key=${apiKey}`;
         if (pageToken) url += `&pageToken=${pageToken}`;
-        return fetch(url, { headers: { 'Referer': referer } }).then(res => res.json()).catch(() => ({ items: [] }));
+        return fetch(url, { headers: { 'Referer': referer } }).then(r => r.json()).catch(() => ({ items: [] }));
       });
 
-      const rawResults = await Promise.all(fetchPromises);
-      
-      let mergedItems: any[] = [];
-      rawResults.forEach(data => {
-        if (data.items) {
-           mergedItems = [...mergedItems, ...data.items];
-           // Only grab token from the first query to paginate linearly
-           if (!nextPageToken) nextPageToken = data.nextPageToken;
-        }
+      const allResults = await Promise.all(fetchPromises);
+
+      // Merge all responses
+      let pool: any[] = [];
+      allResults.forEach(data => {
+        if (data.items) pool = [...pool, ...data.items];
+        if (!nextPageToken && data.nextPageToken) nextPageToken = data.nextPageToken;
       });
 
-      // Filter merged pool
-      if (mergedItems.length > 0) {
-        // Shuffle the merged items slightly so we don't just process artist 1 completely then artist 2
-        for (let i = mergedItems.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [mergedItems[i], mergedItems[j]] = [mergedItems[j], mergedItems[i]];
+      // STEP 3: Deduplicate by videoId, remove Shorts keywords, remove title variants
+      const seenIds = new Set<string>();
+      const titleVariantPattern = buildTitleVariantPattern(originalTitle);
+
+      let candidates = pool.filter((item: any) => {
+        if (!item.id?.videoId) return false;
+        if (seenIds.has(item.id.videoId)) return false;
+        if (item.id.videoId === relatedToVideoId) return false;
+
+        const t = item.snippet.title.toLowerCase();
+        const ch = item.snippet.channelTitle.toLowerCase();
+
+        // Block shorts
+        if (t.includes('#shorts') || t.includes('shorts') || ch.includes('shorts')) return false;
+
+        // Block lyric/remix/live/speed up variants of the SAME song
+        if (titleVariantPattern && titleVariantPattern.test(t)) return false;
+
+        seenIds.add(item.id.videoId);
+        return true;
+      });
+
+      // STEP 4: Diversity scoring — max 1 video per channel in first pass
+      const channelCounts: Record<string, number> = {};
+      const diverse: any[] = [];
+      const overflow: any[] = [];
+
+      for (const item of candidates) {
+        const ch = item.snippet.channelTitle.toLowerCase();
+        channelCounts[ch] = (channelCounts[ch] || 0) + 1;
+
+        if (channelCounts[ch] <= 1) {
+          diverse.push(item);
+        } else {
+          overflow.push(item);
         }
-
-        const seenIds = new Set();
-        items = mergedItems.filter((item: any) => {
-          if (!item.id || !item.id.videoId) return false;
-          if (seenIds.has(item.id.videoId)) return false;
-          
-          const itemTitle = item.snippet.title.toLowerCase();
-          const channelTitle = item.snippet.channelTitle.toLowerCase();
-          
-          // Block shorts by keyword
-          if (itemTitle.includes('shorts') || itemTitle.includes('#shorts') || channelTitle.includes('shorts')) return false;
-
-          // Block highly similar original videos
-          if (originalTitle && itemTitle.includes(originalTitle)) return false;
-          if (originalTitle && originalTitle.includes(itemTitle)) return false;
-          
-          seenIds.add(item.id.videoId);
-          return true;
-        }).map((item: any) => ({
-          type: 'video',
-          videoId: item.id.videoId,
-          title: item.snippet.title,
-          url: `https://youtube.com/watch?v=${item.id.videoId}`,
-          thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
-          author: { name: item.snippet.channelTitle },
-        }));
-        
-        // Take at most 40 to avoid massive payload
-        items = items.slice(0, 40);
       }
+
+      // Fill gaps from overflow if diverse pool is too small (allow max 2 per channel)
+      if (diverse.length < 20) {
+        const channelCounts2: Record<string, number> = {};
+        diverse.forEach(item => {
+          const ch = item.snippet.channelTitle.toLowerCase();
+          channelCounts2[ch] = (channelCounts2[ch] || 0) + 1;
+        });
+        for (const item of overflow) {
+          if (diverse.length >= 40) break;
+          const ch = item.snippet.channelTitle.toLowerCase();
+          channelCounts2[ch] = (channelCounts2[ch] || 0);
+          if (channelCounts2[ch] < 2) {
+            channelCounts2[ch]++;
+            diverse.push(item);
+          }
+        }
+      }
+
+      // STEP 5: Map to our format
+      items = diverse.map((item: any) => ({
+        type: 'video',
+        videoId: item.id.videoId,
+        title: item.snippet.title,
+        url: `https://youtube.com/watch?v=${item.id.videoId}`,
+        thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
+        author: { name: item.snippet.channelTitle },
+      }));
     }
 
     // 2. Fetch Playlist

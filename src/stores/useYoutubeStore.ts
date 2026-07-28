@@ -153,71 +153,87 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
 
     const processAndSetRecommendations = (items: YoutubeVideo[], newPageToken?: string) => {
       set((state) => {
-        // 1. Initial Filtering: Remove watched videos, current video, and known duplicates
+        // 1. Remove watched videos and the currently playing video
         let nextVideos = items.filter(v => {
           const id = v.videoId || get().extractVideoId(v.url);
           return id !== videoId && !state.watchHistory.includes(id);
         });
 
-        // 2. Strict Deduplication across the ENTIRE existing queue
+        // 2. Strict deduplication across the ENTIRE existing queue (by ID and by title)
         const existingIds = new Set(state.upNextQueue.map(v => get().extractVideoId(v.url)));
         const existingTitles = new Set(state.upNextQueue.map(v => v.title.toLowerCase()));
 
         nextVideos = nextVideos.filter(v => {
           const id = v.videoId || get().extractVideoId(v.url);
           const titleLower = v.title.toLowerCase();
-          
+
           if (existingIds.has(id)) return false;
           if (existingTitles.has(titleLower)) return false;
-
-          // Double check shorts here just in case API missed it
-          if (titleLower.includes('shorts') || titleLower.includes('#shorts')) return false;
+          if (titleLower.includes('#shorts') || titleLower.includes('shorts')) return false;
 
           existingIds.add(id);
           existingTitles.add(titleLower);
           return true;
         });
 
-        // 3. Artist / Channel Limiting (Max 2 per artist per batch)
-        const balancedNextVideos: YoutubeVideo[] = [];
-        const artistCounts: Record<string, number> = {};
+        // 3. Diversity enforcement: max 1 per artist in first 15, max 2 total
+        // Also count artists already in the queue
+        const existingArtistCounts: Record<string, number> = {};
+        state.upNextQueue.forEach(v => {
+          const a = (v.author?.name || '').toLowerCase();
+          existingArtistCounts[a] = (existingArtistCounts[a] || 0) + 1;
+        });
+
+        const accepted: YoutubeVideo[] = [];
+        const batchArtistCounts: Record<string, number> = {};
 
         for (const v of nextVideos) {
-          const artistName = (v.author?.name || 'unknown').toLowerCase();
-          if (!artistCounts[artistName]) artistCounts[artistName] = 0;
+          const artist = (v.author?.name || 'unknown').toLowerCase();
+          const totalForArtist = (existingArtistCounts[artist] || 0) + (batchArtistCounts[artist] || 0);
 
-          if (artistCounts[artistName] < 2) {
-            artistCounts[artistName]++;
-            balancedNextVideos.push(v);
+          // Hard limit: never more than 2 total from one artist across entire queue
+          if (totalForArtist >= 2) continue;
+
+          // Soft limit: in the first 15 of THIS batch, max 1 per artist
+          if (accepted.length < 15 && (batchArtistCounts[artist] || 0) >= 1) continue;
+
+          batchArtistCounts[artist] = (batchArtistCounts[artist] || 0) + 1;
+          accepted.push(v);
+        }
+
+        // 4. Interleave: ensure no two consecutive videos share the same artist
+        const interleaved: YoutubeVideo[] = [];
+        const remaining = [...accepted];
+        let lastArtist = '';
+
+        while (remaining.length > 0) {
+          const idx = remaining.findIndex(v => (v.author?.name || '').toLowerCase() !== lastArtist);
+          if (idx === -1) {
+            // Can't avoid consecutive — just push what's left
+            interleaved.push(...remaining);
+            break;
           }
+          const picked = remaining.splice(idx, 1)[0];
+          lastArtist = (picked.author?.name || '').toLowerCase();
+          interleaved.push(picked);
         }
 
-        // 4. Intelligent Shuffle
-        // We want the first item to remain the absolute most relevant (as decided by YT API),
-        // but we shuffle the rest to ensure artists transition naturally.
-        let finalBatch = [...balancedNextVideos];
-        if (finalBatch.length > 2) {
-          const topItem = finalBatch.shift()!;
-          // Fisher-Yates shuffle on the rest
-          for (let i = finalBatch.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [finalBatch[i], finalBatch[j]] = [finalBatch[j], finalBatch[i]];
-          }
-          finalBatch.unshift(topItem);
+        const finalQueue = isNextPage
+          ? [...state.upNextQueue, ...interleaved]
+          : [...state.upNextQueue, ...interleaved];
+
+        // Emergency fallback: if the queue is completely empty after all filtering
+        if (!isNextPage && finalQueue.length === 0 && items.length > 0) {
+          const fallback = items
+            .filter(v => (v.videoId || get().extractVideoId(v.url)) !== videoId)
+            .slice(0, 20);
+          return {
+            upNextQueue: fallback,
+            upNextNextPageToken: newPageToken || null
+          };
         }
 
-        let finalQueue = isNextPage ? [...state.upNextQueue, ...finalBatch] : [...state.upNextQueue, ...finalBatch];
-
-        // If the queue is completely empty after aggressive filtering (and this is page 1),
-        // we must fallback to the raw items just to guarantee we have SOMETHING.
-        if (!isNextPage && finalQueue.length === 0) {
-          finalQueue = items.filter(v => {
-             const id = v.videoId || get().extractVideoId(v.url);
-             return id !== videoId;
-          });
-        }
-
-        return { 
+        return {
           upNextQueue: finalQueue,
           upNextNextPageToken: newPageToken || null
         };
