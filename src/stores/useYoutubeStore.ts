@@ -377,14 +377,14 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
       if (!raw) return;
       const data = JSON.parse(raw);
       set({
-        sidebarView: data.sidebarView || data.mode || 'search',
+        sidebarView: 'search',
         searchQuery: data.searchQuery || '',
         searchResults: data.searchResults || [],
         searchNextPageToken: data.searchNextPageToken || null,
-        upNextQueue: data.upNextQueue || [],
-        upNextNextPageToken: data.upNextNextPageToken || null,
+        upNextQueue: [],
+        upNextNextPageToken: null,
         watchHistory: data.watchHistory || [],
-        currentVideoUrl: data.currentVideoUrl || '',
+        currentVideoUrl: '',
         playlistTitle: data.playlistTitle || '',
         autoplay: data.autoplay ?? true,
       });

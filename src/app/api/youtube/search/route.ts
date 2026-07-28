@@ -364,11 +364,31 @@ export async function GET(req: NextRequest) {
       return { ...item, durationSeconds: 999 }; // Assume playlists/unknown are long enough
     });
 
-    // Final filter: If it's a related search (Up Next) or general, absolutely drop any video shorter than 60s to kill Shorts
+    // Final filter: Reject Shorts, cap long videos, block playlist-style titles
+    const PLAYLIST_TITLE_PATTERNS = /\b(mix|playlist|top\s*\d+|best\s*of|hours?|compilation|nonstop|non-stop|megamix)\b/i;
+    let longVideoCount = 0;
+
     enhancedItems = enhancedItems.filter(item => {
-      if (item.type === 'video' && item.durationSeconds < 60) {
-        return false;
+      if (item.type !== 'video') return true; // Keep playlists (type=list) as-is for search results
+
+      const dur = item.durationSeconds || 0;
+      const title = item.title || '';
+
+      // Reject Shorts (< 60 seconds)
+      if (dur > 0 && dur < 60) return false;
+
+      // For recommendation results (relatedToVideoId), apply strict content filtering
+      if (relatedToVideoId) {
+        // Block playlist-style titles
+        if (PLAYLIST_TITLE_PATTERNS.test(title)) return false;
+
+        // Cap long videos (>20 min = 1200s) at max 2
+        if (dur > 1200) {
+          longVideoCount++;
+          if (longVideoCount > 2) return false;
+        }
       }
+
       return true;
     });
 
