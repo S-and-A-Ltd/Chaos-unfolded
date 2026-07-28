@@ -132,10 +132,6 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
               <button onClick={() => addItem('arrow')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">➔ Snapping Arrow Connector</button>
               <button onClick={() => addItem('shape', 'rectangle')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">🔲 Rectangle Box</button>
               <button onClick={() => addItem('shape', 'circle')} className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">⚪ Circle / Concept</button>
-              <label className="cursor-pointer text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2">
-                🖼️ Insert Image
-                <input type="file" accept="image/*" hidden onChange={handleInsertImage} />
-              </label>
             </div>
           )}
         </div>
@@ -186,6 +182,11 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
         </button>
 
         <div className="flex items-center gap-1">
+          <label className="cursor-pointer bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs shadow-sm" title="Insert Image">
+            🖼️ Image
+            <input type="file" accept="image/png, image/jpeg, image/webp" hidden onChange={handleInsertImage} />
+          </label>
+          
           <button
             type="button"
             onClick={handleExportPng}

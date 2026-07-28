@@ -32,6 +32,12 @@ function ImageObject({ item, isSelected, gridSnap, GRID_SIZE }: ImageObjectProps
     setSelectedId(item.id);
   }, [setSelectedId, item.id]);
 
+  const handleDragMove = useCallback((e: any) => {
+    if (e.target === e.currentTarget) {
+      updateItemFields(item.id, { x: e.target.x(), y: e.target.y() });
+    }
+  }, [updateItemFields, item.id]);
+
   const handleDragEnd = useCallback((e: any) => {
     let fx = e.target.x();
     let fy = e.target.y();
@@ -64,6 +70,7 @@ function ImageObject({ item, isSelected, gridSnap, GRID_SIZE }: ImageObjectProps
       height={item.height}
       draggable
       onClick={handleClick}
+      onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
       onTransformEnd={handleTransformEnd}
     >

@@ -60,7 +60,23 @@ function WhiteboardStage() {
       if (id && id.startsWith('node_')) {
         const itemId = id.replace('node_', '');
         if (!items.find((i: any) => i.id === itemId)) {
-          console.warn(`Cleaning up orphaned node: ${id}`);
+          console.warn(`Cleaning up orphaned group node: ${id}`);
+          node.destroy();
+          needsRedraw = true;
+        }
+      } else if (node.className === 'Text') {
+        // Find if this text is inside a valid node_ group
+        let parent = node.parent;
+        let isValid = false;
+        while (parent) {
+          if (parent.id() && parent.id().startsWith('node_')) {
+            isValid = true;
+            break;
+          }
+          parent = parent.parent;
+        }
+        if (!isValid) {
+          console.warn(`Cleaning up orphaned KonvaText`);
           node.destroy();
           needsRedraw = true;
         }
@@ -69,6 +85,21 @@ function WhiteboardStage() {
 
     if (needsRedraw) {
       stage.getLayers().forEach((layer: any) => layer.batchDraw());
+    }
+    
+    // DOM cleanup for unmounted react-konva-utils Html
+    if (typeof document !== 'undefined') {
+      const htmlNodes = document.querySelectorAll('.konvajs-html');
+      htmlNodes.forEach(htmlNode => {
+        // The Html component attaches to the container. If it has no children or if editingId is null but there's an active textarea, destroy it.
+        // Actually, we can check if there's any active editingId. If not, NO textarea should exist.
+        if (!useCanvasStore.getState().editingId) {
+          if (htmlNode.querySelector('textarea')) {
+            console.warn(`Cleaning up orphaned HTML textarea`);
+            htmlNode.remove();
+          }
+        }
+      });
     }
   }, [items]);
 

@@ -240,6 +240,12 @@ function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: 
     startEditing(item);
   }, [startEditing, item]);
 
+  const handleDragMove = useCallback((e: any) => {
+    if (e.target === e.currentTarget) {
+      updateItemFields(item.id, { x: e.target.x(), y: e.target.y() });
+    }
+  }, [updateItemFields, item.id]);
+
   const handleDragEnd = useCallback((e: any) => {
     let fx = e.target.x();
     let fy = e.target.y();
@@ -270,9 +276,10 @@ function StickyNoteObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: 
       y={item.y}
       width={item.width}
       height={item.height}
-      draggable={!isEditing}
+      draggable={!item.lockedBg && !isEditing}
       onClick={handleClick}
       onDblClick={handleDblClick}
+      onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
       onTransformEnd={handleTransformEnd}
     >

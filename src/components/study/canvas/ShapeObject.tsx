@@ -170,6 +170,12 @@ function ShapeObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: Shape
     startEditing(item);
   }, [startEditing, item]);
 
+  const handleDragMove = useCallback((e: any) => {
+    if (e.target === e.currentTarget) {
+      updateItemFields(item.id, { x: e.target.x(), y: e.target.y() });
+    }
+  }, [updateItemFields, item.id]);
+
   const handleDragEnd = useCallback((e: any) => {
     let fx = e.target.x();
     let fy = e.target.y();
@@ -205,6 +211,7 @@ function ShapeObject({ item, isSelected, isEditing, gridSnap, GRID_SIZE }: Shape
       draggable={!isEditing}
       onClick={handleClick}
       onDblClick={handleDblClick}
+      onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
       onTransformEnd={handleTransformEnd}
     >
