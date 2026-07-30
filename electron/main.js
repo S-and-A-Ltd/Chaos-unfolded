@@ -1,17 +1,52 @@
-const { app, BrowserWindow, ipcMain, powerMonitor, powerSaveBlocker } = require('electron');
+const { app, BrowserWindow, ipcMain, powerMonitor, powerSaveBlocker, Menu, nativeTheme, shell } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { exec } = require('child_process');
 
 let mainWindow;
 let powerSaveId = null;
 let isFocusLocked = false;
 
+function getWindowStatePath() {
+  return path.join(app.getPath('userData'), 'window-state.json');
+}
+
+function loadWindowState() {
+  try {
+    const data = fs.readFileSync(getWindowStatePath(), 'utf-8');
+    return JSON.parse(data);
+  } catch {
+    return { width: 1400, height: 900, x: undefined, y: undefined };
+  }
+}
+
+function saveWindowState(window) {
+  if (!window || window.isDestroyed()) return;
+  try {
+    const bounds = window.getBounds();
+    fs.writeFileSync(getWindowStatePath(), JSON.stringify(bounds), 'utf-8');
+  } catch (err) {
+    console.error('Failed to save window state:', err);
+  }
+}
+
 function createWindow() {
+  // Force Dark Theme
+  nativeTheme.themeSource = 'dark';
+
+  // Disable unnecessary default browser top menus
+  Menu.setApplicationMenu(null);
+
+  const state = loadWindowState();
+
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 1100,
-    minHeight: 700,
+    title: 'Chaos Unfolded',
+    width: state.width || 1400,
+    height: state.height || 900,
+    x: state.x,
+    y: state.y,
+    minWidth: 1000,
+    minHeight: 650,
     frame: false,
     titleBarStyle: 'hidden',
     titleBarOverlay: {
@@ -29,15 +64,37 @@ function createWindow() {
     icon: path.join(__dirname, '..', 'public', 'icon.png'),
   });
 
+  // Remember window position and size
+  const saveState = () => saveWindowState(mainWindow);
+  mainWindow.on('resize', saveState);
+  mainWindow.on('move', saveState);
+
   // In development, load from Next.js dev server
   const isDev = process.env.NODE_ENV !== 'production';
   if (isDev) {
     mainWindow.loadURL('http://localhost:3000');
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    // In production, load from the built Next.js standalone server
+    // In production, load from the built Next.js server
     mainWindow.loadURL('http://localhost:3000');
   }
+
+  // Prevent accidental navigation outside the application
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const isInternal = url.startsWith('http://localhost:3000') || url.startsWith('http://127.0.0.1:3000');
+    if (!isInternal) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    const isInternal = url.startsWith('http://localhost:3000') || url.startsWith('http://127.0.0.1:3000');
+    if (!isInternal) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
 
   // Focus tracking for the study companion
   mainWindow.on('blur', () => {
