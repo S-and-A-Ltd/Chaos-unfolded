@@ -113,6 +113,9 @@ export default function YoutubeHub({ onAddYoutubeUrl, isActive = true }: Youtube
   const clearSearch = useYoutubeStore((s) => s.clearSearch);
   const restoreFromStorage = useYoutubeStore((s) => s.restoreFromStorage);
   const extractVideoId = useYoutubeStore((s) => s.extractVideoId);
+  const savePlayerSession = useYoutubeStore((s) => s.savePlayerSession);
+  const clearPlayerSession = useYoutubeStore((s) => s.clearPlayerSession);
+  const playerSession = useYoutubeStore((s) => s.playerSession);
 
   // Derived: is a video currently playing?
   const hasActiveVideo = !!currentVideoUrl;
@@ -201,8 +204,24 @@ export default function YoutubeHub({ onAddYoutubeUrl, isActive = true }: Youtube
           origin: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
         },
         events: {
-          onReady: () => {
-            // Do not force playVideo automatically on ready/mount/tab switch
+          onReady: (event: any) => {
+            // On fresh player creation (e.g. after page reload), restore saved session
+            const session = useYoutubeStore.getState().playerSession;
+            if (session && session.videoId === videoId) {
+              const player = event.target;
+              try {
+                if (typeof player.seekTo          === 'function') player.seekTo(session.timestamp, true);
+                if (typeof player.setPlaybackRate === 'function') player.setPlaybackRate(session.playbackRate);
+                if (typeof player.setVolume       === 'function') player.setVolume(session.volume);
+                if (session.muted) {
+                  if (typeof player.mute   === 'function') player.mute();
+                } else {
+                  if (typeof player.unMute === 'function') player.unMute();
+                }
+                // Stay paused — user presses Play manually
+                if (typeof player.pauseVideo === 'function') player.pauseVideo();
+              } catch { /* ignore */ }
+            }
           },
           onStateChange: (event: any) => {
             if (event.data === 0) { // ENDED
@@ -241,22 +260,48 @@ export default function YoutubeHub({ onAddYoutubeUrl, isActive = true }: Youtube
     }
   }, [currentVideoUrl, extractVideoId, createOrUpdatePlayer]);
 
-  // Pause when leaving YouTube tab; resume when returning
+  // Save full player session when leaving tab; restore when returning
   useEffect(() => {
     if (!playerRef.current) return;
-    if (isActive) {
-      // Tab became visible — do nothing, let user press play intentionally
-    } else {
-      // Tab hidden — pause video to stop background audio
+
+    if (!isActive) {
+      // ── Leaving YouTube tab ── snapshot everything and pause
       try {
-        if (typeof playerRef.current.pauseVideo === 'function') {
-          playerRef.current.pauseVideo();
+        const player = playerRef.current;
+        const videoId = currentVideoIdRef.current;
+        if (videoId && typeof player.getCurrentTime === 'function') {
+          const timestamp    = player.getCurrentTime() ?? 0;
+          const playbackRate = typeof player.getPlaybackRate === 'function' ? (player.getPlaybackRate() ?? 1) : 1;
+          const volume       = typeof player.getVolume       === 'function' ? (player.getVolume()       ?? 100) : 100;
+          const muted        = typeof player.isMuted         === 'function' ? (player.isMuted()         ?? false) : false;
+
+          savePlayerSession({ videoId, timestamp, playbackRate, volume, muted });
+        }
+        if (typeof player.pauseVideo === 'function') player.pauseVideo();
+      } catch { /* ignore */ }
+
+    } else {
+      // ── Returning to YouTube tab ── restore saved session without auto-playing
+      try {
+        const session = useYoutubeStore.getState().playerSession;
+        const player  = playerRef.current;
+        if (session && player) {
+          if (typeof player.seekTo          === 'function') player.seekTo(session.timestamp, true);
+          if (typeof player.setPlaybackRate === 'function') player.setPlaybackRate(session.playbackRate);
+          if (typeof player.setVolume       === 'function') player.setVolume(session.volume);
+          if (session.muted) {
+            if (typeof player.mute === 'function') player.mute();
+          } else {
+            if (typeof player.unMute === 'function') player.unMute();
+          }
+          // Keep paused — user presses Play manually
+          if (typeof player.pauseVideo === 'function') player.pauseVideo();
         }
       } catch { /* ignore */ }
     }
   }, [isActive]);
 
-  // Cleanup only on full unmount (never happens during tab switch now)
+  // Cleanup only on full unmount (application close — not tab switch)
   useEffect(() => {
     return () => {
       if (playerRef.current && typeof playerRef.current.destroy === 'function') {

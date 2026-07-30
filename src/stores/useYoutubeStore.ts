@@ -12,6 +12,15 @@ export interface YoutubeVideo {
   viewCount?: string;
 }
 
+// Snapshot of the YT.Player state captured when leaving the YouTube tab
+export interface PlayerSession {
+  videoId: string;
+  timestamp: number;       // seconds
+  playbackRate: number;    // 0.25 – 2
+  volume: number;          // 0–100
+  muted: boolean;
+}
+
 interface YoutubeState {
   sidebarView: 'search' | 'upnext';
   searchQuery: string;
@@ -33,6 +42,9 @@ interface YoutubeState {
   isTranscriptLoading: boolean;
   hasCaptions: boolean;
 
+  // Persisted player session (survives tab switches & page reloads)
+  playerSession: PlayerSession | null;
+
   setSearchQuery: (query: string) => void;
   setSearchResults: (results: YoutubeVideo[], nextPageToken?: string | null) => void;
   fetchNextSearchPage: () => Promise<void>;
@@ -52,6 +64,10 @@ interface YoutubeState {
   persistToStorage: () => void;
   restoreFromStorage: () => void;
   extractVideoId: (url: string) => string;
+
+  // Player session save/restore (called from YoutubeHub on isActive change)
+  savePlayerSession: (session: PlayerSession) => void;
+  clearPlayerSession: () => void;
 }
 
 const STORAGE_KEY = 'dazai_youtube_state';
@@ -76,6 +92,7 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
   transcript: '',
   isTranscriptLoading: false,
   hasCaptions: false,
+  playerSession: null,
 
   setSearchQuery: (query) => set({ searchQuery: query }),
   
@@ -129,9 +146,7 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
     if (!videoId) return;
 
     set((state) => {
-      // Add to watch history, keeping only the last 20
       const history = [...state.watchHistory.filter(id => id !== videoId), videoId].slice(-20);
-      
       return { 
         currentVideoUrl: url,
         watchHistory: history,
@@ -142,6 +157,8 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
         transcript: '',
         isTranscriptLoading: true,
         hasCaptions: false,
+        // Clear saved session when user picks a new video
+        playerSession: null,
       };
     });
     
@@ -151,7 +168,6 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
   },
 
   showSearchSidebar: () => {
-    // Only switch the sidebar view. NEVER touch the player or currentVideoUrl.
     set({ sidebarView: 'search' });
     get().persistToStorage();
   },
@@ -164,13 +180,11 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
 
     const processAndSetRecommendations = (items: YoutubeVideo[], newPageToken?: string) => {
       set((state) => {
-        // 1. Remove watched videos and the currently playing video
         let nextVideos = items.filter(v => {
           const id = v.videoId || get().extractVideoId(v.url);
           return id !== videoId && !state.watchHistory.includes(id);
         });
 
-        // 2. Strict deduplication across the ENTIRE existing queue (by ID and by title)
         const existingIds = new Set(state.upNextQueue.map(v => get().extractVideoId(v.url)));
         const existingTitles = new Set(state.upNextQueue.map(v => v.title.toLowerCase()));
 
@@ -187,7 +201,6 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
           return true;
         });
 
-        // 3. Diversity enforcement: max 1 per artist across the ENTIRE queue
         const existingArtists = new Set<string>();
         state.upNextQueue.forEach(v => {
           existingArtists.add((v.author?.name || '').toLowerCase());
@@ -197,15 +210,11 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
 
         for (const v of nextVideos) {
           const artist = (v.author?.name || 'unknown').toLowerCase();
-
-          // Hard rule: if this artist is already in the queue OR already accepted, skip
           if (existingArtists.has(artist)) continue;
-
           existingArtists.add(artist);
           accepted.push(v);
         }
 
-        // 4. Interleave: ensure no two consecutive videos share the same artist
         const interleaved: YoutubeVideo[] = [];
         const remaining = [...accepted];
         let lastArtist = '';
@@ -213,7 +222,6 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
         while (remaining.length > 0) {
           const idx = remaining.findIndex(v => (v.author?.name || '').toLowerCase() !== lastArtist);
           if (idx === -1) {
-            // Can't avoid consecutive — just push what's left
             interleaved.push(...remaining);
             break;
           }
@@ -226,7 +234,6 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
           ? [...state.upNextQueue, ...interleaved]
           : [...interleaved];
 
-        // Emergency fallback: if the queue is completely empty after all filtering
         if (!isNextPage && finalQueue.length === 0 && items.length > 0) {
           const fallback = items
             .filter(v => (v.videoId || get().extractVideoId(v.url)) !== videoId)
@@ -245,7 +252,6 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
       get().persistToStorage();
     };
 
-    // 1. Check cache first (only for first page)
     if (!isNextPage && recommendationCache[videoId]) {
       processAndSetRecommendations(recommendationCache[videoId], undefined);
       return;
@@ -264,19 +270,16 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
       
       let itemsToProcess: YoutubeVideo[] = data.items || [];
 
-      // 2. Fallback to search results if endpoint returns nothing and it's the first page
       if (!isNextPage && itemsToProcess.length === 0) {
         itemsToProcess = searchResults.filter(v => v.type === 'video');
       }
 
-      // 3. Last resort fallback: Generic search query related to previous search
       if (!isNextPage && itemsToProcess.length === 0) {
          const fallbackRes = await fetch(`/api/youtube/search?q=${encodeURIComponent(searchQuery || 'study motivation')}`);
          const fallbackData = await fallbackRes.json();
          itemsToProcess = fallbackData.items || [];
       }
 
-      // Update cache only if it's the first page
       if (!isNextPage) {
         set((state) => ({
           recommendationCache: {
@@ -288,38 +291,32 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
 
       processAndSetRecommendations(itemsToProcess, data.nextPageToken);
 
-      // Print strict diagnostic logs for verification
       if (!isNextPage && data._debug) {
         const d = data._debug;
-        
         let logStr = `\n==========================\nCURRENT VIDEO\n==========================\n`;
         logStr += `Title: ${d.currentVideo.title}\n`;
         logStr += `Channel: ${d.currentVideo.channel}\n`;
         logStr += `Category: ${d.currentVideo.category}\n`;
         logStr += `Tags: ${(d.currentVideo.tags || []).join(', ')}\n\n`;
-
         logStr += `==========================\nGENERATED SEARCH QUERIES\n==========================\n`;
         d.searchQueries.forEach((q: string, i: number) => {
           logStr += `Query ${i + 1}: ${q}\n`;
         });
         logStr += `\n`;
-
         logStr += `==========================\nYOUTUBE API RESPONSE\n==========================\n`;
         logStr += `First 10 returned channels\n\n`;
         d.rawResponses.forEach((r: any, i: number) => {
           logStr += `${i + 1}.\nTitle: ${r.title}\nChannel: ${r.channel}\n\n`;
         });
-
         logStr += `==========================\nFINAL UP NEXT\n==========================\n`;
         get().upNextQueue.slice(0, 15).forEach((v) => {
           logStr += `${v.title}\n${v.author?.name}\n\n`;
         });
-
         console.log(logStr);
       }
 
     } catch (err) {
-      // ignore silently, upNext remains what it was
+      // ignore silently
     } finally {
       set({ isFetchingUpNext: false });
     }
@@ -344,14 +341,11 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
 
   playNext: () => {
     const state = get();
-    
-    // Autoplay ONLY uses the Up Next queue now
     if (state.upNextQueue.length > 0) {
       const nextVideo = state.upNextQueue[0];
       get().selectVideo(nextVideo.url);
       return true;
     }
-
     return false;
   },
 
@@ -364,7 +358,8 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
       currentVideoUrl: '',
       upNextQueue: [],
       upNextNextPageToken: null,
-      sidebarView: 'search'
+      sidebarView: 'search',
+      playerSession: null,
     });
     get().persistToStorage();
   },
@@ -378,6 +373,18 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
     }
   },
 
+  // ── Player session ──────────────────────────────────────────────────
+  savePlayerSession: (session) => {
+    set({ playerSession: session });
+    get().persistToStorage();
+  },
+
+  clearPlayerSession: () => {
+    set({ playerSession: null });
+    get().persistToStorage();
+  },
+
+  // ── Persistence ─────────────────────────────────────────────────────
   persistToStorage: () => {
     if (typeof window === 'undefined') return;
     const state = get();
@@ -392,6 +399,7 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
       currentVideoUrl: state.currentVideoUrl,
       playlistTitle: state.playlistTitle,
       autoplay: state.autoplay,
+      playerSession: state.playerSession,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -409,12 +417,13 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
         searchQuery: data.searchQuery || '',
         searchResults: data.searchResults || [],
         searchNextPageToken: data.searchNextPageToken || null,
-        upNextQueue: [],
-        upNextNextPageToken: null,
+        upNextQueue: data.upNextQueue || [],
+        upNextNextPageToken: data.upNextNextPageToken || null,
         watchHistory: data.watchHistory || [],
-        currentVideoUrl: '',
+        currentVideoUrl: data.currentVideoUrl || '',
         playlistTitle: data.playlistTitle || '',
         autoplay: data.autoplay ?? true,
+        playerSession: data.playerSession || null,
       });
     } catch { /* corrupt data — ignore */ }
   },
