@@ -59,6 +59,9 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      nodeIntegrationInWorker: false,
+      nodeIntegrationInSubFrames: false,
+      sandbox: false,
       webviewTag: true, // Enable guest content loading for YouTube and AI apps
     },
     icon: path.join(__dirname, '..', 'public', 'icon.png'),
@@ -216,9 +219,23 @@ const getStorageDir = () => {
   return dir;
 };
 
+// Security helper: Validate key strings to prevent directory traversal
+function isValidStorageKey(key) {
+  return typeof key === 'string' && key.length > 0 && key.length < 256 && /^[a-zA-Z0-9_\-.]+$/.test(key);
+}
+
 ipcMain.handle('save-storage-file', (event, key, data) => {
+  if (!isValidStorageKey(key)) {
+    console.error(`[IPC Security] Invalid storage key rejected: ${key}`);
+    return false;
+  }
   try {
-    const filePath = path.join(getStorageDir(), `${key}.json`);
+    const storageFolder = getStorageDir();
+    const filePath = path.join(storageFolder, `${key}.json`);
+    if (!filePath.startsWith(storageFolder)) {
+      console.error(`[IPC Security] Path traversal blocked for key: ${key}`);
+      return false;
+    }
     fs.writeFileSync(filePath, typeof data === 'string' ? data : JSON.stringify(data), 'utf-8');
     return true;
   } catch (err) {
@@ -228,8 +245,17 @@ ipcMain.handle('save-storage-file', (event, key, data) => {
 });
 
 ipcMain.handle('get-storage-file', (event, key) => {
+  if (!isValidStorageKey(key)) {
+    console.error(`[IPC Security] Invalid storage key rejected: ${key}`);
+    return null;
+  }
   try {
-    const filePath = path.join(getStorageDir(), `${key}.json`);
+    const storageFolder = getStorageDir();
+    const filePath = path.join(storageFolder, `${key}.json`);
+    if (!filePath.startsWith(storageFolder)) {
+      console.error(`[IPC Security] Path traversal blocked for key: ${key}`);
+      return null;
+    }
     if (fs.existsSync(filePath)) {
       return fs.readFileSync(filePath, 'utf-8');
     }
@@ -241,8 +267,17 @@ ipcMain.handle('get-storage-file', (event, key) => {
 });
 
 ipcMain.handle('remove-storage-file', (event, key) => {
+  if (!isValidStorageKey(key)) {
+    console.error(`[IPC Security] Invalid storage key rejected: ${key}`);
+    return false;
+  }
   try {
-    const filePath = path.join(getStorageDir(), `${key}.json`);
+    const storageFolder = getStorageDir();
+    const filePath = path.join(storageFolder, `${key}.json`);
+    if (!filePath.startsWith(storageFolder)) {
+      console.error(`[IPC Security] Path traversal blocked for key: ${key}`);
+      return false;
+    }
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
@@ -256,12 +291,12 @@ ipcMain.handle('remove-storage-file', (event, key) => {
 // Native File System Support (Open, Save, Save As, Export)
 ipcMain.handle('show-open-dialog', async (event, options = {}) => {
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: options.title || 'Open Chaos Unfolded Project',
-    filters: options.filters || [
+    title: typeof options.title === 'string' ? options.title : 'Open Chaos Unfolded Project',
+    filters: Array.isArray(options.filters) ? options.filters : [
       { name: 'Chaos Unfolded Project', extensions: ['dazai', 'json'] },
       { name: 'All Files', extensions: ['*'] }
     ],
-    properties: options.properties || ['openFile'],
+    properties: Array.isArray(options.properties) ? options.properties : ['openFile'],
   });
   if (result.canceled || result.filePaths.length === 0) {
     return { canceled: true, filePath: null, content: null };
@@ -273,9 +308,9 @@ ipcMain.handle('show-open-dialog', async (event, options = {}) => {
 
 ipcMain.handle('show-save-dialog', async (event, options = {}) => {
   const result = await dialog.showSaveDialog(mainWindow, {
-    title: options.title || 'Save File',
-    defaultPath: options.defaultPath || 'Project.dazai',
-    filters: options.filters || [
+    title: typeof options.title === 'string' ? options.title : 'Save File',
+    defaultPath: typeof options.defaultPath === 'string' ? options.defaultPath : 'Project.dazai',
+    filters: Array.isArray(options.filters) ? options.filters : [
       { name: 'Chaos Unfolded Project', extensions: ['dazai', 'json'] }
     ],
   });
@@ -286,6 +321,15 @@ ipcMain.handle('show-save-dialog', async (event, options = {}) => {
 });
 
 ipcMain.handle('write-file-data', async (event, filePath, data, encoding = 'utf-8') => {
+  if (typeof filePath !== 'string' || !filePath || typeof data === 'undefined') {
+    console.error('[IPC Security] Invalid write-file-data parameters');
+    return false;
+  }
+  const allowedEncodings = ['utf-8', 'base64', 'binary'];
+  if (!allowedEncodings.includes(encoding)) {
+    console.error(`[IPC Security] Invalid encoding rejected: ${encoding}`);
+    return false;
+  }
   try {
     if (encoding === 'base64') {
       const base64Data = data.replace(/^data:[^;]+;base64,/, '');
