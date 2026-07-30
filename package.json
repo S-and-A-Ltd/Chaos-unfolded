@@ -1,6 +1,8 @@
 {
   "name": "dazai-study-companion",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "Chaos Unfolded - AI Desktop Study Companion",
+  "author": "S-and-A-Ltd",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -15,7 +17,8 @@
   },
   "build": {
     "appId": "com.dazai.studycompanion",
-    "productName": "Dazai Study Companion",
+    "productName": "Chaos Unfolded",
+    "copyright": "Copyright © 2026 S-and-A-Ltd",
     "directories": {
       "output": "dist-electron"
     },
@@ -26,7 +29,24 @@
       "package.json"
     ],
     "win": {
-      "target": ["nsis", "dir"]
+      "icon": "public/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Chaos Unfolded"
     }
   },
   "dependencies": {
