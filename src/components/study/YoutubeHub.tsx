@@ -196,6 +196,8 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
           autoplay: 1,
           rel: 0,
           modestbranding: 1,
+          enablejsapi: 1,
+          origin: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
         },
         events: {
           onReady: (event: any) => {
