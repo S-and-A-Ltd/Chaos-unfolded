@@ -96,6 +96,8 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
   const isProcessing = useYoutubeStore((s) => s.isProcessing);
   const autoplay = useYoutubeStore((s) => s.autoplay);
   const searchNextPageToken = useYoutubeStore((s) => s.searchNextPageToken);
+  const hasCaptions = useYoutubeStore((s) => s.hasCaptions);
+  const isTranscriptLoading = useYoutubeStore((s) => s.isTranscriptLoading);
 
   const setSearchQuery = useYoutubeStore((s) => s.setSearchQuery);
   const setSearchResults = useYoutubeStore((s) => s.setSearchResults);
@@ -532,25 +534,35 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
           />
           {/* Generate Notes Button */}
           <Button
-            variant="primary"
-            isLoading={isProcessing}
+            variant={hasCaptions ? 'primary' : 'secondary'}
+            isLoading={isProcessing || isTranscriptLoading}
+            disabled={!hasCaptions || isTranscriptLoading || isProcessing}
             onClick={async () => {
               if (!currentVideoUrl) return;
+              if (!hasCaptions) {
+                setMessage('Transcript unavailable for this video.');
+                setTimeout(() => setMessage(''), 4000);
+                return;
+              }
               setIsProcessing(true);
               try {
                 await onAddYoutubeUrl(currentVideoUrl);
                 setMessage('Video imported successfully! Switching to Study Hub...');
-              } catch {
-                setMessage('Failed to import video.');
+              } catch (err: any) {
+                setMessage(err?.message || 'Transcript unavailable for this video.');
               } finally {
                 setIsProcessing(false);
-                setTimeout(() => setMessage(''), 3000);
+                setTimeout(() => setMessage(''), 4000);
               }
             }}
             className="w-full max-w-sm mx-auto py-2 shadow-[0_4px_0_#7c6a75]"
           >
             <span className="mr-2">✨</span>
-            Generate AI Notes & Quiz
+            {isTranscriptLoading
+              ? 'Extracting Captions...'
+              : !hasCaptions
+              ? 'Transcript unavailable for this video.'
+              : 'Generate AI Notes & Quiz'}
           </Button>
         </div>
       </div>

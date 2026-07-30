@@ -1,7 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseDocument } from '@/lib/rag/document-parser';
 import { AILearningEngine } from '@/lib/ai/learning-engine';
-import { YoutubeTranscript } from 'youtube-transcript';
+import { Innertube } from 'youtubei.js';
+
+let _yt: Innertube | null = null;
+async function getYT(): Promise<Innertube> {
+  if (!_yt) {
+    _yt = await Innertube.create({ lang: 'en', location: 'US' });
+  }
+  return _yt;
+}
+
+function extractVideoId(url: string): string {
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.hostname.includes('youtube.com')) {
+      return parsedUrl.searchParams.get('v') || '';
+    } else if (parsedUrl.hostname.includes('youtu.be')) {
+      return parsedUrl.pathname.slice(1);
+    }
+  } catch {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    if (match && match[2].length === 11) {
+      return match[2];
+    }
+  }
+  return '';
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,13 +46,35 @@ export async function POST(req: NextRequest) {
     let parsedText = '';
 
     if (url) {
-      try {
-        const transcript = await YoutubeTranscript.fetchTranscript(url);
-        parsedText = transcript.map(t => t.text).join(' ');
-      } catch (ytError: any) {
-        console.error('YouTube transcript parsing failed:', ytError);
+      const videoId = extractVideoId(url);
+      if (!videoId) {
         return NextResponse.json(
-          { error: 'Failed to extract captions from this YouTube video. The video might not have captions enabled or is restricted.' },
+          { error: 'Transcript unavailable for this video.' },
+          { status: 400 }
+        );
+      }
+
+      try {
+        const yt = await getYT();
+        const info = await yt.getInfo(videoId);
+        const transcript = await info.getTranscript();
+        const segments = transcript?.transcript?.content?.body?.initial_segments;
+        if (segments && Array.isArray(segments) && segments.length > 0) {
+          parsedText = segments
+            .map((seg: any) => seg?.snippet?.text || '')
+            .filter(Boolean)
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        }
+      } catch (ytError: any) {
+        console.error('YouTube transcript extraction failed:', ytError);
+        _yt = null;
+      }
+
+      if (!parsedText) {
+        return NextResponse.json(
+          { error: 'Transcript unavailable for this video.' },
           { status: 400 }
         );
       }
@@ -55,15 +103,13 @@ export async function POST(req: NextRequest) {
         });
       } catch (analysisError) {
         console.error('Study material analysis failed:', analysisError);
-        // Fallback: return parsed text even if analysis fails
         return NextResponse.json({
           text: parsedText,
-          error: 'AI analysis failed, but text was successfully extracted.',
+          error: 'AI analysis failed, but transcript text was successfully extracted.',
         });
       }
     }
 
-    // No API key provided, just return extracted text
     return NextResponse.json({
       text: parsedText,
       error: 'API Key not configured. AI Analysis skipped.',

@@ -336,7 +336,8 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        throw new Error('Video transcript extraction or analysis failed');
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Transcript unavailable for this video.');
       }
 
       const data = await res.json();
@@ -346,7 +347,7 @@ export default function Home() {
         name: `YouTube Video: ${videoId}`,
         type: 'youtube',
         uploadedAt: Date.now(),
-        extractedText: data.text || `YouTube Video URL: ${url}\nVideo ID: ${videoId}`,
+        extractedText: data.text,
         topics: data.aiData?.quiz?.mcq?.map((q: any) => q.topic).filter(Boolean) || ['Video', 'YouTube'],
         summary: data.aiData?.summary || 'Linked YouTube Video',
         isProcessed: true,
@@ -359,26 +360,12 @@ export default function Home() {
 
       setEmotion('happy');
       setDialogue(`Finished watching! I've analyzed its details, so you can test yourself on it now~`);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      
-      const newDoc: StudyDocument = {
-        id: `yt_${Date.now()}`,
-        name: `YouTube Video: ${videoId}`,
-        type: 'youtube',
-        uploadedAt: Date.now(),
-        extractedText: `YouTube Video URL: ${url}\nVideo ID: ${videoId}\n\nStudy concepts related to this topic.`,
-        topics: ['Video'],
-        summary: 'Linked YouTube Video Link',
-        isProcessed: true,
-      };
-
-      const updatedDocs = [...documents, newDoc];
-      saveDocuments(updatedDocs);
-      setSelectedDocId(newDoc.id);
-
+      const errMsg = err?.message || 'Transcript unavailable for this video.';
       setEmotion('concerned');
-      setDialogue("I couldn't process the video details (it might lack captions), but I've linked the URL anyway.");
+      setDialogue(errMsg);
+      throw new Error(errMsg);
     }
   };
 
