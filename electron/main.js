@@ -1,13 +1,25 @@
 const { app, BrowserWindow, ipcMain, powerMonitor, powerSaveBlocker, Menu, nativeTheme, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { fork, exec } = require('child_process');
+const { spawn, exec } = require('child_process');
 const http = require('http');
 
 let mainWindow;
 let powerSaveId = null;
 let isFocusLocked = false;
-let nextServerProcess = null;
+let serverProcess = null;
+
+function logStartup(step, message, extra = '') {
+  const time = new Date().toISOString();
+  const line = `[${time}] [${step}] ${message}${extra ? ' | ' + extra : ''}`;
+  console.log(line);
+  try {
+    const logPath = path.join(app.getPath('userData'), 'startup.log');
+    fs.appendFileSync(logPath, line + '\n', 'utf-8');
+  } catch (err) {
+    console.error('Failed to append to startup.log:', err);
+  }
+}
 
 function getAppRoot() {
   if (app.isPackaged) {
@@ -18,95 +30,6 @@ function getAppRoot() {
     return path.join(process.resourcesPath, 'app.asar');
   }
   return path.join(__dirname, '..');
-}
-
-function checkPortActive(port = 3000) {
-  return new Promise((resolve) => {
-    const req = http.get(`http://localhost:${port}`, (res) => {
-      resolve(true);
-    });
-    req.on('error', () => {
-      resolve(false);
-    });
-    req.end();
-  });
-}
-
-function waitForPortReady(port = 3000, timeout = 25000) {
-  const startTime = Date.now();
-  return new Promise((resolve) => {
-    function poll() {
-      http.get(`http://localhost:${port}`, (res) => {
-        resolve(true);
-      }).on('error', () => {
-        if (Date.now() - startTime > timeout) {
-          resolve(false);
-        } else {
-          setTimeout(poll, 300);
-        }
-      });
-    }
-    poll();
-  });
-}
-
-async function startLocalNextServer() {
-  const isPort3000Active = await checkPortActive(3000);
-  if (isPort3000Active) {
-    console.log('[Electron Main] Connected to existing Next.js server on port 3000');
-    return 'http://localhost:3000';
-  }
-
-  console.log('[Electron Main] Launching local Next.js server for standalone desktop application...');
-
-  const appRoot = getAppRoot();
-  const standaloneServer = path.join(appRoot, '.next', 'standalone', 'server.js');
-  const standaloneDir = path.join(appRoot, '.next', 'standalone');
-
-  const logDir = app.getPath('userData');
-  const logFile = path.join(logDir, 'server.log');
-  let outStream;
-  try {
-    outStream = fs.openSync(logFile, 'a');
-  } catch {
-    outStream = 'ignore';
-  }
-
-  console.log('[Electron Main] Target standalone server:', standaloneServer);
-
-  if (fs.existsSync(standaloneServer)) {
-    console.log('[Electron Main] Launching standalone server with ELECTRON_RUN_AS_NODE...');
-    nextServerProcess = fork(standaloneServer, [], {
-      cwd: standaloneDir,
-      env: {
-        ...process.env,
-        ELECTRON_RUN_AS_NODE: '1',
-        PORT: '3000',
-        NODE_ENV: 'production',
-        HOSTNAME: '127.0.0.1'
-      },
-      stdio: typeof outStream === 'number' ? ['ignore', outStream, outStream] : 'ignore'
-    });
-  } else {
-    const nextCli = path.join(appRoot, 'node_modules', 'next', 'dist', 'bin', 'next');
-    if (fs.existsSync(nextCli)) {
-      console.log('[Electron Main] Launching Next.js CLI start fallback...');
-      nextServerProcess = fork(nextCli, ['start', '-p', '3000'], {
-        cwd: appRoot,
-        env: {
-          ...process.env,
-          ELECTRON_RUN_AS_NODE: '1',
-          PORT: '3000',
-          NODE_ENV: 'production',
-          HOSTNAME: '127.0.0.1'
-        },
-        stdio: typeof outStream === 'number' ? ['ignore', outStream, outStream] : 'ignore'
-      });
-    }
-  }
-
-  await waitForPortReady(3000, 25000);
-  return 'http://localhost:3000';
 }
 
 function getWindowStatePath() {
@@ -132,11 +55,8 @@ function saveWindowState(window) {
   }
 }
 
-async function createWindow() {
-  // Force Dark Theme
+function createMainWindow(urlToLoad) {
   nativeTheme.themeSource = 'dark';
-
-  // Disable unnecessary default browser top menus
   Menu.setApplicationMenu(null);
 
   const state = loadWindowState();
@@ -164,35 +84,26 @@ async function createWindow() {
       nodeIntegrationInWorker: false,
       nodeIntegrationInSubFrames: false,
       sandbox: false,
-      webviewTag: true, // Enable guest content loading for YouTube and AI apps
+      webviewTag: true,
     },
     icon: path.join(__dirname, '..', 'public', 'icon.png'),
   });
 
-  // Remember window position and size
   const saveState = () => saveWindowState(mainWindow);
   mainWindow.on('resize', saveState);
   mainWindow.on('move', saveState);
 
-  // Auto-retry loading URL if local server is still initializing
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-    console.warn('[Electron Main] URL load delayed, retrying in 1s...', errorCode, errorDescription);
-    setTimeout(() => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.loadURL('http://localhost:3000');
-      }
-    }, 1000);
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    logStartup('STEP 8', `BrowserWindow did-fail-load error! ErrorCode: ${errorCode}, ErrorDescription: "${errorDescription}", ValidatedURL: "${validatedURL}", IsMainFrame: ${isMainFrame}`);
   });
 
-  // Start local Next.js server if not active, then load URL
-  const serverUrl = await startLocalNextServer();
-  const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
-  if (isDev) {
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
-  }
-  mainWindow.loadURL(serverUrl);
+  mainWindow.webContents.on('did-finish-load', () => {
+    logStartup('STEP 8', `BrowserWindow did-finish-load SUCCESS! Loaded URL: "${mainWindow.webContents.getURL()}"`);
+  });
 
-  // Prevent accidental navigation outside the application
+  logStartup('STEP 7', `Loading URL into BrowserWindow: ${urlToLoad}`);
+  mainWindow.loadURL(urlToLoad);
+
   mainWindow.webContents.on('will-navigate', (event, url) => {
     const isInternal = url.startsWith('http://localhost:3000') || url.startsWith('http://127.0.0.1:3000');
     if (!isInternal) {
@@ -482,20 +393,132 @@ ipcMain.handle('close-window', () => {
 });
 
 // App lifecycle
-app.whenReady().then(() => {
-  createWindow();
+app.whenReady().then(async () => {
+  try {
+    const logPath = path.join(app.getPath('userData'), 'startup.log');
+    fs.writeFileSync(logPath, `=== CHAOS UNFOLDED STARTUP LOG ===\nLog Location: ${logPath}\n\n`, 'utf-8');
+  } catch {}
+
+  // STEP 1
+  logStartup('STEP 1', 'Electron main process started.');
+
+  // STEP 2: Dev vs production
+  const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
+  logStartup('STEP 2', `Mode: ${isDev ? 'DEVELOPMENT' : 'PRODUCTION'} (app.isPackaged=${app.isPackaged}, NODE_ENV=${process.env.NODE_ENV})`);
+
+  // ── DEVELOPMENT: npm run dev is already running — open window directly ──────
+  if (isDev) {
+    logStartup('STEP 2 [DEV]', 'Development mode — skipping standalone server spawn. Loading http://localhost:3000 directly.');
+    createMainWindow('http://localhost:3000');
+    // Open DevTools automatically in development
+    if (mainWindow) {
+      mainWindow.webContents.openDevTools({ mode: 'detach' });
+    }
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createMainWindow('http://localhost:3000');
+    });
+    return;
+  }
+
+  // ── PRODUCTION: spawn standalone server then open window ────────────────────
+
+  // STEP 3: Resolve standalone server path
+  const appRoot = getAppRoot();
+  const serverPath = path.join(appRoot, '.next', 'standalone', 'server.js');
+  const standaloneDir = path.join(appRoot, '.next', 'standalone');
+  logStartup('STEP 3', `Standalone server path: ${serverPath}`);
+
+  // STEP 4: Verify server.js exists
+  const serverExists = fs.existsSync(serverPath);
+  logStartup('STEP 4', `server.js exists: ${serverExists}`);
+
+  // STEP 5: Spawn server
+  if (!serverExists) {
+    logStartup('STEP 5', 'ABORT: server.js not found. Cannot start application.');
+    createMainWindow('about:blank');
+    return;
+  }
+
+  logStartup('STEP 5', 'Spawning standalone server...');
+  let stderrAccumulated = '';
+
+  try {
+    serverProcess = spawn(process.execPath, [serverPath], {
+      cwd: standaloneDir,
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: '1',
+        PORT: '3000',
+        NODE_ENV: 'production',
+        HOSTNAME: '127.0.0.1'
+      },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    logStartup('STEP 5', `Server spawned. PID: ${serverProcess.pid}`);
+
+    serverProcess.stdout?.on('data', (chunk) => {
+      const text = chunk.toString().trim();
+      if (text) logStartup('STEP 5 [STDOUT]', text);
+    });
+
+    serverProcess.stderr?.on('data', (chunk) => {
+      const text = chunk.toString().trim();
+      if (text) {
+        stderrAccumulated += text + '\n';
+        logStartup('STEP 5 [STDERR]', text);
+      }
+    });
+
+    serverProcess.on('exit', (code, signal) => {
+      logStartup('STEP 5 [EXIT]', `Server exited. code=${code} signal=${signal}`);
+      if (stderrAccumulated) logStartup('STEP 5 [STDERR FULL]', stderrAccumulated.trim());
+    });
+  } catch (err) {
+    logStartup('STEP 5 [SPAWN ERROR]', err.stack || String(err));
+  }
+
+  // STEP 6: Poll localhost:3000 every second
+  logStartup('STEP 6', 'Polling http://127.0.0.1:3000...');
+  let httpOk = false;
+  let attempts = 0;
+  const maxAttempts = 30;
+
+  while (attempts < maxAttempts && !httpOk) {
+    attempts++;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => {
+      const req = http.get('http://127.0.0.1:3000', (res) => {
+        logStartup('STEP 6', `Attempt #${attempts}: HTTP ${res.statusCode}`);
+        if (res.statusCode >= 200 && res.statusCode < 400) httpOk = true;
+        resolve(true);
+      });
+      req.on('error', (err) => {
+        logStartup('STEP 6', `Attempt #${attempts}: ECONNREFUSED (${err.code})`);
+        resolve(false);
+      });
+      req.end();
+    });
+  }
+
+  // STEP 7: Open BrowserWindow only after server is ready
+  if (httpOk) {
+    logStartup('STEP 7', 'Server ready. Creating BrowserWindow → http://localhost:3000');
+    createMainWindow('http://localhost:3000');
+  } else {
+    logStartup('STEP 7', `TIMEOUT: server did not respond within ${maxAttempts}s`);
+    createMainWindow('about:blank');
+  }
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+    if (BrowserWindow.getAllWindows().length === 0) createMainWindow('http://localhost:3000');
   });
 });
 
 function killNextServerProcess() {
-  if (nextServerProcess) {
-    try { nextServerProcess.kill(); } catch {}
-    nextServerProcess = null;
+  if (serverProcess) {
+    try { serverProcess.kill(); } catch {}
+    serverProcess = null;
   }
 }
 
@@ -511,3 +534,4 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+

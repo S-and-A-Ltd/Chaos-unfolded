@@ -651,7 +651,7 @@ export default function Home() {
           <div className="w-full max-w-7xl mx-auto p-8 pb-32">
             <DashboardView />
           </div>
-        ) : (
+        ) : activeTab !== 'youtube' ? (
           <div className="w-full max-w-[1550px] mx-auto p-8 pb-32">
             <StudyHub 
               documents={documents} 
@@ -659,7 +659,7 @@ export default function Home() {
               onAddYoutubeUrl={handleAddYoutubeUrl}
             />
           </div>
-        )}
+        ) : null}
 
         {/* YoutubeHub stays mounted at all times so the player is never destroyed on tab switch.
             Visibility is controlled via CSS — hidden but not unmounted when on another tab. */}
