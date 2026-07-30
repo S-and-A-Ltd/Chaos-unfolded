@@ -28,15 +28,15 @@ export async function fetchRobustYoutubeTranscript(videoId: string): Promise<Tra
   let getInfoSuccess = false;
   let metadataError: any = null;
 
-  // 1. Verify getInfo() success
+  // 1. Fetch metadata using getBasicInfo (avoids /next CourseProgressView parser bug)
   try {
     const yt = await getYT();
-    info = await yt.getInfo(videoId);
+    info = await yt.getBasicInfo(videoId);
     getInfoSuccess = true;
-    console.log(`[YT TRANSCRIPT] getInfo(): SUCCESS - Title: "${info.basic_info?.title}"`);
+    console.log(`[YT TRANSCRIPT] getBasicInfo(): SUCCESS - Title: "${info.basic_info?.title}"`);
   } catch (err: any) {
     metadataError = err;
-    console.error(`[YT TRANSCRIPT] getInfo(): FAILED - Error:`, err?.stack || err?.message || err);
+    console.error(`[YT TRANSCRIPT] getBasicInfo(): FAILED - Error:`, err?.stack || err?.message || err);
     _yt = null; // Reset singleton on error
   }
 
