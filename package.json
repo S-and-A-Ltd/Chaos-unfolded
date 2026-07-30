@@ -7,13 +7,13 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node -e \"const fs = require('fs'); const path = require('path'); const copyDir = (src, dest) => { if (!fs.existsSync(src)) return; fs.mkdirSync(dest, { recursive: true }); for (const file of fs.readdirSync(src)) { const s = path.join(src, file); const d = path.join(dest, file); if (fs.statSync(s).isDirectory()) copyDir(s, d); else fs.copyFileSync(s, d); } }; copyDir('.next/static', '.next/standalone/.next/static'); copyDir('public', '.next/standalone/public');\"",
     "start": "next start",
     "lint": "eslint",
     "electron": "electron .",
     "dev:electron": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
-    "build:electron": "next build && electron-builder --dir",
-    "dist": "next build && electron-builder --win"
+    "build:electron": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder --win"
   },
   "build": {
     "appId": "com.dazai.studycompanion",

@@ -1,11 +1,79 @@
-const { app, BrowserWindow, ipcMain, powerMonitor, powerSaveBlocker, Menu, nativeTheme, shell, dialog } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const { exec } = require('child_process');
+const { fork, exec } = require('child_process');
+const http = require('http');
 
 let mainWindow;
 let powerSaveId = null;
 let isFocusLocked = false;
+let nextServerProcess = null;
+
+function checkPortActive(port = 3000) {
+  return new Promise((resolve) => {
+    const req = http.get(`http://localhost:${port}`, (res) => {
+      resolve(true);
+    });
+    req.on('error', () => {
+      resolve(false);
+    });
+    req.end();
+  });
+}
+
+function waitForPortReady(port = 3000, timeout = 20000) {
+  const startTime = Date.now();
+  return new Promise((resolve) => {
+    function poll() {
+      http.get(`http://localhost:${port}`, (res) => {
+        resolve(true);
+      }).on('error', () => {
+        if (Date.now() - startTime > timeout) {
+          resolve(false);
+        } else {
+          setTimeout(poll, 300);
+        }
+      });
+    }
+    poll();
+  });
+}
+
+async function startLocalNextServer() {
+  const isPort3000Active = await checkPortActive(3000);
+  if (isPort3000Active) {
+    console.log('[Electron Main] Connected to existing Next.js server on port 3000');
+    return 'http://localhost:3000';
+  }
+
+  console.log('[Electron Main] Launching local Next.js server for standalone desktop application...');
+
+  const appRoot = app.isPackaged
+    ? path.join(process.resourcesPath, 'app')
+    : path.join(__dirname, '..');
+
+  const standaloneServer = path.join(appRoot, '.next', 'standalone', 'server.js');
+  const standaloneDir = path.join(appRoot, '.next', 'standalone');
+
+  if (fs.existsSync(standaloneServer)) {
+    console.log('[Electron Main] Launching standalone server:', standaloneServer);
+    nextServerProcess = fork(standaloneServer, [], {
+      cwd: standaloneDir,
+      env: { ...process.env, PORT: '3000', NODE_ENV: 'production' },
+      stdio: 'ignore'
+    });
+  } else {
+    const nextCli = path.join(appRoot, 'node_modules', 'next', 'dist', 'bin', 'next');
+    if (fs.existsSync(nextCli)) {
+      console.log('[Electron Main] Launching Next.js CLI start fallback...');
+      nextServerProcess = fork(nextCli, ['start', '-p', '3000'], {
+        cwd: appRoot,
+        env: { ...process.env, PORT: '3000', NODE_ENV: 'production' },
+        stdio: 'ignore'
+      });
+    }
+  }
+
+  await waitForPortReady(3000, 20000);
+  return 'http://localhost:3000';
+}
 
 function getWindowStatePath() {
   return path.join(app.getPath('userData'), 'window-state.json');
@@ -30,7 +98,7 @@ function saveWindowState(window) {
   }
 }
 
-function createWindow() {
+async function createWindow() {
   // Force Dark Theme
   nativeTheme.themeSource = 'dark';
 
@@ -72,15 +140,13 @@ function createWindow() {
   mainWindow.on('resize', saveState);
   mainWindow.on('move', saveState);
 
-  // In development, load from Next.js dev server
-  const isDev = process.env.NODE_ENV !== 'production';
+  // Start local Next.js server if not active, then load URL
+  const serverUrl = await startLocalNextServer();
+  const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000');
     mainWindow.webContents.openDevTools({ mode: 'detach' });
-  } else {
-    // In production, load from the built Next.js server
-    mainWindow.loadURL('http://localhost:3000');
   }
+  mainWindow.loadURL(serverUrl);
 
   // Prevent accidental navigation outside the application
   mainWindow.webContents.on('will-navigate', (event, url) => {
@@ -382,7 +448,17 @@ app.whenReady().then(() => {
   });
 });
 
+function killNextServerProcess() {
+  if (nextServerProcess) {
+    try { nextServerProcess.kill(); } catch {}
+    nextServerProcess = null;
+  }
+}
+
+app.on('will-quit', killNextServerProcess);
+
 app.on('window-all-closed', () => {
+  killNextServerProcess();
   stopProcessKiller();
   if (powerSaveId !== null) {
     powerSaveBlocker.stop(powerSaveId);

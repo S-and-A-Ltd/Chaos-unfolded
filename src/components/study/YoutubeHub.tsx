@@ -193,15 +193,15 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
         width: '100%',
         height: '100%',
         playerVars: {
-          autoplay: 1,
+          autoplay: 0,
           rel: 0,
           modestbranding: 1,
           enablejsapi: 1,
           origin: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
         },
         events: {
-          onReady: (event: any) => {
-            event.target.playVideo();
+          onReady: () => {
+            // Do not force playVideo automatically on ready/mount/tab switch
           },
           onStateChange: (event: any) => {
             if (event.data === 0) { // ENDED
@@ -211,9 +211,9 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
                 if (advanced) {
                   const nextState = useYoutubeStore.getState();
                   const nextId = nextState.extractVideoId(nextState.currentVideoUrl);
-                  if (nextId && playerRef.current && typeof playerRef.current.loadVideoById === 'function') {
+                  if (nextId && playerRef.current && typeof playerRef.current.cueVideoById === 'function') {
                     currentVideoIdRef.current = nextId;
-                    playerRef.current.loadVideoById(nextId);
+                    playerRef.current.cueVideoById(nextId);
                   }
                 }
               }
@@ -228,7 +228,7 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
   useEffect(() => {
     if (!currentVideoUrl) {
       if (playerRef.current && typeof playerRef.current.destroy === 'function') {
-        try { playerRef.current.destroy(); } catch { /* ignore */ }
+        try { playerRef.current.pauseVideo(); playerRef.current.destroy(); } catch { /* ignore */ }
         playerRef.current = null;
         currentVideoIdRef.current = '';
       }
@@ -243,7 +243,15 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
   useEffect(() => {
     return () => {
       if (playerRef.current && typeof playerRef.current.destroy === 'function') {
-        try { playerRef.current.destroy(); } catch { /* ignore */ }
+        try { 
+          if (typeof playerRef.current.pauseVideo === 'function') {
+            playerRef.current.pauseVideo();
+          }
+          if (typeof playerRef.current.stopVideo === 'function') {
+            playerRef.current.stopVideo();
+          }
+          playerRef.current.destroy(); 
+        } catch { /* ignore */ }
         playerRef.current = null;
         currentVideoIdRef.current = '';
       }
