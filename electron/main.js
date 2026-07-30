@@ -1,3 +1,6 @@
+const { app, BrowserWindow, ipcMain, powerMonitor, powerSaveBlocker, Menu, nativeTheme, shell, dialog } = require('electron');
+const path = require('path');
+const fs = require('fs');
 const { fork, exec } = require('child_process');
 const http = require('http');
 
@@ -5,6 +8,17 @@ let mainWindow;
 let powerSaveId = null;
 let isFocusLocked = false;
 let nextServerProcess = null;
+
+function getAppRoot() {
+  if (app.isPackaged) {
+    const appDir = path.join(process.resourcesPath, 'app');
+    if (fs.existsSync(appDir)) return appDir;
+    const unpackedDir = path.join(process.resourcesPath, 'app.asar.unpacked');
+    if (fs.existsSync(unpackedDir)) return unpackedDir;
+    return path.join(process.resourcesPath, 'app.asar');
+  }
+  return path.join(__dirname, '..');
+}
 
 function checkPortActive(port = 3000) {
   return new Promise((resolve) => {
@@ -18,7 +32,7 @@ function checkPortActive(port = 3000) {
   });
 }
 
-function waitForPortReady(port = 3000, timeout = 20000) {
+function waitForPortReady(port = 3000, timeout = 25000) {
   const startTime = Date.now();
   return new Promise((resolve) => {
     function poll() {
@@ -45,19 +59,33 @@ async function startLocalNextServer() {
 
   console.log('[Electron Main] Launching local Next.js server for standalone desktop application...');
 
-  const appRoot = app.isPackaged
-    ? path.join(process.resourcesPath, 'app')
-    : path.join(__dirname, '..');
-
+  const appRoot = getAppRoot();
   const standaloneServer = path.join(appRoot, '.next', 'standalone', 'server.js');
   const standaloneDir = path.join(appRoot, '.next', 'standalone');
 
+  const logDir = app.getPath('userData');
+  const logFile = path.join(logDir, 'server.log');
+  let outStream;
+  try {
+    outStream = fs.openSync(logFile, 'a');
+  } catch {
+    outStream = 'ignore';
+  }
+
+  console.log('[Electron Main] Target standalone server:', standaloneServer);
+
   if (fs.existsSync(standaloneServer)) {
-    console.log('[Electron Main] Launching standalone server:', standaloneServer);
+    console.log('[Electron Main] Launching standalone server with ELECTRON_RUN_AS_NODE...');
     nextServerProcess = fork(standaloneServer, [], {
       cwd: standaloneDir,
-      env: { ...process.env, PORT: '3000', NODE_ENV: 'production' },
-      stdio: 'ignore'
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: '1',
+        PORT: '3000',
+        NODE_ENV: 'production',
+        HOSTNAME: '127.0.0.1'
+      },
+      stdio: typeof outStream === 'number' ? ['ignore', outStream, outStream] : 'ignore'
     });
   } else {
     const nextCli = path.join(appRoot, 'node_modules', 'next', 'dist', 'bin', 'next');
@@ -65,13 +93,19 @@ async function startLocalNextServer() {
       console.log('[Electron Main] Launching Next.js CLI start fallback...');
       nextServerProcess = fork(nextCli, ['start', '-p', '3000'], {
         cwd: appRoot,
-        env: { ...process.env, PORT: '3000', NODE_ENV: 'production' },
-        stdio: 'ignore'
+        env: {
+          ...process.env,
+          ELECTRON_RUN_AS_NODE: '1',
+          PORT: '3000',
+          NODE_ENV: 'production',
+          HOSTNAME: '127.0.0.1'
+        },
+        stdio: typeof outStream === 'number' ? ['ignore', outStream, outStream] : 'ignore'
       });
     }
   }
 
-  await waitForPortReady(3000, 20000);
+  await waitForPortReady(3000, 25000);
   return 'http://localhost:3000';
 }
 
@@ -139,6 +173,16 @@ async function createWindow() {
   const saveState = () => saveWindowState(mainWindow);
   mainWindow.on('resize', saveState);
   mainWindow.on('move', saveState);
+
+  // Auto-retry loading URL if local server is still initializing
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.warn('[Electron Main] URL load delayed, retrying in 1s...', errorCode, errorDescription);
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.loadURL('http://localhost:3000');
+      }
+    }, 1000);
+  });
 
   // Start local Next.js server if not active, then load URL
   const serverUrl = await startLocalNextServer();
