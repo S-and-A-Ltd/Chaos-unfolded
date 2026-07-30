@@ -256,15 +256,41 @@ function WhiteboardStage() {
             });
             
             pdf.addImage(dataURL, "JPEG", 0, 0, canvasWidth, canvasHeight);
-            pdf.save(`${fileName}.pdf`);
+
+            if ((window as any).electronAPI?.showSaveDialog) {
+              (window as any).electronAPI.showSaveDialog({
+                title: 'Export PDF Document',
+                defaultPath: `${fileName}.pdf`,
+                filters: [{ name: 'PDF Document', extensions: ['pdf'] }]
+              }).then((res: any) => {
+                if (!res.canceled && res.filePath) {
+                  const pdfData = pdf.output('arraybuffer');
+                  (window as any).electronAPI.writeFileData(res.filePath, pdfData, 'binary');
+                }
+              });
+            } else {
+              pdf.save(`${fileName}.pdf`);
+            }
           } catch (err) {
             console.error("PDF export failed:", err);
           }
         } else {
-          const link = document.createElement('a');
-          link.download = `${fileName}.png`;
-          link.href = dataURL;
-          link.click();
+          if ((window as any).electronAPI?.showSaveDialog) {
+            (window as any).electronAPI.showSaveDialog({
+              title: 'Export PNG Image',
+              defaultPath: `${fileName}.png`,
+              filters: [{ name: 'PNG Image', extensions: ['png'] }]
+            }).then((res: any) => {
+              if (!res.canceled && res.filePath) {
+                (window as any).electronAPI.writeFileData(res.filePath, dataURL, 'base64');
+              }
+            });
+          } else {
+            const link = document.createElement('a');
+            link.download = `${fileName}.png`;
+            link.href = dataURL;
+            link.click();
+          }
         }
 
         if (selectedId) {

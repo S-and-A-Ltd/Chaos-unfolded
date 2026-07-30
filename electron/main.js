@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, powerMonitor, powerSaveBlocker, Menu, nativeTheme, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, powerMonitor, powerSaveBlocker, Menu, nativeTheme, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
@@ -249,6 +249,57 @@ ipcMain.handle('remove-storage-file', (event, key) => {
     return true;
   } catch (err) {
     console.error(`[Desktop Storage] Failed to remove file ${key}:`, err);
+    return false;
+  }
+});
+
+// Native File System Support (Open, Save, Save As, Export)
+ipcMain.handle('show-open-dialog', async (event, options = {}) => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: options.title || 'Open Chaos Unfolded Project',
+    filters: options.filters || [
+      { name: 'Chaos Unfolded Project', extensions: ['dazai', 'json'] },
+      { name: 'All Files', extensions: ['*'] }
+    ],
+    properties: options.properties || ['openFile'],
+  });
+  if (result.canceled || result.filePaths.length === 0) {
+    return { canceled: true, filePath: null, content: null };
+  }
+  const filePath = result.filePaths[0];
+  const content = fs.readFileSync(filePath, 'utf-8');
+  return { canceled: false, filePath, content };
+});
+
+ipcMain.handle('show-save-dialog', async (event, options = {}) => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: options.title || 'Save File',
+    defaultPath: options.defaultPath || 'Project.dazai',
+    filters: options.filters || [
+      { name: 'Chaos Unfolded Project', extensions: ['dazai', 'json'] }
+    ],
+  });
+  if (result.canceled || !result.filePath) {
+    return { canceled: true, filePath: null };
+  }
+  return { canceled: false, filePath: result.filePath };
+});
+
+ipcMain.handle('write-file-data', async (event, filePath, data, encoding = 'utf-8') => {
+  try {
+    if (encoding === 'base64') {
+      const base64Data = data.replace(/^data:[^;]+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      fs.writeFileSync(filePath, buffer);
+    } else if (encoding === 'binary') {
+      const buffer = Buffer.from(data);
+      fs.writeFileSync(filePath, buffer);
+    } else {
+      fs.writeFileSync(filePath, typeof data === 'string' ? data : JSON.stringify(data, null, 2), 'utf-8');
+    }
+    return true;
+  } catch (err) {
+    console.error('[Native File System] Failed to write file:', err);
     return false;
   }
 });

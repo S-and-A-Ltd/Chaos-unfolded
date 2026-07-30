@@ -19,6 +19,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getStorageFile: (key) => ipcRenderer.invoke('get-storage-file', key),
   removeStorageFile: (key) => ipcRenderer.invoke('remove-storage-file', key),
 
+  // Native File System Support (Open, Save, Save As, Export)
+  showOpenDialog: (options) => ipcRenderer.invoke('show-open-dialog', options),
+  showSaveDialog: (options) => ipcRenderer.invoke('show-save-dialog', options),
+  writeFileData: (filePath, data, encoding) => ipcRenderer.invoke('write-file-data', filePath, data, encoding),
+
   // Focus events from main process
   onWindowBlur: (callback) => {
     ipcRenderer.on('window-blur', callback);

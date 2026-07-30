@@ -85,6 +85,61 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
     e.target.value = '';
   }, [addItem]);
 
+  const handleOpenProject = useCallback(async () => {
+    setActiveDropdown(null);
+    if ((window as any).electronAPI?.showOpenDialog) {
+      const res = await (window as any).electronAPI.showOpenDialog({
+        title: 'Open Chaos Unfolded Project',
+        filters: [{ name: 'Chaos Unfolded Project', extensions: ['dazai', 'json'] }]
+      });
+      if (!res.canceled && res.content) {
+        try {
+          const parsed = JSON.parse(res.content);
+          if (parsed.items && Array.isArray(parsed.items)) {
+            useCanvasStore.setState({
+              items: parsed.items,
+              pan: parsed.pan || { x: 0, y: 0 },
+              scale: parsed.scale || 1,
+            });
+          }
+        } catch (e) {
+          alert('Invalid project file format.');
+        }
+      }
+    }
+  }, [setActiveDropdown]);
+
+  const handleSaveProject = useCallback(async (saveAs = false) => {
+    setActiveDropdown(null);
+    const state = useCanvasStore.getState();
+    const projectData = JSON.stringify({
+      version: '1.0',
+      documentId: document.id,
+      canvases: state.canvases,
+      activeCanvasId: state.activeCanvasId,
+      items: state.items,
+      pan: state.pan,
+      scale: state.scale,
+    }, null, 2);
+
+    if ((window as any).electronAPI?.showSaveDialog) {
+      const res = await (window as any).electronAPI.showSaveDialog({
+        title: saveAs ? 'Save Project As...' : 'Save Project',
+        defaultPath: `${activeCanvas?.name || document.name || 'StudyProject'}.dazai`,
+        filters: [{ name: 'Chaos Unfolded Project', extensions: ['dazai', 'json'] }]
+      });
+      if (!res.canceled && res.filePath) {
+        await (window as any).electronAPI.writeFileData(res.filePath, projectData);
+      }
+    } else {
+      const blob = new Blob([projectData], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${activeCanvas?.name || document.name || 'StudyProject'}.dazai`;
+      link.click();
+    }
+  }, [setActiveDropdown, activeCanvas, document.name, document.id]);
+
   return (
     <div className="bg-[#7c6a75] dark:bg-[#342e48] text-white flex flex-col shadow-md z-30">
       <div className="px-5 py-2 border-b border-white/10 flex items-center gap-2">
@@ -247,18 +302,36 @@ function WhiteboardToolbar({ document, onClose }: WhiteboardToolbarProps) {
               <span>▾</span>
             </button>
             {activeDropdown === 'export' && (
-              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/40 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col min-w-[160px] text-gray-800 dark:text-gray-200 text-xs">
+              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-[#2b2b36] border-2 border-[#7c6a75]/40 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col min-w-[180px] text-gray-800 dark:text-gray-200 text-xs">
+                <button 
+                  onClick={handleOpenProject} 
+                  className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2"
+                >
+                  📂 Open Project...
+                </button>
+                <button 
+                  onClick={() => handleSaveProject(false)} 
+                  className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2"
+                >
+                  💾 Save Project
+                </button>
+                <button 
+                  onClick={() => handleSaveProject(true)} 
+                  className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2 border-b border-[#7c6a75]/10 dark:border-white/10 pb-2 mb-1"
+                >
+                  💾 Save As...
+                </button>
                 <button 
                   onClick={(e) => { setActiveDropdown(null); handleSave(e, 'png'); }} 
                   className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2"
                 >
-                  📸 Save as PNG
+                  📸 Export PNG
                 </button>
                 <button 
                   onClick={(e) => { setActiveDropdown(null); handleSave(e, 'pdf'); }} 
                   className="text-left font-bold px-3 py-2 hover:bg-[#7c6a75]/10 dark:hover:bg-white/10 rounded flex items-center gap-2"
                 >
-                  📄 Save as PDF
+                  📄 Export PDF
                 </button>
               </div>
             )}
