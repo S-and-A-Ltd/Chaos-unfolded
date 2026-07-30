@@ -8,7 +8,26 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "electron": "electron ."
+    "electron": "electron .",
+    "dev:electron": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "build:electron": "next build && electron-builder --dir",
+    "dist": "next build && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.dazai.studycompanion",
+    "productName": "Dazai Study Companion",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      ".next/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": ["nsis", "dir"]
+    }
   },
   "dependencies": {
     "@memfoldai/tiptap-search-and-replace": "^0.2.0",
@@ -62,11 +81,14 @@
     "@types/react-pdf": "^6.2.0",
     "@types/uuid": "^10.0.0",
     "@types/yt-search": "^2.10.3",
+    "concurrently": "^10.0.4",
     "electron": "^42.4.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "playwright": "^1.62.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wait-on": "^9.1.0"
   }
 }
