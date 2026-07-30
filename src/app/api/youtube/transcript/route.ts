@@ -15,13 +15,16 @@ export async function GET(req: NextRequest) {
     const result = await fetchRobustYoutubeTranscript(videoId);
 
     if (!result.hasCaptions) {
-      console.warn(`[API /api/youtube/transcript] Transcript unavailable for videoId=${videoId}. Error category: ${result.errorCategory}. Message: ${result.errorMessage}`);
+      console.warn(
+        `[API /api/youtube/transcript] Transcript unavailable for videoId=${videoId}. Category: ${result.errorCategory}. Reason: ${result.errorMessage}`
+      );
       return NextResponse.json({
         videoId,
         hasCaptions: false,
         transcriptText: 'Transcript unavailable.',
         errorCategory: result.errorCategory,
         errorMessage: result.errorMessage,
+        errorStack: result.errorStack,
         availableTracks: result.availableTracks || [],
       });
     }
@@ -37,7 +40,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         error: 'Internal server error while fetching transcript.',
-        details: error?.message || String(error),
+        errorMessage: error?.message || String(error),
+        errorStack: error?.stack || String(error),
       },
       { status: 500 }
     );
