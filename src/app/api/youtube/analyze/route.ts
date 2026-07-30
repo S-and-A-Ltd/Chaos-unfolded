@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Innertube } from 'youtubei.js';
 
+export const runtime = 'nodejs';
+
 // Reuse singleton from search route pattern
 let _yt: Innertube | null = null;
 async function getYT(): Promise<Innertube> {

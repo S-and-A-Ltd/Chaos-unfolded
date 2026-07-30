@@ -3,6 +3,8 @@ import { parseDocument } from '@/lib/rag/document-parser';
 import { AILearningEngine } from '@/lib/ai/learning-engine';
 import { fetchRobustYoutubeTranscript } from '@/lib/youtube/transcript';
 
+export const runtime = 'nodejs';
+
 function extractVideoId(url: string): string {
   try {
     const parsedUrl = new URL(url);

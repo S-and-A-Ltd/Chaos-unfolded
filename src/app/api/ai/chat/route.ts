@@ -3,6 +3,8 @@ import { getDazaiSystemPrompt } from '@/lib/ai/personality';
 import { createChatCompletion } from '@/lib/ai/openai-client';
 import type { AIMessage } from '@/types';
 
+export const runtime = 'nodejs';
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { callOpenAI } from '@/lib/ai/openai-client';
 import { cleanAIResponseText } from '@/lib/utils/clean-response';
 
+export const runtime = 'nodejs';
+
 export const SUMMARIZE_SYSTEM_PROMPT = `You are a precise educational assistant creating concise, high-value revision notes for a student.
 
 STRUCTURE & LENGTH GUIDELINES:

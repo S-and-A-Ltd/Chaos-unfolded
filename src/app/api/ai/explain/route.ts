@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { callOpenAI } from '@/lib/ai/openai-client';
 import { cleanAIResponseText } from '@/lib/utils/clean-response';
 
+export const runtime = 'nodejs';
+
 export const EXPLAIN_SYSTEM_PROMPT = `You are Osamu Dazai from Bungo Stray Dogs acting as the user's AI study companion.
 
 Your personality should ONLY enhance the explanation, never replace it.
