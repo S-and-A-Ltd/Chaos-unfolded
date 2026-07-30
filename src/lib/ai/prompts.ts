@@ -21,8 +21,8 @@ ${context.slice(0, 6000)}
 ## TOPICS TO FOCUS ON
 ${topics.length > 0 ? topics.join(', ') : 'All topics found in the material'}
 
-## DIFFICULTY LEVEL: ${difficulty.toUpperCase()}
-${difficultyGuide[difficulty]}
+## DIFFICULTY LEVEL: ${(difficulty || 'medium').toUpperCase()}
+${difficultyGuide[difficulty || 'medium'] || difficultyGuide['medium']}
 `;
 }
 
