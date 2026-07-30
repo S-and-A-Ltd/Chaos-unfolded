@@ -1,4 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Innertube } from 'youtubei.js';
+
+// Reuse singleton from search route pattern
+let _yt: Innertube | null = null;
+async function getYT(): Promise<Innertube> {
+  if (!_yt) {
+    _yt = await Innertube.create({ lang: 'en', location: 'US' });
+  }
+  return _yt;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,7 +27,7 @@ export async function POST(req: NextRequest) {
         videoId = parsedUrl.pathname.slice(1);
       }
     } catch (e) {
-      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
       const match = url.match(regExp);
       if (match && match[2].length === 11) {
         videoId = match[2];
@@ -28,56 +38,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid YouTube URL' }, { status: 400 });
     }
 
-    // Fetch the YouTube page HTML
-    const response = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-      },
-    });
+    const yt = await getYT();
+    const info = await yt.getInfo(videoId);
+    const basic = info.basic_info;
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch YouTube page');
-    }
-
-    const html = await response.text();
-
-    // Extract title using og:title
-    let title = '';
-    const titleMatch = html.match(/<meta property="og:title" content="([^"]+)">/);
-    if (titleMatch) {
-      title = titleMatch[1];
-    } else {
-      const titleTagMatch = html.match(/<title>([^<]+)<\/title>/);
-      title = titleTagMatch ? titleTagMatch[1].replace(' - YouTube', '') : `YouTube Video (${videoId})`;
-    }
-
-    // Extract description using og:description
-    let description = '';
-    const descMatch = html.match(/<meta property="og:description" content="([^"]+)">/);
-    if (descMatch) {
-      description = descMatch[1];
-    } else {
-      const descTagMatch = html.match(/<meta name="description" content="([^"]+)">/);
-      description = descTagMatch ? descTagMatch[1] : '';
-    }
-
-    // Decode HTML entities
-    const decodeHtml = (str: string) => {
-      return str
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&apos;/g, "'");
-    };
-
-    title = decodeHtml(title);
-    description = decodeHtml(description);
+    const title = basic.title || `YouTube Video (${videoId})`;
+    let description = basic.short_description || '';
 
     // If description is empty or too short, fall back
     if (!description) {
       description = `A study video titled "${title}".`;
+    }
+
+    // Check caption availability
+    let hasCaptions = false;
+    let transcriptText = '';
+    try {
+      const transcript = await info.getTranscript();
+      const segments = transcript?.transcript?.content?.body?.initial_segments;
+      if (segments && Array.isArray(segments) && segments.length > 0) {
+        hasCaptions = true;
+        transcriptText = segments
+          .map((seg: any) => seg?.snippet?.text || '')
+          .filter(Boolean)
+          .join(' ');
+      }
+    } catch {
+      // No captions available
     }
 
     return NextResponse.json({
@@ -85,9 +72,12 @@ export async function POST(req: NextRequest) {
       title,
       description,
       summary: `This is an educational study video titled "${title}". Description: ${description}`,
+      hasCaptions,
+      transcriptText: transcriptText || undefined,
     });
   } catch (error: any) {
     console.error('YouTube analysis error:', error);
+    _yt = null; // Reset singleton on error
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
