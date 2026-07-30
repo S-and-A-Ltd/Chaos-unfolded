@@ -68,6 +68,21 @@ export interface QuizResult {
   suggestions?: string[];
 }
 
+export interface QuizDistribution {
+  mcq: number;
+  short_answer: number;
+  concept_explanation: number;
+  recall: number;
+}
+
+export interface QuizConfig {
+  type: QuestionType | 'mixed';
+  count: number;
+  difficulty: 'easy' | 'medium' | 'hard' | 'adaptive';
+  mixedMode?: 'auto' | 'custom';
+  distribution?: QuizDistribution;
+}
+
 // --- Study Session Types ---
 
 export type TimerMode = 'pomodoro' | 'deep_work' | 'custom';
@@ -225,10 +240,10 @@ export interface Achievement {
 }
 
 export interface XPEvent {
-  type: 'correct_answer' | 'wrong_answer' | 'session_complete' | 'streak_bonus' | 'focus_bonus' | 'achievement';
+  type: 'correct_answer' | 'wrong_answer' | 'session_complete' | 'streak_bonus' | 'focus_bonus' | 'achievement' | 'quiz' | 'flashcard';
   amount: number;
   description: string;
-  timestamp: number;
+  timestamp?: number;
 }
 
 // --- Voice Types ---

@@ -31,10 +31,10 @@ export function cleanAIResponseText(raw: any): string {
     } catch {
       // Manual regex fallback if JSON.parse fails due to formatting/escapes
       const dialogueMatch =
-        text.match(/"dialogue"\s*:\s*"((?:[^"\\]|\\.)*)"/s) ||
-        text.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/s) ||
-        text.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/s) ||
-        text.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+        text.match(/"dialogue"\s*:\s*"((?:[^"\\]|\\.)*)"/) ||
+        text.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/) ||
+        text.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/) ||
+        text.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
       if (dialogueMatch && dialogueMatch[1]) {
         return dialogueMatch[1]
           .replace(/\\n/g, '\n')

@@ -98,9 +98,9 @@ export default function FlashcardGeneratorCard({
         }
 
         addXP({
-          type: 'quiz',
+          type: 'flashcard',
           amount: 15,
-          message: isRegeneration ? 'Flashcards Regenerated!' : 'Flashcards Generated!',
+          description: isRegeneration ? 'Flashcards Regenerated!' : 'Flashcards Generated!',
         });
 
         setEmotion('proud');

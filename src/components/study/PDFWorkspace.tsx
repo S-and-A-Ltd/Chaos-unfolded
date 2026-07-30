@@ -515,8 +515,8 @@ export default function PDFWorkspace({
           }
         } else if (annotTextLower.includes(strLower)) {
           const cleanStr = str.trim().toLowerCase();
-          const words = annotTextLower.split(/\s+/).map(w => w.replace(/[^a-z0-9]/g, ''));
-          const matchesWord = words.some(w => w === cleanStr || w.startsWith(cleanStr) || w.endsWith(cleanStr));
+          const words = annotTextLower.split(/\s+/).map((w: string) => w.replace(/[^a-z0-9]/g, ''));
+          const matchesWord = words.some((w: string) => w === cleanStr || w.startsWith(cleanStr) || w.endsWith(cleanStr));
           if (matchesWord || cleanStr.length > 2) {
             intervals.push({
               start: 0,

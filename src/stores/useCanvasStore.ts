@@ -822,6 +822,8 @@ export const useCanvasStore = create<CanvasStoreState>((set, get) => ({
       type: 'arrow',
       title: '➔ Connector Arrow',
       content: 'Connects to ➔',
+      x: 0,
+      y: 0,
       width: 100,
       height: 50,
       color: '#8b5cf6',

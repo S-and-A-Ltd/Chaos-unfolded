@@ -830,7 +830,7 @@ export default function PersonalNotesEditor({
       <AnimatePresence>
         {showCanvas && (
           <StudyCanvas
-            document={document || { id: documentId, name: documentName, uri: '', type: 'pdf', status: 'ready', uploadedAt: Date.now() }}
+            document={document || ({ id: documentId, name: documentName, type: 'pdf', status: 'ready', uploadedAt: Date.now() } as unknown as StudyDocument)}
             onClose={() => setShowCanvas(false)}
           />
         )}

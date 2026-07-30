@@ -449,7 +449,7 @@ function WhiteboardStage() {
               y={-5000}
               width={10000}
               height={10000}
-              fillPatternImage={gridPattern}
+              fillPatternImage={gridPattern as any}
               fillPatternRepeat="repeat"
               listening={false}
             />
