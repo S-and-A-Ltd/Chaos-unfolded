@@ -207,6 +207,52 @@ ipcMain.handle('get-idle-time', () => {
   return powerMonitor.getSystemIdleTime();
 });
 
+// Storage IPC Handlers for Application Data persistence in user's OS app data directory
+const getStorageDir = () => {
+  const dir = path.join(app.getPath('userData'), 'storage');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+};
+
+ipcMain.handle('save-storage-file', (event, key, data) => {
+  try {
+    const filePath = path.join(getStorageDir(), `${key}.json`);
+    fs.writeFileSync(filePath, typeof data === 'string' ? data : JSON.stringify(data), 'utf-8');
+    return true;
+  } catch (err) {
+    console.error(`[Desktop Storage] Failed to save file ${key}:`, err);
+    return false;
+  }
+});
+
+ipcMain.handle('get-storage-file', (event, key) => {
+  try {
+    const filePath = path.join(getStorageDir(), `${key}.json`);
+    if (fs.existsSync(filePath)) {
+      return fs.readFileSync(filePath, 'utf-8');
+    }
+    return null;
+  } catch (err) {
+    console.error(`[Desktop Storage] Failed to read file ${key}:`, err);
+    return null;
+  }
+});
+
+ipcMain.handle('remove-storage-file', (event, key) => {
+  try {
+    const filePath = path.join(getStorageDir(), `${key}.json`);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    return true;
+  } catch (err) {
+    console.error(`[Desktop Storage] Failed to remove file ${key}:`, err);
+    return false;
+  }
+});
+
 // Window controls (restricted during focus lock)
 ipcMain.handle('minimize-window', () => {
   if (!isFocusLocked) {

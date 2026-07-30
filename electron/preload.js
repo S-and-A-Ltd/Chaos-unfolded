@@ -14,6 +14,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // System info
   getIdleTime: () => ipcRenderer.invoke('get-idle-time'),
 
+  // Desktop Application Data Storage API
+  saveStorageFile: (key, data) => ipcRenderer.invoke('save-storage-file', key, data),
+  getStorageFile: (key) => ipcRenderer.invoke('get-storage-file', key),
+  removeStorageFile: (key) => ipcRenderer.invoke('remove-storage-file', key),
+
   // Focus events from main process
   onWindowBlur: (callback) => {
     ipcRenderer.on('window-blur', callback);
