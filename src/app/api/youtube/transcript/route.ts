@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Innertube } from 'youtubei.js';
+import { fetchRobustYoutubeTranscript } from '@/lib/youtube/transcript';
 
 export const runtime = 'nodejs';
-
-let _yt: Innertube | null = null;
-async function getYT(): Promise<Innertube> {
-  if (!_yt) {
-    _yt = await Innertube.create({ lang: 'en', location: 'US' });
-  }
-  return _yt;
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,42 +9,36 @@ export async function GET(req: NextRequest) {
     const videoId = searchParams.get('videoId');
 
     if (!videoId) {
-      return NextResponse.json({ error: 'videoId is required' }, { status: 400 });
+      return NextResponse.json({ error: 'videoId parameter is required.' }, { status: 400 });
     }
 
-    const yt = await getYT();
-    const info = await yt.getInfo(videoId);
+    const result = await fetchRobustYoutubeTranscript(videoId);
 
-    let transcriptText = '';
-    let hasCaptions = false;
-
-    try {
-      const transcript = await info.getTranscript();
-      const segments = transcript?.transcript?.content?.body?.initial_segments;
-
-      if (segments && Array.isArray(segments) && segments.length > 0) {
-        hasCaptions = true;
-        transcriptText = segments
-          .map((seg: any) => seg?.snippet?.text || '')
-          .filter(Boolean)
-          .join(' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-      }
-    } catch {
-      // No captions available for this video
+    if (!result.hasCaptions) {
+      console.warn(`[API /api/youtube/transcript] Transcript unavailable for videoId=${videoId}. Error category: ${result.errorCategory}. Message: ${result.errorMessage}`);
+      return NextResponse.json({
+        videoId,
+        hasCaptions: false,
+        transcriptText: 'Transcript unavailable.',
+        errorCategory: result.errorCategory,
+        errorMessage: result.errorMessage,
+        availableTracks: result.availableTracks || [],
+      });
     }
 
     return NextResponse.json({
       videoId,
-      hasCaptions,
-      transcriptText: hasCaptions ? transcriptText : 'Transcript unavailable.',
+      hasCaptions: true,
+      transcriptText: result.text,
+      availableTracks: result.availableTracks || [],
     });
   } catch (error: any) {
-    console.error('[YT Transcript] Error:', error);
-    _yt = null;
+    console.error('[API /api/youtube/transcript] Unexpected route error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch transcript.' },
+      {
+        error: 'Internal server error while fetching transcript.',
+        details: error?.message || String(error),
+      },
       { status: 500 }
     );
   }

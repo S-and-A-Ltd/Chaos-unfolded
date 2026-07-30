@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseDocument } from '@/lib/rag/document-parser';
 import { AILearningEngine } from '@/lib/ai/learning-engine';
-import { Innertube } from 'youtubei.js';
-
-let _yt: Innertube | null = null;
-async function getYT(): Promise<Innertube> {
-  if (!_yt) {
-    _yt = await Innertube.create({ lang: 'en', location: 'US' });
-  }
-  return _yt;
-}
+import { fetchRobustYoutubeTranscript } from '@/lib/youtube/transcript';
 
 function extractVideoId(url: string): string {
   try {
@@ -48,36 +40,31 @@ export async function POST(req: NextRequest) {
     if (url) {
       const videoId = extractVideoId(url);
       if (!videoId) {
+        console.warn(`[Upload API] Could not parse valid videoId from URL: ${url}`);
         return NextResponse.json(
-          { error: 'Transcript unavailable for this video.' },
+          { error: 'Transcript unavailable for this video.', category: 'INVALID_URL' },
           { status: 400 }
         );
       }
 
-      try {
-        const yt = await getYT();
-        const info = await yt.getInfo(videoId);
-        const transcript = await info.getTranscript();
-        const segments = transcript?.transcript?.content?.body?.initial_segments;
-        if (segments && Array.isArray(segments) && segments.length > 0) {
-          parsedText = segments
-            .map((seg: any) => seg?.snippet?.text || '')
-            .filter(Boolean)
-            .join(' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-        }
-      } catch (ytError: any) {
-        console.error('YouTube transcript extraction failed:', ytError);
-        _yt = null;
-      }
+      const result = await fetchRobustYoutubeTranscript(videoId);
 
-      if (!parsedText) {
+      if (!result.hasCaptions || !result.text || result.text === 'Transcript unavailable.') {
+        console.warn(
+          `[Upload API] Transcript extraction failed for videoId=${videoId}. Category: ${result.errorCategory}. Reason: ${result.errorMessage}`
+        );
         return NextResponse.json(
-          { error: 'Transcript unavailable for this video.' },
+          {
+            error: 'Transcript unavailable for this video.',
+            errorCategory: result.errorCategory,
+            errorMessage: result.errorMessage,
+            availableTracks: result.availableTracks || [],
+          },
           { status: 400 }
         );
       }
+
+      parsedText = result.text;
     } else if (file) {
       const buffer = Buffer.from(await file.arrayBuffer());
       try {
@@ -86,7 +73,7 @@ export async function POST(req: NextRequest) {
       } catch (parseError: any) {
         console.error('Document parsing failed:', parseError);
         return NextResponse.json(
-          { error: parseError.message || 'Failed to parse the uploaded file.' },
+          { error: parseError.message || 'Failed to parse the uploaded file.', category: 'PARSING_ERROR' },
           { status: 500 }
         );
       }
@@ -101,11 +88,12 @@ export async function POST(req: NextRequest) {
           text: parsedText,
           aiData,
         });
-      } catch (analysisError) {
+      } catch (analysisError: any) {
         console.error('Study material analysis failed:', analysisError);
         return NextResponse.json({
           text: parsedText,
           error: 'AI analysis failed, but transcript text was successfully extracted.',
+          details: analysisError?.message || String(analysisError),
         });
       }
     }
@@ -114,10 +102,10 @@ export async function POST(req: NextRequest) {
       text: parsedText,
       error: 'API Key not configured. AI Analysis skipped.',
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in document upload route:', error);
     return NextResponse.json(
-      { error: 'Internal server error during document upload.' },
+      { error: 'Internal server error during document upload.', details: error?.message || String(error) },
       { status: 500 }
     );
   }
