@@ -79,9 +79,10 @@ function SkeletonCard() {
 /* ------------------------------------------------------------------ */
 interface YoutubeHubProps {
   onAddYoutubeUrl: (url: string) => Promise<void>;
+  isActive?: boolean;
 }
 
-export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
+export default function YoutubeHub({ onAddYoutubeUrl, isActive = true }: YoutubeHubProps) {
   /* ---------- store selectors ---------- */
   const sidebarView = useYoutubeStore((s) => s.sidebarView);
   const searchQuery = useYoutubeStore((s) => s.searchQuery);
@@ -240,15 +241,28 @@ export default function YoutubeHub({ onAddYoutubeUrl }: YoutubeHubProps) {
     }
   }, [currentVideoUrl, extractVideoId, createOrUpdatePlayer]);
 
+  // Pause when leaving YouTube tab; resume when returning
+  useEffect(() => {
+    if (!playerRef.current) return;
+    if (isActive) {
+      // Tab became visible — do nothing, let user press play intentionally
+    } else {
+      // Tab hidden — pause video to stop background audio
+      try {
+        if (typeof playerRef.current.pauseVideo === 'function') {
+          playerRef.current.pauseVideo();
+        }
+      } catch { /* ignore */ }
+    }
+  }, [isActive]);
+
+  // Cleanup only on full unmount (never happens during tab switch now)
   useEffect(() => {
     return () => {
       if (playerRef.current && typeof playerRef.current.destroy === 'function') {
         try { 
           if (typeof playerRef.current.pauseVideo === 'function') {
             playerRef.current.pauseVideo();
-          }
-          if (typeof playerRef.current.stopVideo === 'function') {
-            playerRef.current.stopVideo();
           }
           playerRef.current.destroy(); 
         } catch { /* ignore */ }

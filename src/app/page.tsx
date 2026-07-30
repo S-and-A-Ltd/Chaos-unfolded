@@ -651,10 +651,6 @@ export default function Home() {
           <div className="w-full max-w-7xl mx-auto p-8 pb-32">
             <DashboardView />
           </div>
-        ) : activeTab === 'youtube' ? (
-          <div className="w-full max-w-[1550px] mx-auto p-8 pb-32">
-            <YoutubeHub onAddYoutubeUrl={handleAddYoutubeUrl} />
-          </div>
         ) : (
           <div className="w-full max-w-[1550px] mx-auto p-8 pb-32">
             <StudyHub 
@@ -664,6 +660,15 @@ export default function Home() {
             />
           </div>
         )}
+
+        {/* YoutubeHub stays mounted at all times so the player is never destroyed on tab switch.
+            Visibility is controlled via CSS — hidden but not unmounted when on another tab. */}
+        <div
+          className="w-full max-w-[1550px] mx-auto p-8 pb-32"
+          style={{ display: activeTab === 'youtube' ? 'block' : 'none' }}
+        >
+          <YoutubeHub onAddYoutubeUrl={handleAddYoutubeUrl} isActive={activeTab === 'youtube'} />
+        </div>
       </div>
 
       {/* 3. Floating Bottom Navigation Dock */}
