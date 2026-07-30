@@ -29,6 +29,9 @@ interface YoutubeState {
   isProcessing: boolean;
   isFetchingUpNext: boolean;
   autoplay: boolean;
+  transcript: string;
+  isTranscriptLoading: boolean;
+  hasCaptions: boolean;
 
   setSearchQuery: (query: string) => void;
   setSearchResults: (results: YoutubeVideo[], nextPageToken?: string | null) => void;
@@ -43,6 +46,7 @@ interface YoutubeState {
   selectVideo: (url: string) => void;
   showSearchSidebar: () => void;
   fetchUpNext: (videoId: string, isNextPage?: boolean) => Promise<void>;
+  fetchTranscript: (videoId: string) => Promise<void>;
   playNext: () => boolean;
   clearSearch: () => void;
   persistToStorage: () => void;
@@ -69,6 +73,9 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
   isProcessing: false,
   isFetchingUpNext: false,
   autoplay: true,
+  transcript: '',
+  isTranscriptLoading: false,
+  hasCaptions: false,
 
   setSearchQuery: (query) => set({ searchQuery: query }),
   
@@ -131,12 +138,16 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
         sidebarView: 'upnext' as const,
         upNextQueue: [],
         upNextNextPageToken: null,
-        recommendationCache: {}
+        recommendationCache: {},
+        transcript: '',
+        isTranscriptLoading: true,
+        hasCaptions: false,
       };
     });
     
     get().persistToStorage();
     get().fetchUpNext(videoId, false);
+    get().fetchTranscript(videoId);
   },
 
   showSearchSidebar: () => {
@@ -311,6 +322,23 @@ export const useYoutubeStore = create<YoutubeState>((set, get) => ({
       // ignore silently, upNext remains what it was
     } finally {
       set({ isFetchingUpNext: false });
+    }
+  },
+
+  fetchTranscript: async (videoId: string) => {
+    set({ isTranscriptLoading: true, transcript: '', hasCaptions: false });
+    try {
+      const res = await fetch(`/api/youtube/transcript?videoId=${videoId}`);
+      const data = await res.json();
+      if (data.hasCaptions && data.transcriptText) {
+        set({ transcript: data.transcriptText, hasCaptions: true });
+      } else {
+        set({ transcript: 'Transcript unavailable.', hasCaptions: false });
+      }
+    } catch {
+      set({ transcript: 'Transcript unavailable.', hasCaptions: false });
+    } finally {
+      set({ isTranscriptLoading: false });
     }
   },
 
